@@ -14,16 +14,10 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
-            host: framework-01
-          - runner: ubuntu-24.04
-            host: framework-02
-          - runner: ubuntu-24.04
-            host: framework-03
+            architecture: x86_64-linux
           - runner: ubuntu-24.04-arm
-            host: observability-pi
-          - runner: ubuntu-24.04-arm
-            host: services-pi
-    name: ${{ matrix.host }} (${{ matrix.runner }})
+            architecture: aarch64-linux
+    name: ${{ matrix.architecture }} checks (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +38,7 @@ jobs:
           set -e
           if (( status != 0 )); then
             {
-              echo "## ${{ matrix.host }} native flake check failure"
+              echo "## ${{ matrix.architecture }} native flake check failure"
               echo
               echo 'Last 200 lines (bounded to 60,000 bytes):'
               echo '```text'
@@ -57,9 +51,30 @@ jobs:
             diagnostic=${diagnostic//$'\r'/'%0D'}
             diagnostic=${diagnostic//$'\n'/'%0A'}
             printf '::error title=%s native flake check failure::%s\n' \
-              '${{ matrix.host }}' "$diagnostic"
+              '${{ matrix.architecture }}' "$diagnostic"
             exit "$status"
           fi
+
+  host-closures:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            host: framework-01
+          - runner: ubuntu-24.04
+            host: framework-02
+          - runner: ubuntu-24.04
+            host: framework-03
+          - runner: ubuntu-24.04-arm
+            host: observability-pi
+          - runner: ubuntu-24.04-arm
+            host: services-pi
+    name: ${{ matrix.host }} closure (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v19
       - name: Build ${{ matrix.host }} closure
         run: |
           set -o pipefail

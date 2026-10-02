@@ -1,4 +1,5 @@
 {
+  config,
   lib,
   modulesPath,
   pkgs,
@@ -7,6 +8,19 @@
   ...
 }:
 let
+  allHardwareModules =
+    (import (modulesPath + "/hardware/all-hardware.nix") {
+      inherit config lib pkgs;
+    }).config.content.boot.initrd.availableKernelModules;
+  piModules = [
+    "usb-storage"
+    "usbhid"
+    "vc4"
+    "nvme"
+    "pcie-brcmstb"
+    "clk-rp1"
+    "rp1"
+  ];
   guard = pkgs.replaceVars ./destructive-device-guard.sh {
     bash = "${pkgs.bash}/bin/bash";
     devRoot = "/dev";
@@ -49,7 +63,8 @@ let
             (toString identity.sectors)
           ]
         } "$typed_host")
-        IFS='|' read -r stable_id device major_minor model serial sectors <<<"$token"
+        device=''${token#*|}
+        device=''${device%%|*}
         echo "About to create an ext4 filesystem on verified device $device" >&2
         read -r -p "Type INITIALIZE TELEMETRY SSD: " confirmation
         [ "$confirmation" = "INITIALIZE TELEMETRY SSD" ] || { echo "confirmation mismatch" >&2; exit 1; }
@@ -72,8 +87,19 @@ let
 in
 {
   imports = [ (modulesPath + "/installer/sd-card/sd-image-aarch64.nix") ];
+  assertions = [
+    {
+      assertion = !(builtins.elem "dw-hdmi" config.boot.initrd.availableKernelModules);
+      message = "Pi images must exclude dw-hdmi from the specialized Raspberry Pi kernel initrd";
+    }
+  ];
   image.fileName = lib.mkForce "${targetHost}-bootstrap.img.zst";
   sdImage.compressImage = true;
+  # all-hardware is required by the generic image profile, but its Rockchip HDMI module is absent
+  # from the specialized Raspberry Pi kernel.
+  boot.initrd.availableKernelModules = lib.mkForce (
+    builtins.filter (module: module != "dw-hdmi") (allHardwareModules ++ piModules)
+  );
   boot.loader = {
     grub.enable = lib.mkForce false;
     generic-extlinux-compatible.enable = true;

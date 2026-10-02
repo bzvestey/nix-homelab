@@ -149,7 +149,9 @@ let
   allHostsValid = lib.all (hostname: checkHost hostname expected.${hostname}) (
     builtins.attrNames expected
   );
-  cominPackage = nixosConfigurations.framework-01.config.services.comin.package;
+  cominHost =
+    if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "services-pi" else "framework-01";
+  cominPackage = nixosConfigurations.${cominHost}.config.services.comin.package;
   cominExecutableTests = cominPackage.overrideAttrs (old: {
     patches = (old.patches or [ ]) ++ [ ./comin-prior-generation.patch ];
     doCheck = true;
@@ -163,6 +165,7 @@ let
   wiredLink = import ../lib/wired-link.nix;
 in
 assert allHostsValid;
+assert cominPackage.system == pkgs.stdenv.hostPlatform.system;
 pkgs.runCommand "common-host" { } ''
   test -e ${cominExecutableTests}
 

@@ -1,5 +1,6 @@
 #!@bash@
 set -euo pipefail
+@logGuard@
 
 if [ "$#" -ne 6 ]; then
   echo "usage: $0 EXPECTED_HOST EXPECTED_BY_ID MODEL SERIAL SECTORS TYPED_HOST" >&2
@@ -25,7 +26,9 @@ case "$expected_sectors" in '' | *[!0-9]*) refuse "expected sector count is inva
 
 canonical=$(@readlink@ -f -- "$stable_id") || refuse "cannot canonicalize expected by-id"
 [ -n "$canonical" ] || refuse "canonical device path is empty"
-major_minor=$(@stat@ -Lc '%t:%T' -- "$canonical") || refuse "resolved target is not a block device"
+read -r major_hex minor_hex < <(@stat@ -Lc '%t %T' -- "$canonical") || refuse "resolved target is not a block device"
+case "$major_hex:$minor_hex" in *[!0-9a-fA-F:]* | :*) refuse "resolved target has invalid device numbers" ;; esac
+major_minor="$((16#$major_hex)):$((16#$minor_hex))"
 sys_device=@sysDevBlock@/$major_minor
 [ -e "$sys_device" ] || refuse "resolved block device has no sysfs identity"
 [ ! -e "$sys_device/partition" ] || refuse "resolved target is not a whole block device"

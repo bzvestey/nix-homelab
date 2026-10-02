@@ -4,7 +4,7 @@ set -euo pipefail
 refuse() { echo "refusing: $*" >&2; exit 1; }
 @requireRoot@
 read -r -p "Type @host@ to authorize erasing its matched disk: " typed_host
-token=$(@guard@ @guardArgs@ "$typed_host")
+token=$(@bash@ @guard@ @guardArgs@ "$typed_host")
 IFS='|' read -r stable_id canonical parent_major_minor model serial sectors <<<"$token"
 
 work=@workDir@
@@ -14,10 +14,20 @@ cleanup() {
   status=$?
   trap - EXIT
   set +e
-  @disko@ --mode umount @diskConfig@ >/dev/null 2>&1
+  unmount_status=0
+  if [ -n "${device_fd_path:-}" ]; then
+    @disko@ --argstr device "$device_fd_path" --mode umount @diskConfig@ >/dev/null 2>&1 || unmount_status=$?
+  fi
   if [ -e "$key" ]; then @shred@ -u "$key" 2>/dev/null || rm -f "$key"; fi
   rmdir "$work" 2>/dev/null || true
-  if [ "$success" != true ]; then echo "INSTALLATION DID NOT COMPLETE; target was unmounted" >&2; fi
+  if [ "$unmount_status" -ne 0 ]; then
+    echo "TARGET UNMOUNT FAILED (status $unmount_status); do not reboot or remove media; manually inspect /mnt and run Disko umount" >&2
+    [ "$status" -ne 0 ] || status=$unmount_status
+  elif [ "$success" != true ]; then
+    echo "INSTALLATION DID NOT COMPLETE; Disko reports target unmounted" >&2
+  else
+    echo "Installation complete; target unmounted. Reboot only after the acceptance checklist."
+  fi
   exit "$status"
 }
 trap cleanup EXIT
@@ -37,27 +47,44 @@ IFS= read -r escrowed <@ttyIn@
 @udevadm@ settle
 exec {device_fd}<"$canonical"
 @flock@ -x "$device_fd"
-boundary_token=$(@guard@ @guardArgs@ "$typed_host")
+device_fd_path="/proc/$$/fd/$device_fd"
+boundary_token=$(@bash@ @guard@ @guardArgs@ "$typed_host")
 [ "$boundary_token" = "$token" ] || refuse "device identity changed at destruction boundary"
+read -r held_major_hex held_minor_hex < <(@stat@ -Lc '%t %T' -- "$device_fd_path") || refuse "held device is no longer a block device"
+held_major_minor="$((16#$held_major_hex)):$((16#$held_minor_hex))"
+[ "$held_major_minor" = "$parent_major_minor" ] || refuse "held device identity changed"
 
-@disko@ --mode disko @diskConfig@
+secure_boot=$(@secureBootState@)
+echo "EFI SecureBoot state is $secure_boot. PCR 7 binds the current policy state; this installer does not establish Secure Boot." >&2
+printf 'Type PCR7 %s ACKNOWLEDGED to continue: ' "$secure_boot" >@ttyOut@
+IFS= read -r pcr_ack <@ttyPcrIn@
+[ "$pcr_ack" = "PCR7 $secure_boot ACKNOWLEDGED" ] || refuse "PCR 7 policy not acknowledged"
+
+@disko@ --argstr device "$device_fd_path" --mode disko @diskConfig@
 @postDisko@
 
-find_partition() {
+open_partition() {
   label=$1
   matches=()
-  while read -r path child_major_minor parent_path partlabel; do
+  while read -r path child_major_minor partlabel; do
     [ "$partlabel" = "$label" ] || continue
-    observed_parent=$(@stat@ -Lc '%t:%T' -- "$parent_path") || refuse "partition parent is not a block device"
-    [ "$parent_path" = "$canonical" ] && [ "$observed_parent" = "$parent_major_minor" ] || continue
-    matches+=("$path")
-  done < <(@lsblk@ -nrpo PATH,MAJ:MIN,PKNAME,PARTLABEL)
+    matches+=("$path|$child_major_minor")
+  done < <(@lsblk@ -nrpo PATH,MAJ:MIN,PARTLABEL "$device_fd_path")
   [ "${#matches[@]}" -eq 1 ] || refuse "expected exactly one $label partition on guarded parent"
-  printf '%s\n' "${matches[0]}"
+  IFS='|' read -r path expected_child_major_minor <<<"${matches[0]}"
+  exec {child_fd}<"$path" || refuse "cannot open $label partition"
+  child_fd_path="/proc/$$/fd/$child_fd"
+  read -r child_major_hex child_minor_hex < <(@stat@ -Lc '%t %T' -- "$child_fd_path") || refuse "$label is not a block device"
+  child_major_minor="$((16#$child_major_hex)):$((16#$child_minor_hex))"
+  [ "$child_major_minor" = "$expected_child_major_minor" ] || refuse "$label identity changed while opening"
+  child_sys=$(@readlink@ -f -- "@sysDevBlock@/$child_major_minor") || refuse "$label has no sysfs identity"
+  [ -r "$child_sys/partition" ] || refuse "$label is not a partition"
+  observed_parent=$(cat "$(dirname "$child_sys")/dev") || refuse "$label parent identity unavailable"
+  [ "$observed_parent" = "$parent_major_minor" ] || refuse "$label is not a child of guarded device"
+  printf -v "$2" '%s' "$child_fd_path"
 }
-root_partition=$(find_partition framework-root)
-data_partition=$(find_partition framework-data)
+open_partition framework-root root_partition
+open_partition framework-data data_partition
 @cryptenroll@ --unlock-key-file="$key" --tpm2-device=auto --tpm2-pcrs=@pcrPolicy@ "$root_partition"
 @cryptenroll@ --unlock-key-file="$key" --tpm2-device=auto --tpm2-pcrs=@pcrPolicy@ "$data_partition"
 success=true
-echo "Installation complete; target unmounted. Reboot only after the acceptance checklist."

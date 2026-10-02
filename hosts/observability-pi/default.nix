@@ -10,8 +10,14 @@ in
     ../../modules/fleet/telemetry-agent.nix
     ../../modules/roles/observability.nix
   ];
-  fleet.telemetry.enable = true;
-  fleet.observability.enable = true;
+  fleet = {
+    telemetry.enable = true;
+    observability.enable = true;
+    cloudflared = {
+      enable = true;
+      routes = import ../../lib/public-ingress-routes.nix;
+    };
+  };
   # Bootstrap remains reachable, but comin cannot switch this host until the
   # physical link's observed MAC is recorded in inventory and used here.
   services.comin.enable = lib.mkForce false;

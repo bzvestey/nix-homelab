@@ -45,6 +45,8 @@
         ./modules/fleet/storage.nix
         ./modules/fleet/backup.nix
         ./modules/fleet/telemetry-agent.nix
+        ./modules/fleet/ingress.nix
+        ./modules/fleet/cloudflared.nix
       ];
       frameworkModules = fleetModules ++ [ disko.nixosModules.disko ];
       nixosConfigurations = {
@@ -216,6 +218,9 @@
       });
 
       checks = forAllSystems (system: {
+        ingress = import ./checks/ingress.nix {
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         observability = import ./checks/observability.nix {
           pkgs = nixpkgs.legacyPackages.${system};
         };

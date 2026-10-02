@@ -6,7 +6,13 @@
     ../../modules/fleet/comin.nix
     ../../modules/fleet/telemetry-agent.nix
   ];
-  fleet.telemetry.enable = true;
+  fleet = {
+    telemetry.enable = true;
+    cloudflared = {
+      enable = true;
+      routes = import ../../lib/public-ingress-routes.nix;
+    };
+  };
   systemd.network.networks."20-lan" = {
     matchConfig = {
       Name = "end0";

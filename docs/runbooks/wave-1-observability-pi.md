@@ -10,6 +10,11 @@ identity.
 Use the reviewed `main` revision and a native AArch64 Linux builder. Emulation
 is not acceptance evidence.
 
+Before approving the revision, run the full serialized x86 flake check on a
+local machine with readable and writable KVM: `nix flake check --show-trace
+--option max-jobs 1`. A hosted non-KVM evaluation and native-check run does not
+replace this full VM-backed suite.
+
 The `images` GitHub Actions workflow also builds this image on a native
 `ubuntu-24.04-arm` runner. For a successful `main` run, download the
 revision-specific `observability-pi-<git-commit>` artifact. It contains only

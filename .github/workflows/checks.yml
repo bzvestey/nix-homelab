@@ -34,7 +34,28 @@ jobs:
           log="$RUNNER_TEMP/flake-check.log"
           set +e
           if [[ '${{ matrix.architecture }}' == x86_64-linux ]]; then
-            nix flake check --show-trace --option max-jobs 1 2>&1 | tee "$log"
+            if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+              nix flake check --show-trace --option max-jobs 1 2>&1 | tee "$log"
+              status=${PIPESTATUS[0]}
+            else
+              {
+                nix flake check --no-build --show-trace
+                nix build \
+                  ".#checks.${{ matrix.architecture }}.installers" \
+                  ".#checks.${{ matrix.architecture }}.secrets" \
+                  ".#checks.${{ matrix.architecture }}.common-host" \
+                  ".#checks.${{ matrix.architecture }}.evaluation" \
+                  ".#checks.${{ matrix.architecture }}.inventory" \
+                  ".#checks.${{ matrix.architecture }}.inventory-fixtures"
+              } 2>&1 | tee "$log"
+              status=${PIPESTATUS[0]}
+              {
+                echo "## ${{ matrix.architecture }} checks: VM checks not executed"
+                echo
+                echo "The runner did not provide readable and writable /dev/kvm."
+                echo "VM checks were not executed due to missing KVM; this path is not a full test-suite success."
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
             {
               nix flake check --no-build --show-trace
@@ -46,8 +67,8 @@ jobs:
                 .#checks.aarch64-linux.inventory \
                 .#checks.aarch64-linux.inventory-fixtures
             } 2>&1 | tee "$log"
+            status=${PIPESTATUS[0]}
           fi
-          status=${PIPESTATUS[0]}
           set -e
           if (( status != 0 )); then
             {

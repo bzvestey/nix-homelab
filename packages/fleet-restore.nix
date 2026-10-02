@@ -69,9 +69,14 @@ let
       root=$1
       while IFS= read -r -d "" entry; do
         rel=''${entry#"$root"/}
+        case "$rel" in *$'\n'*) echo "unsafe payload path contains newline" >&2; return 1;; esac
         case "$rel" in ""|/*|*//*|.|..|*/./*|*/../*|./*|../*|*/.|*/..) echo "unsafe payload path: $rel" >&2; return 1;; esac
         printf '%s' "$rel" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || { echo "unsafe payload path: $rel" >&2; return 1; }
-        [ -f "$entry" ] || [ -d "$entry" ] || { echo "unsupported payload entry: $rel" >&2; return 1; }
+        [ ! -L "$entry" ] || { echo "unsupported payload symlink: $rel" >&2; return 1; }
+        if [ -f "$entry" ]; then
+          [ "$(stat -c %h "$entry")" -eq 1 ] || { echo "unsupported multiply-linked payload file: $rel" >&2; return 1; }
+          [ "$(stat -c %s "$entry")" -le "$max_payload_bytes" ] || { echo "payload file exceeds byte bound: $rel" >&2; return 1; }
+        elif [ ! -d "$entry" ]; then echo "unsupported payload entry: $rel" >&2; return 1; fi
       done < <(find "$root" -mindepth 1 -print0)
       for required in "''${required_paths[@]}"; do
         candidate="$root/$required"
@@ -82,12 +87,34 @@ let
     }
     validate_archive() {
       archive=$1
+      [ "$(stat -c %s "$archive")" -le "$max_payload_bytes" ] || { echo "archive exceeds byte bound" >&2; return 1; }
       while IFS= read -r member; do
         case "$member" in ./) continue;; ./?*) rel=''${member#./};; *) echo "unsafe archive member: $member" >&2; return 1;; esac
         case "$rel" in /*|*//*|.|..|*/./*|*/../*|../*|*/.|*/..) echo "unsafe archive member: $member" >&2; return 1;; esac
         printf '%s' "$rel" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || { echo "unsafe archive member: $member" >&2; return 1; }
       done < <(tar -tf "$archive")
-      tar -tvf "$archive" | while IFS= read -r line; do case "$line" in [-d]*) :;; *) echo "unsupported archive entry" >&2; exit 1;; esac; done
+      tar --numeric-owner -tvf "$archive" | awk -v max="$max_payload_bytes" '
+        BEGIN { total=0; count=0 }
+        $1 ~ /^-/ { count++; if ($3 > max || total > max - $3) exit 1; total += $3; next }
+        $1 ~ /^d/ { count++; next }
+        { exit 1 }
+        END { if (count > 100000) exit 1 }
+      ' || { echo "archive entries exceed type, count, or declared-size bound" >&2; return 1; }
+    }
+    tree_bytes() {
+      find "$1" -type f -printf '%s\n' | awk '{ count++; if (count > 100000 || $1 > max || total > max - $1) exit 1; total += $1 } END { print total + 0 }' max="$max_payload_bytes"
+    }
+    run_bounded_tree_command() {
+      watched=$1; shift
+      setsid "$@" & command_pid=$!
+      exceeded=0
+      while kill -0 "$command_pid" 2>/dev/null; do
+        if ! tree_bytes "$watched" >/dev/null; then exceeded=1; kill -TERM -- "-$command_pid" 2>/dev/null || true; break; fi
+        sleep 0.05
+      done
+      set +e; wait "$command_pid"; command_rc=$?; set -e
+      [ "$exceeded" -eq 0 ] || { echo "payload exceeded byte bound while command was running" >&2; return 1; }
+      [ "$command_rc" -eq 0 ]
     }
   '';
   selectJob =
@@ -114,6 +141,7 @@ let
     alert_threshold=${if job.backupClass == "database" then "5400" else "93600"}
     staging_generations=${toString job.failedStagingGenerations}
     staging_bytes=${toString job.failedStagingBytes}
+    max_payload_bytes=${toString job.maxPayloadBytes}
   '';
   core = writeShellApplication {
     name = "fleet-backup-core";
@@ -130,11 +158,12 @@ let
         *) echo "fleet-backup-core: unknown job: $job" >&2; exit 2;;
       esac
       start=$(date +%s); success=0; bytes=0
-      job_state="$state_root/$job"; failed="$job_state/failed"
+      job_state="$state_root/$job"; failed="$job_state/failed"; archive_dir=
       mkdir -p "$failed"
       staging=$(mktemp -d "$job_state/staging.XXXXXX")
       finish() {
         rc=$?; duration=$(( $(date +%s) - start ))
+        [ -z "$archive_dir" ] || rm -rf "$archive_dir"
         old=$(grep 'fleet_backup_last_success_timestamp_seconds' "$metrics_root/fleet_backup_$job.prom" 2>/dev/null || true)
         if [ "$success" -eq 1 ]; then
           metric_write "fleet_backup_$job" "fleet_backup_result{job=\"$job\",class=\"$backup_class\"} 1" "fleet_backup_last_success_timestamp_seconds{job=\"$job\"} $(date +%s)" "fleet_backup_duration_seconds{job=\"$job\"} $duration" "fleet_backup_bytes{job=\"$job\"} $bytes" "fleet_backup_snapshot_id_present{job=\"$job\"} 1" "fleet_backup_alert_threshold_seconds{job=\"$job\",class=\"$backup_class\"} $alert_threshold"
@@ -159,11 +188,15 @@ let
       trap finish EXIT
       load_credentials
       export FLEET_BACKUP_STAGING_DIR="$staging"
-      bash -euo pipefail -c "$create_command"
+      run_bounded_tree_command "$staging" bash -euo pipefail -c "$create_command"
       validate_payload "$staging"
-      bytes=$(du -sb "$staging" | cut -f1)
+      bytes=$(tree_bytes "$staging")
       before=$(restic snapshots --json --tag "fleet-job=$job")
-      output=$(tar -C "$staging" -cf - . | restic backup --stdin --stdin-filename fleet-payload.tar --tag "fleet-job=$job" --json)
+      archive_dir=$(mktemp -d "$job_state/archive.XXXXXX")
+      archive="$archive_dir/fleet-payload.tar"
+      run_bounded_tree_command "$archive_dir" bash -c 'exec tar -C "$1" -cf "$2" .' _ "$staging" "$archive"
+      [ "$(stat -c %s "$archive")" -le "$max_payload_bytes" ] || { echo "archive exceeds byte bound" >&2; exit 1; }
+      output=$(restic backup --stdin --stdin-filename fleet-payload.tar --tag "fleet-job=$job" --json <"$archive")
       snapshot=$(printf '%s\n' "$output" | jq -er 'select(.message_type == "summary") | .snapshot_id | select(type == "string" and length > 0)' | tail -1)
       printf '%s' "$before" | jq -e --arg id "$snapshot" 'all(.[]; .id != $id)' >/dev/null
       restic snapshots --json --tag "fleet-job=$job" "$snapshot" | jq -e --arg id "$snapshot" --arg tag "fleet-job=$job" 'any(.[]; .id == $id and (.tags | index($tag) != null))' >/dev/null
@@ -187,6 +220,27 @@ let
       exec ${core}/bin/fleet-backup-core "$job"
     '';
   };
+  check = writeShellApplication {
+    name = "fleet-backup-check";
+    inherit runtimeInputs;
+    excludeShellChecks = [ "SC2154" ];
+    text = ''
+      ${common}
+      job=check
+      load_credentials
+      mkdir -p "$state_root"
+      exec 9>"$state_root/repository.lock"; flock 9
+      subset="$(( $(date +%V) % 7 + 1 ))/7"
+      if restic check --read-data-subset="$subset"; then result=1; else result=0; fi
+      old=$(grep fleet_backup_check_last_success_timestamp_seconds "$metrics_root/fleet_backup_check.prom" 2>/dev/null || true)
+      if [ "$result" -eq 1 ]; then
+        metric_write fleet_backup_check "fleet_backup_check_result 1" "fleet_backup_check_last_success_timestamp_seconds $(date +%s)"
+      else
+        metric_write fleet_backup_check "fleet_backup_check_result 0" "$old"
+      fi
+      test "$result" -eq 1
+    '';
+  };
   restore = writeShellApplication {
     name = "fleet-restore";
     inherit runtimeInputs;
@@ -206,11 +260,18 @@ let
         *) echo "fleet-restore: unknown job: $job" >&2; exit 2;;
       esac
       acquire_locks; load_credentials
-      result=0; selected=unknown; stopped=(); services_started=0; source_dir=
+      result=0; selected=unknown; stopped=(); mutation_started=0; source_dir=
       finish() {
         rc=$?
         [ -z "$source_dir" ] || rm -rf "$source_dir"
-        if [ "$result" -ne 1 ] && [ "$services_started" -ne 1 ]; then for ((i=''${#stopped[@]}-1; i>=0; i--)); do systemctl start "''${stopped[$i]}" || true; done; fi
+        if [ "$result" -ne 1 ]; then
+          if [ "$mutation_started" -eq 1 ]; then
+            echo "fleet-restore: failure after destination mutation; stopping all declared services" >&2
+            for unit in "''${units[@]}"; do systemctl stop "$unit" || true; done
+          else
+            for ((i=''${#stopped[@]}-1; i>=0; i--)); do systemctl start "''${stopped[$i]}" || true; done
+          fi
+        fi
         metric=fleet_restore; [ "$rehearsal" -eq 0 ] || metric=fleet_restore_rehearsal
         old=$(grep "''${metric}_last_success_timestamp_seconds" "$metrics_root/''${metric}_$job.prom" 2>/dev/null || true)
         if [ "$result" -eq 1 ]; then metric_write "''${metric}_$job" "''${metric}_result{job=\"$job\",snapshot=\"$selected\"} 1" "''${metric}_last_success_timestamp_seconds{job=\"$job\"} $(date +%s)"; else metric_write "''${metric}_$job" "''${metric}_result{job=\"$job\",snapshot=\"$selected\"} 0" "$old"; fi
@@ -223,10 +284,14 @@ let
       [ -n "$selected" ] || { echo "fleet-restore: snapshot unavailable for job" >&2; exit 1; }
       source_dir=$(mktemp -d "$state_root/$job/restore.XXXXXX")
       archive="$source_dir/payload.tar"
-      restic dump "$selected" fleet-payload.tar >"$archive"
+      run_bounded_tree_command "$source_dir" bash -c 'restic dump "$1" fleet-payload.tar >"$2"' _ "$selected" "$archive"
       validate_archive "$archive"
-      mkdir "$source_dir/payload"; tar -C "$source_dir/payload" -xf "$archive"; rm "$archive"
+      mkdir "$source_dir/payload"
+      max_blocks=$(( (max_payload_bytes + 511) / 512 ))
+      run_bounded_tree_command "$source_dir/payload" bash -c 'ulimit -f "$1"; exec tar -C "$2" -xf "$3"' _ "$max_blocks" "$source_dir/payload" "$archive"
+      rm "$archive"
       validate_payload "$source_dir/payload"
+      tree_bytes "$source_dir/payload" >/dev/null
       export FLEET_RESTORE_SOURCE_DIR="$source_dir/payload"
       if [ "$rehearsal" -eq 1 ]; then bash -euo pipefail -c "$rehearsal_command"; result=1; exit 0; fi
       active=0
@@ -237,9 +302,10 @@ let
       [ "$nonempty" -eq 0 ] || [ "$force" -eq 1 ] || { echo 'fleet-restore: destination is non-empty; use --force' >&2; exit 1; }
       if [ "$force" -eq 1 ] && { [ "$active" -eq 1 ] || [ "$nonempty" -eq 1 ]; }; then ${core}/bin/fleet-backup-core "$job"; fi
       for unit in "''${units[@]}"; do systemctl stop "$unit"; stopped+=("$unit"); done
+      mutation_started=1
       bash -euo pipefail -c "$restore_command"
       for path in "''${paths[@]}"; do ${chownCommand} -R "$owner:$group" "$path"; find "$path" -type d -exec chmod "$directory_mode" {} +; find "$path" -type f -exec chmod "$mode" {} +; done
-      for ((i=''${#stopped[@]}-1; i>=0; i--)); do systemctl start "''${stopped[$i]}"; done; services_started=1
+      for ((i=''${#stopped[@]}-1; i>=0; i--)); do systemctl start "''${stopped[$i]}"; done
       bash -euo pipefail -c "$health_command"
       result=1
     '';
@@ -251,6 +317,7 @@ symlinkJoin {
   name = "fleet-backup-tools";
   paths = [
     backup
+    check
     restore
   ];
 }

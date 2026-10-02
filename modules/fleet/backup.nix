@@ -79,6 +79,11 @@ let
         default = 1073741824;
         description = "Maximum total bytes retained across failed staging generations per job.";
       };
+      maxPayloadBytes = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 1073741824;
+        description = "Maximum logical payload and archive bytes accepted during backup or restore.";
+      };
       rehearsalCommand = lib.mkOption {
         type = lib.types.lines;
         default = "true";
@@ -140,24 +145,10 @@ in
       // {
         fleet-backup-check = {
           description = "Weekly rotating restic repository integrity check";
-          script = ''
-            export RESTIC_REPOSITORY=$(cat ${lib.escapeShellArg cfg.repositoryFile})
-            export RESTIC_PASSWORD_FILE=${lib.escapeShellArg cfg.passwordFile}
-            subset="$(( $(date +%V) % 7 + 1 ))/7"
-            exec 9>/var/lib/fleet-backup/repository.lock
-            ${pkgs.util-linux}/bin/flock 9
-            if ${pkgs.restic}/bin/restic check --read-data-subset="$subset"; then result=1; else result=0; fi
-            install -d -m 0755 /var/lib/node_exporter/textfile_collector
-            tmp=$(mktemp /var/lib/node_exporter/textfile_collector/.fleet-check.XXXXXX)
-            old=$(grep fleet_backup_check_last_success_timestamp_seconds /var/lib/node_exporter/textfile_collector/fleet_backup_check.prom 2>/dev/null || true)
-            if [ "$result" -eq 1 ]; then
-              printf 'fleet_backup_check_result 1\nfleet_backup_check_last_success_timestamp_seconds %s\n' "$(date +%s)" >"$tmp"
-            else
-              printf 'fleet_backup_check_result 0\n%s\n' "$old" >"$tmp"
-            fi
-            mv "$tmp" /var/lib/node_exporter/textfile_collector/fleet_backup_check.prom
-            test "$result" -eq 1
-          '';
+          serviceConfig = {
+            ExecStart = "${tools}/bin/fleet-backup-check";
+            StateDirectory = "fleet-backup";
+          };
           unitConfig.ConditionPathIsReadable = [
             cfg.repositoryFile
             cfg.passwordFile

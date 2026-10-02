@@ -55,8 +55,8 @@ let
     done
     [ ! -e ${root}/fail-transient-start ] || exit 125
     mkdir -p ${root}/transient ${root}/cgroup/fake/$unit
-    : >${root}/transient/$unit.code
-    : >${root}/transient/$unit.status
+    printf 0 >${root}/transient/$unit.code
+    printf 0 >${root}/transient/$unit.status
     (
     "$@" & pid=$!
     printf '%s\n' "$pid" >${root}/transient/$unit.pid
@@ -84,7 +84,7 @@ let
       printf '%s\n' "$*" | grep -q -- --signal=KILL && signal=KILL
       kill -"$signal" "$(cat ${root}/transient/$unit.pid)" 2>/dev/null || true
     elif [ "$1" = stop ]; then
-      unit=$2
+      unit=''${!#}
       kill -KILL "$(cat ${root}/transient/$unit.pid)" 2>/dev/null || true
       : >${root}/cgroup/fake/$unit/cgroup.procs
       printf inactive >${root}/transient/$unit.state

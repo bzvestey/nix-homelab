@@ -45,6 +45,8 @@ testPkgs.testers.runNixOSTest {
           [ "$RESTIC_CACHE_DIR" = /var/lib/fleet-backup/cache ]
           mkdir -p "$FLEET_BACKUP_STAGING_DIR/payload"
           printf valid >"$FLEET_BACKUP_STAGING_DIR/payload/data"
+          [ ! -e /run/fleet-test/delayed-success ] || sleep 2
+          [ ! -e /run/fleet-test/delayed-failure ] || { sleep 2; exit 17; }
           if [ -e /run/fleet-test/hostile ]; then
             setsid bash -c '
               trap "" TERM
@@ -72,6 +74,18 @@ testPkgs.testers.runNixOSTest {
     start_all()
     machine.succeed("mkdir -p /run/fleet-test /var/lib/fleet-target")
     machine.succeed("printf repository >/run/fleet-test/repository; printf password >/run/fleet-test/password")
+    machine.succeed("touch /run/fleet-test/delayed-success")
+    machine.succeed("timeout 8 systemctl start fleet-backup-files.service")
+    machine.succeed("test -e /run/fleet-test/backed-up")
+    machine.fail("systemctl list-units --all 'fleet-bounded-*' --no-legend | grep -q .")
+    machine.succeed("rm /run/fleet-test/delayed-success /run/fleet-test/backed-up")
+    machine.succeed("touch /run/fleet-test/delayed-failure")
+    machine.succeed("systemctl start --no-block fleet-backup-files.service")
+    machine.wait_until_succeeds("systemctl is-failed --quiet fleet-backup-files.service")
+    machine.succeed("test \"$(systemctl show fleet-backup-files.service -P ExecMainStatus)\" -eq 17")
+    machine.fail("test -e /run/fleet-test/backed-up")
+    machine.fail("systemctl list-units --all 'fleet-bounded-*' --no-legend | grep -q .")
+    machine.succeed("rm /run/fleet-test/delayed-failure; systemctl reset-failed fleet-backup-files.service")
     machine.succeed("touch /run/fleet-test/hostile")
     machine.execute("systemctl start fleet-backup-files.service >/run/fleet-test/start-output 2>&1 & echo $! >/run/fleet-test/start-pid")
     machine.wait_until_succeeds("test -s /run/fleet-test/writer-pid")

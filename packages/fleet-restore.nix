@@ -109,12 +109,6 @@ let
     tree_bytes() {
       find "$1" -type f -printf '%s\n' | awk '{ count++; if (count > 100000 || $1 > max || total > max - $1) exit 1; total += $1 } END { print total + 0 }' max="$max_payload_bytes"
     }
-    leader_has_exited() {
-      stat_line=$(cat "/proc/$1/stat" 2>/dev/null) || return 0
-      stat_fields=''${stat_line##*) }
-      read -r state _ <<<"$stat_fields"
-      [ "$state" = Z ] || [ "$state" = X ]
-    }
     unit_state() {
       systemctl show "$1" --property=LoadState --property=ActiveState --property=MainPID --property=ControlGroup --property=ExecMainCode --property=ExecMainStatus
     }
@@ -148,7 +142,7 @@ let
     collect_transient_unit() {
       target_unit=$1
       known_cgroup=''${2:-}
-      systemctl stop "$target_unit" >/dev/null 2>&1 || true
+      systemctl stop --no-block "$target_unit" >/dev/null 2>&1 || true
       for _ in {1..20}; do
         if unit_is_inactive_and_empty_or_removed "$target_unit" "$known_cgroup"; then
           systemctl reset-failed "$target_unit" >/dev/null 2>&1 || true
@@ -184,7 +178,7 @@ let
       unit="fleet-bounded-$job-$$-$unit_token.service"
       run_environment=(--setenv=PATH --setenv=RESTIC_REPOSITORY --setenv=RESTIC_PASSWORD_FILE --setenv=RESTIC_CACHE_DIR)
       [ -z "''${FLEET_BACKUP_STAGING_DIR:-}" ] || run_environment+=(--setenv=FLEET_BACKUP_STAGING_DIR)
-      if ! systemd-run --quiet --collect --service-type=exec --unit="$unit" \
+      if ! systemd-run --quiet --service-type=exec --unit="$unit" \
         --property=RemainAfterExit=yes --property=KillMode=control-group --property=TimeoutStopSec=1s \
         --property="LimitFSIZE=$max_payload_bytes" "''${run_environment[@]}" -- \
         bash -c 'printf "%s\n" "$BASHPID" >"$1"; ulimit -f "$2"; shift 2; exec "$@"' _ "$leader_file" "$max_blocks" "$@"; then
@@ -209,6 +203,7 @@ let
       fi
       violation=
       command_rc=
+      exited_ticks=0
       while [ -z "$command_rc" ]; do
         if ! state=$(unit_state "$unit" 2>/dev/null); then
           violation=control
@@ -227,20 +222,26 @@ let
           violation=bound
           break
         fi
-        if read -r leader_pid <"$leader_file" && leader_has_exited "$leader_pid" && [ "$membership" = populated ]; then
-          violation=descendant
-          break
-        fi
-        if [ -n "$exec_code" ]; then
-          if [ "$membership" = populated ]; then
-            violation=descendant
-          elif { [ "$exec_code" = exited ] || [ "$exec_code" = 1 ]; } && [[ "$exec_status" =~ ^[0-9]+$ ]]; then
-            command_rc=$exec_status
-          else
+        case "$exec_code" in
+          ""|0) exited_ticks=0 ;;
+          exited|1)
+            if [ "$membership" = populated ]; then
+              exited_ticks=$(( exited_ticks + 1 ))
+              if [ "$exited_ticks" -ge 5 ]; then
+                violation=descendant
+              fi
+            elif [[ "$exec_status" =~ ^[0-9]+$ ]] && [ "$exec_status" -le 255 ]; then
+              command_rc=$exec_status
+            else
+              violation="command"
+            fi
+            [ -z "$violation" ] || break
+            ;;
+          *)
             violation="command"
-          fi
-          [ -z "$violation" ] || break
-        fi
+            break
+            ;;
+        esac
         sleep 0.05
       done
       cleanup_ok=1

@@ -22,7 +22,18 @@ let
       in
       ''
         install -d -m 0750 -o ${backend.owner} -g ${backend.group} ${stateRoot}/${name}
-        ${pkgs.e2fsprogs}/bin/chattr -p ${toString backend.projectId} +P ${stateRoot}/${name}
+        while IFS= read -r -d "" path; do
+          current=$(${pkgs.e2fsprogs}/bin/lsattr -p -d "$path" | ${pkgs.gawk}/bin/awk '{ print $1 }')
+          case "$current" in
+            0|${toString backend.projectId}) ;;
+            *) echo "telemetry quota: $path has project ID $current, expected 0 or ${toString backend.projectId}" >&2; exit 1 ;;
+          esac
+        done < <(${pkgs.findutils}/bin/find ${stateRoot}/${name} -xdev ! -type l -print0)
+        ${pkgs.findutils}/bin/find ${stateRoot}/${name} -xdev ! -type l -exec ${pkgs.e2fsprogs}/bin/chattr -p ${toString backend.projectId} {} +
+        ${pkgs.findutils}/bin/find ${stateRoot}/${name} -xdev -type d -exec ${pkgs.e2fsprogs}/bin/chattr +P {} +
+        while IFS= read -r -d "" path; do
+          test "$(${pkgs.e2fsprogs}/bin/lsattr -p -d "$path" | ${pkgs.gawk}/bin/awk '{ print $1 }')" = ${toString backend.projectId}
+        done < <(${pkgs.findutils}/bin/find ${stateRoot}/${name} -xdev ! -type l -print0)
         ${pkgs.quota}/bin/setquota -P ${toString backend.projectId} ${toString kibibytes} ${toString kibibytes} 0 0 ${stateRoot}
       ''
     ) cfg.storage.backends
@@ -79,6 +90,10 @@ let
           }
         ];
       };
+      "filter/drop-links" = {
+        error_mode = "propagate";
+        traces.span = [ "Len(span.links) > 0" ];
+      };
       "transform/log-safety" = {
         error_mode = "ignore";
         log_statements = [
@@ -97,6 +112,10 @@ let
       "transform/attribute-safety" = {
         error_mode = "ignore";
         metric_statements = [
+          {
+            context = "scope";
+            statements = [ "keep_keys(attributes, [])" ];
+          }
           {
             context = "resource";
             statements = [ ''keep_keys(attributes, ["host.name", "service.name", "deployment.environment"])'' ];
@@ -117,13 +136,27 @@ let
             statements = [ ''keep_keys(attributes, ["host.name", "service.name", "deployment.environment"])'' ];
           }
           {
+            context = "scope";
+            statements = [ "keep_keys(attributes, [])" ];
+          }
+          {
             context = "span";
+            statements = [
+              ''delete_matching_keys(attributes, "(?i)(^|[._-])(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|request[._-]?id|user[._-]?id|session[._-]?id|path|revision)([._-]|$)")''
+            ];
+          }
+          {
+            context = "spanevent";
             statements = [
               ''delete_matching_keys(attributes, "(?i)(^|[._-])(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|request[._-]?id|user[._-]?id|session[._-]?id|path|revision)([._-]|$)")''
             ];
           }
         ];
         log_statements = [
+          {
+            context = "scope";
+            statements = [ "keep_keys(attributes, [])" ];
+          }
           {
             context = "log";
             statements = [
@@ -190,6 +223,7 @@ let
           receivers = [ "otlp" ];
           processors = [
             "memory_limiter"
+            "filter/drop-links"
             "transform/attribute-safety"
             "tail_sampling"
             "batch"
@@ -235,7 +269,7 @@ in
     storage = {
       minimumFilesystemBytes = lib.mkOption {
         type = lib.types.ints.positive;
-        default = 2000 * gib;
+        default = 2000000000000;
         readOnly = true;
       };
       backends = lib.mkOption {
@@ -385,6 +419,7 @@ in
         scrapeConfigs = [
           {
             job_name = "fleet-agents";
+            honor_labels = true;
             static_configs = [ { targets = cfg.scrapeTargets; } ];
           }
           {
@@ -569,7 +604,7 @@ in
       serviceUnits = [ "grafana.service" ];
       owner = "grafana";
       group = "grafana";
-      mode = "0640";
+      mode = "0600";
       directoryMode = "0750";
       backupClass = "state";
       maxPayloadBytes = 1073741824;
@@ -586,7 +621,17 @@ in
         install -m 0600 "$FLEET_RESTORE_SOURCE_DIR/admin-password" ${stateRoot}/grafana/admin-password
         install -m 0600 "$FLEET_RESTORE_SOURCE_DIR/secret-key" ${stateRoot}/grafana/secret-key
       '';
-      healthCheckCommand = ''test "$(${pkgs.sqlite}/bin/sqlite3 ${stateRoot}/grafana/grafana.db 'pragma integrity_check')" = ok'';
+      healthCheckCommand = ''
+        test "$(${pkgs.sqlite}/bin/sqlite3 ${stateRoot}/grafana/grafana.db 'pragma integrity_check')" = ok
+        password=$(cat ${stateRoot}/grafana/admin-password)
+        for attempt in $(seq 1 30); do
+          if ${pkgs.curl}/bin/curl -fsS -u "admin:$password" http://127.0.0.1:3000/api/health | ${pkgs.jq}/bin/jq -e '.database == "ok"' >/dev/null; then
+            exit 0
+          fi
+          sleep 1
+        done
+        exit 1
+      '';
       rehearsalCommand = ''test "$(${pkgs.sqlite}/bin/sqlite3 "$FLEET_RESTORE_SOURCE_DIR/grafana.db" 'pragma integrity_check')" = ok'';
       preflightCommand = "${pkgs.util-linux}/bin/findmnt -M ${stateRoot} >/dev/null";
     };

@@ -48,12 +48,12 @@
       }
       {
         alert = "BackupStale";
-        expr = "time() - backup_last_success_timestamp_seconds > 93600";
+        expr = "time() - fleet_backup_last_success_timestamp_seconds > on(job) fleet_backup_alert_threshold_seconds";
         labels.severity = "critical";
       }
       {
         alert = "BackupOrRestoreFailed";
-        expr = "backup_last_run_success == 0 or restore_last_rehearsal_success == 0";
+        expr = "fleet_backup_result == 0 or fleet_restore_result == 0 or fleet_restore_rehearsal_result == 0";
         labels.severity = "critical";
       }
       {

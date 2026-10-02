@@ -72,6 +72,28 @@
         inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
       });
 
+      apps = forAllSystems (system: {
+        inventory-readiness = {
+          type = "app";
+          program = toString (
+            nixpkgs.legacyPackages.${system}.writeShellScript "inventory-readiness" ''
+              exec nix build --impure --expr '
+                let
+                  root = /. + builtins.getEnv "PWD";
+                  flake = builtins.getFlake (builtins.getEnv "PWD");
+                in
+                import (root + "/checks/inventory.nix") {
+                  inherit (flake.inputs.nixpkgs) lib;
+                  pkgs = flake.inputs.nixpkgs.legacyPackages.${system};
+                  inventoryFile = root + "/docs/inventory/services.md";
+                  readiness = true;
+                }
+              '
+            ''
+          );
+        };
+      });
+
       checks = forAllSystems (system: {
         evaluation = import ./checks/evaluation.nix {
           inherit nixosConfigurations;
@@ -82,6 +104,38 @@
           inherit (nixpkgs) lib;
           pkgs = nixpkgs.legacyPackages.${system};
         };
+        inventory-fixtures =
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+            fixture =
+              file: expectedErrors:
+              import ./checks/inventory.nix {
+                inherit pkgs expectedErrors;
+                inherit (nixpkgs) lib;
+                inventoryFile = file;
+                readiness = true;
+              };
+            tests = [
+              (fixture ./checks/fixtures/zero-size.json [ "schema:data:invalid-size" ])
+              (fixture ./checks/fixtures/negative-size.json [ "schema:data:invalid-size" ])
+              (fixture ./checks/fixtures/unknown-size.json [ "schema:data:invalid-size" ])
+              (fixture ./checks/fixtures/unknown-target.json [ "schema:data:unknown-target" ])
+              (fixture ./checks/fixtures/duplicate-dataset.json [ "schema:duplicate-dataset:shared" ])
+              (fixture ./checks/fixtures/amd64-only.json [ "readiness:bad-arch:missing-linux-arm64" ])
+              (fixture ./checks/fixtures/oversized.json [
+                "readiness:framework-01:insufficient-measured-free-space"
+              ])
+              (fixture ./checks/fixtures/missing-evidence.json [
+                "readiness:no-evidence:backup-blocked"
+                "readiness:no-evidence:restore-blocked"
+              ])
+              (fixture ./checks/fixtures/shared-accounting.json [ ])
+            ];
+          in
+          pkgs.runCommand "inventory-fixtures" { } ''
+            ${nixpkgs.lib.concatMapStringsSep "\n" (test: "test -e ${test}") tests}
+            touch $out
+          '';
       });
     };
 }

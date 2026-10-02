@@ -1,22 +1,22 @@
 # Sanitized storage inventory
 
-Read-only `du -sb` inside running workload containers and CNPG volume inspection were captured 2026-10-02. Values are point-in-time bytes, not PVC requests. Names of private storage servers, volume handles, IPs, and credentials are omitted.
+`docs/inventory/services.md` is the canonical machine-readable inventory. Every dataset has one unique ID, a placement (`local-copy` or `shared-retained`), source paths, target host when copied, and either positive observed bytes with evidence or a typed blocker with an exact collection command.
 
-| Dataset | Bytes | Migration treatment |
-|---|---:|---|
-| Shared video library (same mounted dataset seen by Jellyfin/Radarr/Sonarr/SABnzbd/Whisparr) | 31,269,016,911,730 | Remains external NAS; do not multiply or copy locally |
-| Kavita synchronized library | 1,722,285,974,181 | Remains external NAS |
-| Immich library/cache mount | 76,295,716,162 | Copy once with database-consistent cutover |
-| Forgejo database filesystem | 95,259,551,875 | `pg_dump` plus verification |
-| Forgejo repositories | 30,370,144 | Restic/file copy |
-| Kavita config | 53,121,923,548 | SQLite-consistent backup |
-| Tranquil PDS PostgreSQL filesystem | 2,570,103,626 | `pg_dump`; CNPG object backup has no successful recovery point |
-| Immich PostgreSQL filesystem | 1,482,291,864 | Logical backup and asset-count verification |
-| Mealie PostgreSQL filesystem | 786,531,894 | Logical backup |
-| Vikunja PostgreSQL filesystem | 841,127,261 | Logical backup |
-| Manyfold models / PostgreSQL | 606,461,500 / 623,633,105 | Deferred pending export/archive decision |
-| Gitea PostgreSQL | 651,266,197 | Deferred pending export/archive decision |
+The 31,269,016,911,730-byte video library is one `shared-video-library` dataset referenced by Deluge, Jellyfin, Radarr, SABnzbd, Sonarr, and Whisparr. The 1,722,285,974,181-byte Kavita library is also `shared-retained`. Neither is copied locally or multiplied by consumer count. Local capacity is the sum of unique `local-copy` datasets per target; shared datasets are excluded.
 
-Exact source sizes for Deluge config, Publication Manager, and Tuwunel remain **BLOCKED**: each read-only container `du` attempt returned no usable result. These zero placeholders in the machine-readable service inventory must be replaced before those services are authorized for migration. PVC requested capacity is not used as a substitute for actual bytes.
+Deluge config, Publication Manager data/storage, and Tuwunel data remain typed size blockers. They are not represented as zero. Run these read-only commands in the trusted Kubernetes maintenance environment after substituting names discovered with `kubectl get pods -A`; no credentials belong in command arguments or captured output:
 
-The local capacity gate uses each Kubernetes node's reported allocatable ephemeral-storage as conservative free capacity and requires `actualBytes * 1.25 <= freeBytes`. External NAS datasets are explicitly retained in place and are excluded from local-copy bytes.
+```sh
+kubectl exec -n <namespace> <deluge-pod> -- du -sb -- /config
+kubectl exec -n <namespace> <publication-manager-pod> -- du -sb -- /data /storage
+kubectl exec -n <namespace> <tuwunel-pod> -- du -sb -- /var/lib/tuwunel
+```
+
+Capacity is accepted only from current byte-accurate `findmnt`/`df -B1` output for the destination filesystem. The readiness gate applies 25% headroom as `sum(local-copy bytes) * 5 <= measured free bytes * 4`.
+
+## Gates
+
+- Schema and consistency (expected green): `nix build .#checks.x86_64-linux.inventory`
+- Migration readiness (expected red now): `nix run .#inventory-readiness`
+
+The first command intentionally permits well-typed blockers so non-destructive development can continue. The second rejects every blocker, missing ARM image architecture, and destination with insufficient measured free bytes. Any destructive migration procedure must make the readiness command a prerequisite and stop unless it succeeds; `nix flake check` or the schema check is never migration authorization.

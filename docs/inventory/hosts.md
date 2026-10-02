@@ -1,13 +1,28 @@
 # Sanitized host inventory
 
-Captured read-only on 2026-10-02. Private addresses and MAC addresses are not published here.
+Captured read-only on 2026-10-02. Approved management addresses are operational, non-secret facts and are retained.
 
-| Target | Current node | Architecture | CPU | RAM | Local capacity/free | Stable install disk | Intended NIC | GPU |
-|---|---|---:|---:|---:|---:|---|---|---|
-| framework-01 | worker 1 | x86_64 | 8 | 31.1 GiB | 1.95 TB / 1.80 TB | **BLOCKED**: exact model/serial | `bond0` over four USB NICs; **BLOCKED**: MACs | **BLOCKED**: PCI ID |
-| framework-02 | worker 2 | x86_64 | 20 | 31.0 GiB | 975 GB / 898 GB | **BLOCKED**: exact model/serial | `bond0` over two USB NICs; **BLOCKED**: MACs | **BLOCKED**: PCI ID |
-| framework-03 | worker 3 | x86_64 | 8 | 31.1 GiB | 975 GB / 898 GB | **BLOCKED**: exact model/serial | `bond0` over two USB NICs; **BLOCKED**: MACs | **BLOCKED**: PCI ID |
-| services-pi | control-plane Pi 8 | aarch64 | 4 | 15.7 GiB | 248 GB / 228 GB | current system disk identity **BLOCKED** | **BLOCKED**: interface/MAC | none expected; not asserted |
-| observability-pi | not online | aarch64 | **BLOCKED** | **BLOCKED** | telemetry SSD **BLOCKED** | telemetry SSD model/serial/capacity **BLOCKED** | **BLOCKED** | none expected; not asserted |
+| Target | Address | Architecture | Observed source facts | Installation blockers |
+|---|---|---|---|---|
+| `framework-01` | `10.15.4.5` | x86_64 | worker 1; 8 CPU; 31.1 GiB RAM; `bond0` declared over four USB NICs; install path `/dev/nvme0n1` | stable disk model/serial/WWN, member interface/MAC map, GPU PCI ID, measured destination free bytes |
+| `framework-02` | `10.15.4.7` | x86_64 | worker 2; 20 CPU; 31.0 GiB RAM; `bond0` declared over two USB NICs; install path `/dev/nvme0n1` | stable disk model/serial/WWN, member interface/MAC map, GPU PCI ID, measured destination free bytes |
+| `framework-03` | `10.15.4.9` | x86_64 | worker 3; 8 CPU; 31.1 GiB RAM; `bond0` declared over two USB NICs; install path `/dev/nvme0n1` | stable disk model/serial/WWN, member interface/MAC map, GPU PCI ID, measured destination free bytes |
+| `services-pi` | `10.15.4.4` | aarch64 | current control-plane Pi 8; 4 CPU; 15.7 GiB RAM | stable system-disk identity, interface/MAC map, measured destination free bytes |
+| `observability-pi` | `10.15.4.6` | aarch64 | approved address and role; host not online | telemetry SSD model/serial/WWN/capacity, interface/MAC map, measured destination free bytes |
 
-Kubernetes Node status supplied CPU, memory, architecture, and ephemeral-storage capacity. The source Talos template identifies `/dev/nvme0n1` as the worker install path and the bond members, but a path is not a stable disk identity. A read-only `talosctl get disks` attempt against all four nodes failed because TCP/50000 was unreachable from the discovery host. Therefore model, serial, NIC MAC, GPU PCI ID, and the offline Pi telemetry SSD are deliberately not invented. Before any installation, collect `lsblk --json -o NAME,PATH,MODEL,SERIAL,SIZE`, `/sys/class/net/*/address`, and `lspci -nn` from a trusted maintenance environment and replace every BLOCKED value.
+Kubernetes Node capacity and allocatable ephemeral storage are **not** filesystem free-space measurements and are not accepted by the readiness gate. A device path is not a stable installer identity. A read-only `talosctl get disks` attempt failed because TCP/50000 was unreachable, so no missing identity was inferred.
+
+Run the following on each machine from a trusted maintenance environment and transfer only the listed non-secret facts:
+
+```sh
+lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS
+for i in /sys/class/net/*; do printf '%s ' "$(basename "$i")"; cat "$i/address"; done
+ip -br link
+ip -d link show bond0 2>/dev/null || true
+ip route
+lspci -Dnn | grep -Ei 'vga|3d|display' || true
+findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib /var/lib/telemetry 2>/dev/null
+df -B1 --output=source,target,avail / /var/lib /var/lib/telemetry 2>/dev/null
+```
+
+Match the mounted destination filesystem to the stable `lsblk` identity before recording free bytes. The machine-readable typed blockers and per-fact commands are in `services.md`.

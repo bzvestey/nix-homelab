@@ -10,6 +10,17 @@ identity.
 Use the reviewed `main` revision and a native AArch64 Linux builder. Emulation
 is not acceptance evidence.
 
+The `images` GitHub Actions workflow also builds this image on a native
+`ubuntu-24.04-arm` runner. For a successful `main` run, download the
+revision-specific `observability-pi-<git-commit>` artifact. It contains only
+the compressed image, `observability-pi.sha256`, and
+`observability-pi.manifest`; the manifest binds the image to the Git commit and
+Nix output/store path. Artifacts expire after seven days. Verify the workflow
+commit equals the reviewed revision, the manifest commit matches it, and run
+`sha256sum -c observability-pi.sha256` before proceeding. A failed build posts
+a bounded Nix error tail to the public job summary; never use a failed or
+missing artifact.
+
 ```sh
 set -eu
 test "$(uname -m)" = aarch64
@@ -46,11 +57,13 @@ controller, require `sha256sum -c observability-pi-bootstrap.img.zst.sha256`.
 
 ## 2. Guarded boot-media flash
 
-The currently observed boot-media candidate is `/dev/sdb`: model
+The owner confirms `/dev/sdb` is intentionally the Pi boot MicroSD, not a
+telemetry SSD. Its currently observed identity is: model
 `MicroSD(2nd Gen)`, serial `FRACCVBZ91544401B2`, exactly `128177930240`
-bytes. It is **not** the telemetry SSD. Immediately before writing, run this
-whole block as root. It refuses identity drift, mounted children, the system
-disk, non-removable media, and an unverified image hash.
+bytes. Do not write it until the native artifact and hash have been verified.
+Immediately before writing, run this whole block as root. It refuses identity
+drift, mounted children, the system disk, non-removable media, and an
+unverified image hash.
 
 ```sh
 set -eu

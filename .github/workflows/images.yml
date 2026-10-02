@@ -16,8 +16,58 @@ jobs:
       - run: nix build .#checks.x86_64-linux.installers .#images.framework-01 .#images.framework-02 .#images.framework-03
 
   raspberry-pi:
+    name: Raspberry Pi image (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - observability-pi
+          - services-pi
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
-      - run: nix build .#images.observability-pi .#images.services-pi
+      - name: Build ${{ matrix.host }} image
+        run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/${{ matrix.host }}-build.log"
+          set +e
+          nix build ".#images.${{ matrix.host }}" --out-link "result-${{ matrix.host }}" 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if (( status != 0 )); then
+            {
+              echo "## ${{ matrix.host }} native image build failure"
+              echo
+              echo 'Last 200 lines (bounded to 60,000 bytes):'
+              echo '```text'
+              tail -n 200 "$log" | tail -c 60000
+              echo
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$status"
+          fi
+      - name: Prepare observability image artifact
+        if: matrix.host == 'observability-pi'
+        run: |
+          set -euo pipefail
+          output=$(readlink -f result-observability-pi)
+          mapfile -t images < <(find "$output" -type f -name '*.img.zst' -print)
+          test "${#images[@]}" -eq 1
+          mkdir artifact
+          cp -- "${images[0]}" artifact/
+          image="artifact/$(basename "${images[0]}")"
+          (cd artifact && sha256sum "$(basename "$image")" > observability-pi.sha256)
+          {
+            printf 'git_commit=%s\n' "$GITHUB_SHA"
+            printf 'nix_output=%s\n' "$output"
+            printf 'image_store_path=%s\n' "${images[0]}"
+          } > artifact/observability-pi.manifest
+      - name: Upload observability image artifact
+        if: matrix.host == 'observability-pi'
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-pi-${{ github.sha }}
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 7

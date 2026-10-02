@@ -13,9 +13,16 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
-            hosts: framework-01 framework-02 framework-03
+            host: framework-01
+          - runner: ubuntu-24.04
+            host: framework-02
+          - runner: ubuntu-24.04
+            host: framework-03
           - runner: ubuntu-24.04-arm
-            hosts: observability-pi services-pi
+            host: observability-pi
+          - runner: ubuntu-24.04-arm
+            host: services-pi
+    name: ${{ matrix.host }} (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -28,8 +35,23 @@ jobs:
         run: nix run .#deadnix -- --fail .
       - name: Check flake
         run: nix flake check --show-trace
-      - name: Build host closures
+      - name: Build ${{ matrix.host }} closure
         run: |
-          for host in ${{ matrix.hosts }}; do
-            nix build ".#nixosConfigurations.${host}.config.system.build.toplevel"
-          done
+          set -o pipefail
+          log="$RUNNER_TEMP/${{ matrix.host }}-closure.log"
+          set +e
+          nix build ".#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel" 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if (( status != 0 )); then
+            {
+              echo "## ${{ matrix.host }} native closure build failure"
+              echo
+              echo 'Last 200 lines (bounded to 60,000 bytes):'
+              echo '```text'
+              tail -n 200 "$log" | tail -c 60000
+              echo
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$status"
+          fi

@@ -8,6 +8,11 @@
   ...
 }:
 let
+  irrelevantAllwinnerModules = [
+    "sun4i-drm"
+    "sun8i-mixer"
+    "pwm-sun4i"
+  ];
   irrelevantRockchipModules = [
     "dw-hdmi"
     "dw-mipi-dsi"
@@ -86,15 +91,24 @@ in
     {
       assertion = lib.all (
         module: !(builtins.elem module config.boot.initrd.availableKernelModules)
+      ) irrelevantAllwinnerModules;
+      message = "Pi images must exclude Allwinner-only modules from the Raspberry Pi kernel initrd";
+    }
+    {
+      assertion = lib.all (
+        module: !(builtins.elem module config.boot.initrd.availableKernelModules)
       ) irrelevantRockchipModules;
       message = "Pi images must exclude Rockchip-only modules from the Raspberry Pi kernel initrd";
     }
   ];
   image.fileName = lib.mkForce "${targetHost}-bootstrap.img.zst";
   sdImage.compressImage = true;
-  # The generic image profile enables all hardware. These Rockchip-only modules are absent from
-  # linux-rpi; disable only that contiguous platform-specific group as recommended by Nixpkgs.
+  # The generic image profile enables all hardware. These contiguous Allwinner-only and
+  # Rockchip-only groups are absent from linux-rpi; keep Broadcom and Pi-specific modules enabled.
   boot.initrd.availableKernelModules = {
+    sun4i-drm = lib.mkForce false;
+    sun8i-mixer = lib.mkForce false;
+    pwm-sun4i = lib.mkForce false;
     dw-hdmi = lib.mkForce false;
     dw-mipi-dsi = lib.mkForce false;
     rockchipdrm = lib.mkForce false;

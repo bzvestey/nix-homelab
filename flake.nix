@@ -30,15 +30,20 @@
       self,
       nixpkgs,
       comin,
+      sops-nix,
       ...
     }:
     let
       mkHost = import ./lib/mk-host.nix { inherit nixpkgs; };
+      fleetModules = [
+        sops-nix.nixosModules.sops
+        ./modules/fleet/secrets.nix
+      ];
       nixosConfigurations = {
         observability-pi = mkHost {
           system = "aarch64-linux";
           hostname = "observability-pi";
-          modules = [
+          modules = fleetModules ++ [
             comin.nixosModules.comin
             ./hosts/observability-pi
           ];
@@ -46,7 +51,7 @@
         framework-01 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-01";
-          modules = [
+          modules = fleetModules ++ [
             comin.nixosModules.comin
             ./hosts/framework-01
           ];
@@ -54,7 +59,7 @@
         framework-02 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-02";
-          modules = [
+          modules = fleetModules ++ [
             comin.nixosModules.comin
             ./hosts/framework-02
           ];
@@ -62,7 +67,7 @@
         framework-03 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-03";
-          modules = [
+          modules = fleetModules ++ [
             comin.nixosModules.comin
             ./hosts/framework-03
           ];
@@ -70,7 +75,7 @@
         services-pi = mkHost {
           system = "aarch64-linux";
           hostname = "services-pi";
-          modules = [
+          modules = fleetModules ++ [
             comin.nixosModules.comin
             ./hosts/services-pi
           ];
@@ -90,6 +95,7 @@
 
       packages = forAllSystems (system: {
         inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
+        fleet-enroll = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-enroll.nix { };
       });
 
       apps = forAllSystems (system: {
@@ -114,6 +120,11 @@
       });
 
       checks = forAllSystems (system: {
+        secrets = import ./checks/secrets.nix {
+          inherit comin sops-nix;
+          pkgs = nixpkgs.legacyPackages.${system};
+          fleetEnroll = self.packages.${system}.fleet-enroll;
+        };
         common-host = import ./checks/common-host.nix {
           inherit nixosConfigurations;
           inherit (nixpkgs) lib;

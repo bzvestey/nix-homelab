@@ -19,11 +19,17 @@ let
     runtimeInputs = [ testPython ];
     text = ''
       exec python3 - "$@" <<'PY'
-      import fnmatch, http.client, http.server, sys, yaml
+      import fnmatch, http.client, http.server, json, re, sys, yaml
       args = sys.argv[1:]
       config = args[args.index("--config") + 1]
       credentials = args[args.index("--credentials-file") + 1]
-      with open(credentials, "rb") as f: f.read()
+      with open(credentials) as f: credential = json.load(f)
+      required = {"AccountTag", "TunnelID", "TunnelSecret"}
+      if set(credential) != required: raise ValueError("invalid credential fields")
+      if not all(isinstance(credential[field], str) and credential[field] for field in required):
+          raise ValueError("empty credential field")
+      if not re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", credential["TunnelID"]):
+          raise ValueError("invalid tunnel ID")
       with open(config) as f: ingress = yaml.safe_load(f)["ingress"]
       class Handler(http.server.BaseHTTPRequestHandler):
           def do_GET(self):
@@ -49,7 +55,9 @@ let
     backends = [("10.15.4.4", 8888), ("10.15.4.6", 8888)]
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            for host, port in backends:
+            with open("/run/edge-backend") as f: selected = f.read().strip()
+            candidates = backends if selected == "all" else [backends[int(selected)]]
+            for host, port in candidates:
                 try:
                     connection = http.client.HTTPConnection(host, port, timeout=.5)
                     connection.request("GET", self.path, headers={"Host": self.headers["Host"]})
@@ -225,21 +233,29 @@ pkgs.testers.runNixOSTest {
           ];
         };
     origin9 =
-      origin "10.15.4.9"
-        [
-          {
-            hostname = "id.minastas.xyz";
-            upstream = "http://127.0.0.1:9010";
-            exposure = "public";
-          }
-        ]
-        [
-          {
-            name = "pocket-id";
-            identity = "pocket-id-.9";
-            port = 9010;
-          }
-        ];
+      pkgs.lib.recursiveUpdate
+        (origin "10.15.4.9"
+          [
+            {
+              hostname = "id.minastas.xyz";
+              upstream = "http://127.0.0.1:9010";
+              exposure = "public";
+            }
+          ]
+          [
+            {
+              name = "pocket-id";
+              identity = "pocket-id-.9";
+              port = 9010;
+            }
+          ]
+        )
+        {
+          fleet.ingress = {
+            enableTailscale = true;
+            tailscaleAuthKeyFile = "/run/secrets/task10-missing-tailscale-auth-key";
+          };
+        };
     connectorA = connector "10.15.4.4";
     connectorB = connector "10.15.4.6";
     edge = {
@@ -247,6 +263,7 @@ pkgs.testers.runNixOSTest {
       networking.firewall.allowedTCPPorts = [ 8081 ];
       systemd.services.edge = {
         wantedBy = [ "multi-user.target" ];
+        preStart = "echo all > /run/edge-backend";
         serviceConfig.ExecStart = "${pkgs.python3}/bin/python3 ${edge}";
       };
     };
@@ -289,6 +306,15 @@ pkgs.testers.runNixOSTest {
     origin5.succeed("systemctl is-active foundry matrix knot root pds wildcard private-app caddy")
     origin5.wait_for_unit("private-app.service")
     origin9.succeed("systemctl is-active pocket-id caddy")
+    origin9.wait_for_unit("tailscaled.service")
+    origin9.succeed("test -d /var/lib/tailscale; systemctl show tailscaled.service -p StateDirectory --value | grep -Fx tailscale")
+    origin9.succeed("systemctl start tailscaled-autoconnect.service")
+    origin9.succeed("systemctl show tailscaled-autoconnect.service -p ExecCondition --value | grep -F '/run/secrets/task10-missing-tailscale-auth-key'")
+    origin9.fail("systemctl is-active tailscaled-autoconnect.service")
+    origin9.succeed("systemctl show tailscaled-autoconnect.service -p NRestarts --value | grep -Fx 0")
+    origin9.fail("pgrep -af 'tailscale up'")
+    origin9.fail("journalctl -u tailscaled-autoconnect.service --no-pager | grep -Ei 'log in|authenticate|https://login.tailscale.com'")
+    origin9.succeed("systemctl is-active pocket-id caddy tailscaled")
     lanClient.fail("curl --noproxy '*' --max-time 1 --fail http://10.15.4.5:9001")
     lanClient.fail("curl --noproxy '*' --max-time 1 --fail -H 'Host: foundry.minastas.xyz' http://10.15.4.5:8080")
     lanClient.fail("curl --noproxy '*' --max-time 1 --insecure --fail --resolve private.tailbc181.ts.net:443:10.15.4.5 https://private.tailbc181.ts.net")
@@ -306,13 +332,15 @@ pkgs.testers.runNixOSTest {
         connector.succeed("systemctl start --no-block cloudflared-fleet.service; sleep 1; ! systemctl is-active cloudflared-fleet.service")
         connector.succeed("printf '%s' 'not-json' > /run/secrets/cloudflared-tunnel.json")
         connector.succeed("systemctl reset-failed cloudflared-fleet; systemctl start --no-block cloudflared-fleet.service; sleep 1; ! systemctl is-active cloudflared-fleet.service")
-        connector.succeed("systemctl stop --no-block cloudflared-fleet; sleep 1; printf '%s' '{\"TunnelID\":\"11111111-1111-1111-1111-111111111111\",\"Secret\":\"${sentinel}\"}' > /run/secrets/cloudflared-tunnel.json; systemctl reset-failed cloudflared-fleet; systemctl start --no-block cloudflared-fleet")
+        connector.succeed("printf '%s' '{\"AccountTag\":\"account\",\"TunnelID\":\"11111111-1111-1111-1111-111111111111\",\"TunnelSecret\":\"\"}' > /run/secrets/cloudflared-tunnel.json")
+        connector.succeed("systemctl reset-failed cloudflared-fleet; systemctl start --no-block cloudflared-fleet.service; sleep 1; ! systemctl is-active cloudflared-fleet.service")
+        connector.succeed("systemctl stop --no-block cloudflared-fleet; sleep 1; printf '%s' '{\"AccountTag\":\"account\",\"TunnelID\":\"11111111-1111-1111-1111-111111111111\",\"TunnelSecret\":\"${sentinel}\"}' > /run/secrets/cloudflared-tunnel.json; systemctl reset-failed cloudflared-fleet; systemctl start --no-block cloudflared-fleet")
         connector.wait_for_unit("cloudflared-fleet.service")
         connector.wait_for_open_port(8888, timeout=10)
         connector.succeed("timeout 10 ${pkgs.cloudflared}/bin/cloudflared --config /etc/cloudflared/fleet-ingress.yml tunnel ingress validate")
-        connector.succeed("systemctl cat cloudflared-fleet.service | grep -F 'LoadCredential=tunnel.json:/run/secrets/cloudflared-tunnel.json'")
+        connector.succeed("systemctl cat cloudflared-fleet.service > /tmp/cloudflared-unit; grep -F 'LoadCredential=tunnel.json:/run/secrets/cloudflared-tunnel.json' /tmp/cloudflared-unit; ! grep -F '${sentinel}' /tmp/cloudflared-unit")
         connector.succeed("! systemctl show -p ExecStart --value cloudflared-fleet.service | grep -F -- '--credentials-file'")
-        connector.succeed("unit=$(systemctl cat cloudflared-fleet.service); launcher=$(printf '%s\\n' \"$unit\" | sed -n 's/^ExecStart=\\([^ ]*\\).*$/\\1/p'); test -n \"$launcher\"; test -r \"$launcher\"; ! grep -F '${sentinel}' /etc/cloudflared/fleet-ingress.yml \"$launcher\"; exec_path=$(systemctl show -p ExecStart --value cloudflared-fleet.service | sed -n 's/^{ path=\\([^ ;]*\\).*$/\\1/p'); test \"$exec_path\" = \"$launcher\"")
+        connector.succeed("launcher=$(sed -n 's/^ExecStart=\\([^ ]*\\).*$/\\1/p' /tmp/cloudflared-unit); config=$(readlink -f /etc/cloudflared/fleet-ingress.yml); executable=$(grep -Eo '/nix/store/[^ ]+-cloudflared/bin/cloudflared' \"$launcher\"); test -n \"$launcher\"; test -f \"$launcher\" -a -r \"$launcher\"; test -f \"$config\" -a -r \"$config\"; test -f \"$executable\" -a -r \"$executable\"; ! grep -aF '${sentinel}' \"$launcher\" \"$config\" \"$executable\"; exec_path=$(systemctl show -p ExecStart --value cloudflared-fleet.service | sed -n 's/^{ path=\\([^ ;]*\\).*$/\\1/p'); test \"$exec_path\" = \"$launcher\"")
         connector.succeed("pid=$(systemctl show -p MainPID --value cloudflared-fleet.service); test \"$pid\" -gt 1; test -r /proc/$pid/cmdline; test -r /proc/$pid/environ; ! tr '\\0' '\\n' < /proc/$pid/cmdline | grep -F '${sentinel}'; ! tr '\\0' '\\n' < /proc/$pid/environ | grep -F '${sentinel}'")
     config_a = yaml.safe_load(connectorA.succeed("cat /etc/cloudflared/fleet-ingress.yml"))
     config_b = yaml.safe_load(connectorB.succeed("cat /etc/cloudflared/fleet-ingress.yml"))
@@ -331,15 +359,19 @@ pkgs.testers.runNixOSTest {
       "other.minastas.social": "origin=wildcard-.5 host=other.minastas.social",
     }
     def probe(host): return edge.succeed(f"curl --max-time 5 --fail -H 'Host: {host}' http://127.0.0.1:8081")
-    for host, expected_body in probes.items(): assert expected_body in probe(host)
+    for backend in (0, 1):
+        edge.succeed(f"echo {backend} > /run/edge-backend")
+        (connectorA if backend == 0 else connectorB).wait_for_open_port(8888, timeout=10)
+        for host, expected_body in probes.items(): assert expected_body in probe(host)
+    edge.succeed("echo all > /run/edge-backend")
     connectorB.succeed("systemctl stop cloudflared-fleet")
-    assert probes["id.minastas.xyz"] in probe("id.minastas.xyz")
+    for host, expected_body in probes.items(): assert expected_body in probe(host)
     connectorB.succeed("systemctl start cloudflared-fleet")
     connectorB.wait_for_open_port(8888, timeout=10)
     connectorA.succeed("systemctl stop cloudflared-fleet")
-    assert probes["foundry.minastas.xyz"] in probe("foundry.minastas.xyz")
+    for host, expected_body in probes.items(): assert expected_body in probe(host)
     connectorB.succeed("systemctl stop loki prometheus")
-    assert probes["foundry.minastas.xyz"] in probe("foundry.minastas.xyz")
+    for host, expected_body in probes.items(): assert expected_body in probe(host)
     connectorB.succeed("systemctl stop cloudflared-fleet")
     edge.fail("curl --max-time 2 --fail -H 'Host: foundry.minastas.xyz' http://127.0.0.1:8081")
     origin5.succeed("systemctl is-active foundry matrix knot root pds wildcard private-app caddy")

@@ -100,6 +100,8 @@ in
       };
       systemd.services.tailscaled-autoconnect.unitConfig.ConditionPathIsReadable =
         cfg.tailscaleAuthKeyFile;
+      systemd.services.tailscaled-autoconnect.serviceConfig.ExecCondition =
+        "${lib.getExe' pkgs.coreutils "test"} -r ${cfg.tailscaleAuthKeyFile}";
     })
     (lib.mkIf (cfg.routes != [ ]) {
       assertions = [

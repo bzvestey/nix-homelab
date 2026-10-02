@@ -1,0 +1,27 @@
+{
+  "targets": [
+    {
+      "name": "duplicate-nic",
+      "address": "10.15.4.5",
+      "architecture": "x86_64-linux",
+      "measuredFreeBytes": { "status": "observed", "bytes": 1, "stableId": "free", "observedAt": "2026-10-02", "evidence": { "type": "fixture" } },
+      "hardwareRequirements": { "installDisk": "optional", "nic": "required", "gpu": "optional" },
+      "hardware": {
+        "installDisk": { "status": "not-applicable", "reason": "fixture" },
+        "nic": {
+          "status": "observed",
+          "members": [
+            { "interface": "eth0", "macAddress": "00:11:22:33:44:55" },
+            { "interface": "eth0", "macAddress": "00:11:22:33:44:55" }
+          ],
+          "stableId": "00:11:22:33:44:55",
+          "observedAt": "2026-10-02",
+          "evidence": { "type": "command-output", "command": "network-sysfs", "scope": "fixture/duplicate-nic" }
+        },
+        "gpu": { "status": "not-applicable", "reason": "fixture" }
+      }
+    }
+  ],
+  "datasets": [],
+  "services": []
+}

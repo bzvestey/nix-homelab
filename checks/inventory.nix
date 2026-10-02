@@ -151,6 +151,7 @@ let
           && builtins.match "[a-zA-Z0-9][a-zA-Z0-9_.-]*" (member.interface or "") != null
           && builtins.match "[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}" (member.macAddress or "") != null
         ) value.members
+        && lib.length (lib.unique (map (member: member.interface) value.members)) == lib.length value.members
         &&
           value.stableId
           == lib.concatStringsSep "+" (lib.unique (map (member: member.macAddress) value.members))

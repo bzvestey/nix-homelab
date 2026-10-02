@@ -26,34 +26,39 @@
   };
 
   outputs =
-    { self, nixpkgs, ... }:
+    {
+      self,
+      nixpkgs,
+      comin,
+      ...
+    }:
     let
       mkHost = import ./lib/mk-host.nix { inherit nixpkgs; };
       nixosConfigurations = {
         observability-pi = mkHost {
           system = "aarch64-linux";
           hostname = "observability-pi";
-          modules = [ ./hosts/observability-pi ];
+          modules = [ comin.nixosModules.comin ./hosts/observability-pi ];
         };
         framework-01 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-01";
-          modules = [ ./hosts/framework-01 ];
+          modules = [ comin.nixosModules.comin ./hosts/framework-01 ];
         };
         framework-02 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-02";
-          modules = [ ./hosts/framework-02 ];
+          modules = [ comin.nixosModules.comin ./hosts/framework-02 ];
         };
         framework-03 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-03";
-          modules = [ ./hosts/framework-03 ];
+          modules = [ comin.nixosModules.comin ./hosts/framework-03 ];
         };
         services-pi = mkHost {
           system = "aarch64-linux";
           hostname = "services-pi";
-          modules = [ ./hosts/services-pi ];
+          modules = [ comin.nixosModules.comin ./hosts/services-pi ];
         };
       };
       forAllSystems = nixpkgs.lib.genAttrs [
@@ -94,6 +99,11 @@
       });
 
       checks = forAllSystems (system: {
+        common-host = import ./checks/common-host.nix {
+          inherit nixosConfigurations;
+          inherit (nixpkgs) lib;
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         evaluation = import ./checks/evaluation.nix {
           inherit nixosConfigurations;
           inherit (nixpkgs) lib;
@@ -165,6 +175,9 @@
                 "schema:empty-arch:invalid-architectures"
               ])
               (fixture ./checks/fixtures/shared-accounting.json [ ])
+              (fixture ./checks/fixtures/duplicate-nic-interface.json [
+                "schema:duplicate-nic:invalid-hardware-nic"
+              ])
             ];
           in
           pkgs.runCommand "inventory-fixtures" { } ''

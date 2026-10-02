@@ -54,13 +54,20 @@ let
       shift
     done
     [ ! -e ${root}/fail-transient-start ] || exit 125
-    mkdir -p ${root}/transient
+    mkdir -p ${root}/transient ${root}/cgroup/fake/$unit
+    : >${root}/transient/$unit.code
+    : >${root}/transient/$unit.status
+    (
     "$@" & pid=$!
     printf '%s\n' "$pid" >${root}/transient/$unit.pid
+    printf '%s\n' "$pid" >${root}/cgroup/fake/$unit/cgroup.procs
     printf active >${root}/transient/$unit.state
     set +e; wait "$pid"; rc=$?; set -e
-    printf inactive >${root}/transient/$unit.state
-    exit "$rc"
+    : >${root}/cgroup/fake/$unit/cgroup.procs
+    printf exited >${root}/transient/$unit.code
+    printf '%s' "$rc" >${root}/transient/$unit.status
+    ) &
+    exit 0
     EOF
     cat >$out/bin/systemctl <<'EOF'
     #!${pkgs.bash}/bin/bash
@@ -69,11 +76,18 @@ let
       [ ! -e ${root}/fail-transient-control ] || exit 1
       unit=$2
       [ -e ${root}/transient/$unit.state ] || exit 1
-      printf 'LoadState=loaded\nActiveState=%s\nMainPID=%s\nControlGroup=\n' "$(cat ${root}/transient/$unit.state)" "$(cat ${root}/transient/$unit.pid)"
+      printf 'LoadState=loaded\nActiveState=%s\nMainPID=%s\nControlGroup=/fake/%s\nExecMainCode=%s\nExecMainStatus=%s\n' \
+        "$(cat ${root}/transient/$unit.state)" "$(cat ${root}/transient/$unit.pid)" "$unit" \
+        "$(cat ${root}/transient/$unit.code)" "$(cat ${root}/transient/$unit.status)"
     elif [ "$1" = kill ]; then
       unit=''${!#}; signal=TERM
       printf '%s\n' "$*" | grep -q -- --signal=KILL && signal=KILL
       kill -"$signal" "$(cat ${root}/transient/$unit.pid)" 2>/dev/null || true
+    elif [ "$1" = stop ]; then
+      unit=$2
+      kill -KILL "$(cat ${root}/transient/$unit.pid)" 2>/dev/null || true
+      : >${root}/cgroup/fake/$unit/cgroup.procs
+      printf inactive >${root}/transient/$unit.state
     elif [ "$1" = reset-failed ]; then
       exit 0
     elif [ "$1" = is-active ]; then
@@ -142,6 +156,7 @@ let
     passwordFile = "${root}/password";
     stateDirectory = "${root}/state";
     metricsDirectory = "${root}/metrics";
+    cgroupRoot = "${root}/cgroup";
     chownCommand = toString (
       pkgs.writeShellScript "fixture-chown" ''
         echo "chown:$*" >>${root}/log
@@ -189,6 +204,7 @@ let
     passwordFile = "${root}/real-password";
     stateDirectory = "${root}/real-state";
     metricsDirectory = "${root}/real-metrics";
+    cgroupRoot = "${root}/cgroup";
   };
 in
 pkgs.runCommand "backup-restore-tests"

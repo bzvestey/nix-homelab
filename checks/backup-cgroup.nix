@@ -32,6 +32,7 @@ testPkgs.testers.runNixOSTest {
     system.stateVersion = "26.05";
     environment.systemPackages = [ pkgs.util-linux ];
     systemd.services.fleet-backup-files.path = [ pkgs.bash ];
+    systemd.services.fleet-backup-files.environment.RESTIC_PASSWORD = "ambient-must-not-cross";
     fleet.backup = {
       repositoryFile = "/run/fleet-test/repository";
       passwordFile = "/run/fleet-test/password";
@@ -39,6 +40,9 @@ testPkgs.testers.runNixOSTest {
         frequency = "hourly";
         paths = [ "/var/lib/fleet-target" ];
         createCommand = ''
+          [ -z "''${RESTIC_PASSWORD:-}" ]
+          [ "$RESTIC_PASSWORD_FILE" = /run/fleet-test/password ]
+          [ "$RESTIC_CACHE_DIR" = /var/lib/fleet-backup/cache ]
           mkdir -p "$FLEET_BACKUP_STAGING_DIR/payload"
           printf valid >"$FLEET_BACKUP_STAGING_DIR/payload/data"
           if [ -e /run/fleet-test/hostile ]; then
@@ -69,7 +73,15 @@ testPkgs.testers.runNixOSTest {
     machine.succeed("mkdir -p /run/fleet-test /var/lib/fleet-target")
     machine.succeed("printf repository >/run/fleet-test/repository; printf password >/run/fleet-test/password")
     machine.succeed("touch /run/fleet-test/hostile")
-    machine.fail("timeout 8 systemctl start fleet-backup-files.service")
+    machine.execute("systemctl start fleet-backup-files.service >/run/fleet-test/start-output 2>&1 & echo $! >/run/fleet-test/start-pid")
+    machine.wait_until_succeeds("test -s /run/fleet-test/writer-pid")
+    bounded_unit = machine.succeed("systemctl list-units --all 'fleet-bounded-*' --plain --no-legend | grep -o 'fleet-bounded[^ ]*\\.service' | head -1").strip()
+    control_group = machine.succeed(f"systemctl show {bounded_unit} -P ControlGroup").strip()
+    machine.succeed(f"test $(stat -c %s /sys/fs/cgroup{control_group}/cgroup.procs) -eq 0")
+    machine.succeed(f"test -n \"$(cat /sys/fs/cgroup{control_group}/cgroup.procs)\"")
+    start_pid = machine.succeed("cat /run/fleet-test/start-pid").strip()
+    machine.succeed(f"timeout 8 tail --pid={start_pid} -f /dev/null")
+    machine.succeed("systemctl is-failed --quiet fleet-backup-files.service")
     writer_pid = machine.succeed("cat /run/fleet-test/writer-pid").strip()
     machine.fail(f"kill -0 {writer_pid}")
     size_before = machine.succeed("du -sb /var/lib/fleet-backup/files/failed | cut -f1").strip()
@@ -78,6 +90,10 @@ testPkgs.testers.runNixOSTest {
     machine.succeed("test $(du -sb /var/lib/fleet-backup/files/failed | cut -f1) -le 1024")
     machine.fail("systemctl list-units --all 'fleet-bounded-*' --no-legend | grep -q .")
     machine.succeed("rm /run/fleet-test/hostile")
-    machine.succeed("timeout 8 systemctl start fleet-backup-files.service")
+    for _ in range(50):
+        machine.succeed("rm -f /run/fleet-test/backed-up")
+        machine.succeed("systemctl reset-failed fleet-backup-files.service")
+        machine.succeed("timeout 8 systemctl start fleet-backup-files.service")
+    machine.fail("systemctl list-units --all 'fleet-bounded-*' --no-legend | grep -q .")
   '';
 }

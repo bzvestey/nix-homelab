@@ -17,6 +17,7 @@
   passwordFile,
   stateDirectory ? "/var/lib/fleet-backup",
   metricsDirectory ? "/var/lib/node_exporter/textfile_collector",
+  cgroupRoot ? "/sys/fs/cgroup",
   chownCommand ? "${coreutils}/bin/chown",
 }:
 let
@@ -115,40 +116,63 @@ let
       [ "$state" = Z ] || [ "$state" = X ]
     }
     unit_state() {
-      systemctl show "$1" --property=LoadState --property=ActiveState --property=MainPID --property=ControlGroup
+      systemctl show "$1" --property=LoadState --property=ActiveState --property=MainPID --property=ControlGroup --property=ExecMainCode --property=ExecMainStatus
     }
-    unit_has_members() {
+    unit_membership() {
       control_group=$1
-      [ -n "$control_group" ] && [ -s "/sys/fs/cgroup$control_group/cgroup.procs" ]
+      [ -n "$control_group" ] || { printf unavailable; return; }
+      procs_file=${lib.escapeShellArg cgroupRoot}"$control_group/cgroup.procs"
+      [ -e "$procs_file" ] || { printf removed; return; }
+      [ -r "$procs_file" ] || { printf unavailable; return; }
+      set +e
+      members=$(cat "$procs_file" 2>/dev/null)
+      membership_rc=$?
+      set -e
+      [ "$membership_rc" -eq 0 ] || { printf unavailable; return; }
+      if [ -n "$members" ]; then printf populated; else printf empty; fi
     }
-    unit_is_inactive_and_empty() {
+    unit_is_inactive_and_empty_or_removed() {
       target_unit=$1
       known_cgroup=$2
       if state=$(unit_state "$target_unit" 2>/dev/null); then
         active=$(printf '%s\n' "$state" | sed -n 's/^ActiveState=//p')
         cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
         [ -n "$cgroup" ] || cgroup=$known_cgroup
-        { [ "$active" = inactive ] || [ "$active" = failed ]; } && ! unit_has_members "$cgroup"
+        membership=$(unit_membership "$cgroup")
+        { [ "$active" = inactive ] || [ "$active" = failed ]; } && { [ "$membership" = empty ] || [ "$membership" = removed ]; }
         return
       fi
-      set +e; systemctl is-active --quiet "$target_unit" >/dev/null 2>&1; active_rc=$?; set -e
-      { [ "$active_rc" -eq 3 ] || [ "$active_rc" -eq 4 ]; } && ! unit_has_members "$known_cgroup"
+      membership=$(unit_membership "$known_cgroup")
+      [ "$membership" = empty ] || [ "$membership" = removed ]
     }
-    stop_transient_unit() {
+    collect_transient_unit() {
+      target_unit=$1
+      known_cgroup=''${2:-}
+      systemctl stop "$target_unit" >/dev/null 2>&1 || true
+      for _ in {1..20}; do
+        if unit_is_inactive_and_empty_or_removed "$target_unit" "$known_cgroup"; then
+          systemctl reset-failed "$target_unit" >/dev/null 2>&1 || true
+          return 0
+        fi
+        sleep 0.05
+      done
+      echo "transient command unit did not become inactive and empty after stop" >&2
+      return 1
+    }
+    terminate_transient_unit() {
       target_unit=$1
       known_cgroup=''${2:-}
       systemctl kill --kill-whom=all --signal=TERM "$target_unit" >/dev/null 2>&1 || true
       for _ in {1..20}; do
-        unit_is_inactive_and_empty "$target_unit" "$known_cgroup" && return 0
+        membership=$(unit_membership "$known_cgroup")
+        { [ "$membership" = empty ] || [ "$membership" = removed ]; } && break
         sleep 0.05
       done
-      systemctl kill --kill-whom=all --signal=KILL "$target_unit" >/dev/null 2>&1 || true
-      for _ in {1..20}; do
-        unit_is_inactive_and_empty "$target_unit" "$known_cgroup" && return 0
-        sleep 0.05
-      done
-      echo "transient command cgroup did not become inactive and empty after KILL" >&2
-      return 1
+      membership=$(unit_membership "$known_cgroup")
+      if [ "$membership" != empty ] && [ "$membership" != removed ]; then
+        systemctl kill --kill-whom=all --signal=KILL "$target_unit" >/dev/null 2>&1 || true
+      fi
+      collect_transient_unit "$target_unit" "$known_cgroup"
     }
     run_bounded_tree_command() {
       watched=$1; shift
@@ -160,65 +184,72 @@ let
       unit="fleet-bounded-$job-$$-$unit_token.service"
       run_environment=(--setenv=PATH --setenv=RESTIC_REPOSITORY --setenv=RESTIC_PASSWORD_FILE --setenv=RESTIC_CACHE_DIR)
       [ -z "''${FLEET_BACKUP_STAGING_DIR:-}" ] || run_environment+=(--setenv=FLEET_BACKUP_STAGING_DIR)
-      systemd-run --quiet --wait --collect --service-type=exec --unit="$unit" \
-        --property=KillMode=control-group --property=TimeoutStopSec=1s \
+      if ! systemd-run --quiet --collect --service-type=exec --unit="$unit" \
+        --property=RemainAfterExit=yes --property=KillMode=control-group --property=TimeoutStopSec=1s \
         --property="LimitFSIZE=$max_payload_bytes" "''${run_environment[@]}" -- \
-        bash -c 'printf "%s\n" "$BASHPID" >"$1"; ulimit -f "$2"; shift 2; exec "$@"' _ "$leader_file" "$max_blocks" "$@" & run_pid=$!
+        bash -c 'printf "%s\n" "$BASHPID" >"$1"; ulimit -f "$2"; shift 2; exec "$@"' _ "$leader_file" "$max_blocks" "$@"; then
+        rm -f "$leader_file"
+        echo "transient command unit failed to start" >&2
+        return 1
+      fi
       started=0
-      control_seen=0
       for _ in {1..100}; do
         if state=$(unit_state "$unit" 2>/dev/null); then
-          control_seen=1
           load=$(printf '%s\n' "$state" | sed -n 's/^LoadState=//p')
-          active=$(printf '%s\n' "$state" | sed -n 's/^ActiveState=//p')
-          [ "$load" = loaded ] && { [ "$active" = activating ] || [ "$active" = active ] || [ "$active" = deactivating ]; } && started=1 && break
+          cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
+          [ "$load" = loaded ] && [ -n "$cgroup" ] && started=1 && break
         fi
-        kill -0 "$run_pid" 2>/dev/null || break
         sleep 0.01
       done
       if [ "$started" -eq 0 ]; then
-        if [ "$control_seen" -eq 1 ] && [ -s "$leader_file" ] && ! kill -0 "$run_pid" 2>/dev/null; then
-          set +e; wait "$run_pid"; command_rc=$?; set -e
-          rm -f "$leader_file"
-          systemctl reset-failed "$unit" >/dev/null 2>&1 || true
-          tree_bytes "$watched" >/dev/null || { echo "payload exceeded file, aggregate, or count bound at command completion" >&2; return 1; }
-          return "$command_rc"
-        fi
-        stop_transient_unit "$unit" "''${cgroup:-}" || true
-        set +e; wait "$run_pid"; command_rc=$?; set -e
+        terminate_transient_unit "$unit" "''${cgroup:-}" || true
         rm -f "$leader_file"
         echo "transient command unit failed to start or could not be controlled" >&2
         return 1
       fi
       violation=
-      exited_ticks=0
-      while kill -0 "$run_pid" 2>/dev/null; do
+      command_rc=
+      while [ -z "$command_rc" ]; do
         if ! state=$(unit_state "$unit" 2>/dev/null); then
           violation=control
           break
         fi
-        active=$(printf '%s\n' "$state" | sed -n 's/^ActiveState=//p')
-        cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
+        observed_cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
+        [ -z "$observed_cgroup" ] || cgroup=$observed_cgroup
+        exec_code=$(printf '%s\n' "$state" | sed -n 's/^ExecMainCode=//p')
+        exec_status=$(printf '%s\n' "$state" | sed -n 's/^ExecMainStatus=//p')
+        membership=$(unit_membership "$cgroup")
+        if [ "$membership" = unavailable ]; then
+          violation=control
+          break
+        fi
         if ! tree_bytes "$watched" >/dev/null; then
           violation=bound
           break
         fi
-        if read -r leader_pid <"$leader_file" && leader_has_exited "$leader_pid" && { unit_has_members "$cgroup" || [ "$active" = active ] || [ "$active" = deactivating ]; }; then
-          exited_ticks=$(( exited_ticks + 1 ))
-          if [ "$exited_ticks" -ge 5 ]; then
+        if read -r leader_pid <"$leader_file" && leader_has_exited "$leader_pid" && [ "$membership" = populated ]; then
+          violation=descendant
+          break
+        fi
+        if [ -n "$exec_code" ]; then
+          if [ "$membership" = populated ]; then
             violation=descendant
-            break
+          elif { [ "$exec_code" = exited ] || [ "$exec_code" = 1 ]; } && [[ "$exec_status" =~ ^[0-9]+$ ]]; then
+            command_rc=$exec_status
+          else
+            violation="command"
           fi
-        else
-          exited_ticks=0
+          [ -z "$violation" ] || break
         fi
         sleep 0.05
       done
-      stopped=1
-      [ -z "$violation" ] || stop_transient_unit "$unit" "''${cgroup:-}" || stopped=0
-      set +e; wait "$run_pid"; command_rc=$?; set -e
+      cleanup_ok=1
+      if [ -n "$violation" ]; then
+        terminate_transient_unit "$unit" "$cgroup" || cleanup_ok=0
+      else
+        collect_transient_unit "$unit" "$cgroup" || cleanup_ok=0
+      fi
       rm -f "$leader_file"
-      systemctl reset-failed "$unit" >/dev/null 2>&1 || true
       if [ "$violation" = bound ]; then
         echo "payload exceeded file, aggregate, or count bound while command was running" >&2
         return 1
@@ -228,7 +259,10 @@ let
       elif [ "$violation" = control ]; then
         echo "lost control of transient command unit" >&2
         return 1
-      elif [ "$stopped" -eq 0 ]; then
+      elif [ "$violation" = command ]; then
+        echo "transient command terminated without an exit status" >&2
+        return 1
+      elif [ "$cleanup_ok" -eq 0 ]; then
         return 1
       fi
       tree_bytes "$watched" >/dev/null || { echo "payload exceeded file, aggregate, or count bound at command completion" >&2; return 1; }

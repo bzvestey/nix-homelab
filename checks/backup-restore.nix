@@ -60,6 +60,22 @@ let
       paths = [ "${root}/target" ];
       createCommand = ''
         [ ! -e ${root}/hold-create ] || { touch ${root}/create-entered; sleep 30; }
+        [ ! -e ${root}/term-resistant-export ] || {
+          awk '{ print $5 }' "/proc/$BASHPID/stat" >${root}/writer-pgid
+          trap "" TERM
+          n=0
+          while :; do dd if=/dev/zero of="$FLEET_BACKUP_STAGING_DIR/growing-$n" bs=8192 count=1 status=none; n=$(( n + 1 )); sleep 0.05; done
+        }
+        [ ! -e ${root}/background-export ] || {
+          awk '{ print $5 }' "/proc/$BASHPID/stat" >${root}/writer-pgid
+          (
+            trap "" TERM
+            printf '%s\n' "$BASHPID" >${root}/writer-pid
+            n=0
+            while :; do dd if=/dev/zero of="$FLEET_BACKUP_STAGING_DIR/growing-$n" bs=8192 count=1 status=none; n=$(( n + 1 )); sleep 0.05; done
+          ) &
+          exit 0
+        }
         [ ! -e ${root}/growing-export ] || { while :; do dd if=/dev/zero bs=8192 count=1 >>"$FLEET_BACKUP_STAGING_DIR/growing"; sleep 0.05; done; }
         [ ! -e ${root}/missing-required ] || { printf unrelated >"$FLEET_BACKUP_STAGING_DIR/unrelated"; exit 0; }
         [ ! -e ${root}/oversized ] || { dd if=/dev/zero of="$FLEET_BACKUP_STAGING_DIR/large" bs=2048 count=1; exit 9; }
@@ -173,6 +189,24 @@ pkgs.runCommand "backup-restore-tests"
         printf original >${root}/source/data
         printf repository >${root}/repository
         printf password >${root}/password
+        group_has_live_member() {
+          target_pgid=$1
+          for stat_file in /proc/[0-9]*/stat; do
+            [ -r "$stat_file" ] || continue
+            stat_line=$(cat "$stat_file" 2>/dev/null) || continue
+            stat_fields=''${stat_line##*) }
+            read -r state _ process_pgid _ <<<"$stat_fields"
+            [ "$process_pgid" = "$target_pgid" ] || continue
+            [ "$state" = Z ] || [ "$state" = X ] || return 0
+          done
+          return 1
+        }
+        process_is_live() {
+          stat_line=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+          stat_fields=''${stat_line##*) }
+          read -r state _ <<<"$stat_fields"
+          [ "$state" != Z ] && [ "$state" != X ]
+        }
 
         # The module executes this same generated production program.
         grep -F '/bin/fleet-backup-run files' ${pkgs.writeText "exec" evaluated.config.systemd.services.fleet-backup-files.serviceConfig.ExecStart}
@@ -209,6 +243,28 @@ pkgs.runCommand "backup-restore-tests"
         timeout 5 ${tools}/bin/fleet-backup-run files && exit 1 || true
         rm ${root}/growing-export
         test "$(find ${root}/state/files/failed -type f -printf '%s\n' | sort -nr | head -1)" -le 65536
+
+        # A TERM-resistant producer and an exited leader with a surviving writer
+        # are killed as complete process groups without retaining locks or data.
+        for hostile in term-resistant-export background-export; do
+          rm -f ${root}/writer-pid ${root}/writer-pgid
+          touch ${root}/$hostile
+          timeout -k 1 5 ${tools}/bin/fleet-backup-run files && exit 1 || true
+          pgid=$(cat ${root}/writer-pgid)
+          if group_has_live_member "$pgid"; then
+            kill -KILL -- "-$pgid" 2>/dev/null || true
+            echo "$hostile left a surviving process group" >&2
+            exit 1
+          fi
+          if [ -e ${root}/writer-pid ]; then
+            ! process_is_live "$(cat ${root}/writer-pid)"
+          fi
+          test "$(du -sb ${root}/state/files/failed | cut -f1)" -le 1024
+          test "$(find ${root}/state/files/failed -type f -printf '%s\n' | sort -nr | head -1)" -le 65536
+          rm ${root}/$hostile
+          timeout 5 ${tools}/bin/fleet-backup-run files
+        done
+
         touch ${root}/hold-create; : >${root}/log
         ${tools}/bin/fleet-backup-run files & lock_pid=$!
         while [ ! -e ${root}/create-entered ]; do sleep 0.1; done

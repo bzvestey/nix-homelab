@@ -104,17 +104,87 @@ let
     tree_bytes() {
       find "$1" -type f -printf '%s\n' | awk '{ count++; if (count > 100000 || $1 > max || total > max - $1) exit 1; total += $1 } END { print total + 0 }' max="$max_payload_bytes"
     }
-    run_bounded_tree_command() {
-      watched=$1; shift
-      setsid "$@" & command_pid=$!
-      exceeded=0
-      while kill -0 "$command_pid" 2>/dev/null; do
-        if ! tree_bytes "$watched" >/dev/null; then exceeded=1; kill -TERM -- "-$command_pid" 2>/dev/null || true; break; fi
+    process_group_has_live_member() {
+      target_pgid=$1
+      for stat_file in /proc/[0-9]*/stat; do
+        [ -r "$stat_file" ] || continue
+        stat_line=$(cat "$stat_file" 2>/dev/null) || continue
+        stat_fields=''${stat_line##*) }
+        read -r state _ process_pgid _ <<<"$stat_fields"
+        [ "$process_pgid" = "$target_pgid" ] || continue
+        [ "$state" = Z ] || [ "$state" = X ] || return 0
+      done
+      return 1
+    }
+    leader_has_exited() {
+      stat_line=$(cat "/proc/$1/stat" 2>/dev/null) || return 0
+      stat_fields=''${stat_line##*) }
+      read -r state _ <<<"$stat_fields"
+      [ "$state" = Z ] || [ "$state" = X ]
+    }
+    stop_process_group() {
+      target_pgid=$1
+      kill -TERM -- "-$target_pgid" 2>/dev/null || true
+      for _ in {1..20}; do
+        process_group_has_live_member "$target_pgid" || return 0
         sleep 0.05
       done
+      kill -KILL -- "-$target_pgid" 2>/dev/null || true
+      for _ in {1..20}; do
+        process_group_has_live_member "$target_pgid" || return 0
+        sleep 0.05
+      done
+      echo "command process group did not terminate after KILL" >&2
+      return 1
+    }
+    run_bounded_tree_command() {
+      watched=$1; shift
+      max_blocks=$(( (max_payload_bytes + 511) / 512 ))
+      pgid_file=$(mktemp)
+      setsid --wait bash -c "printf '%s\\n' \"\$BASHPID\" >\"\$1\"; ulimit -f \"\$2\"; shift 2; exec \"\$@\"" _ "$pgid_file" "$max_blocks" "$@" & command_pid=$!
+      for _ in {1..20}; do
+        [ ! -s "$pgid_file" ] || break
+        kill -0 "$command_pid" 2>/dev/null || break
+        sleep 0.01
+      done
+      if ! read -r command_pgid <"$pgid_file"; then
+        rm -f "$pgid_file"
+        set +e; wait "$command_pid"; command_rc=$?; set -e
+        return "$command_rc"
+      fi
+      rm -f "$pgid_file"
+      violation=
+      exited_ticks=0
+      while process_group_has_live_member "$command_pgid"; do
+        if ! tree_bytes "$watched" >/dev/null; then
+          violation=bound
+          break
+        fi
+        if leader_has_exited "$command_pgid"; then
+          exited_ticks=$(( exited_ticks + 1 ))
+          if [ "$exited_ticks" -ge 5 ]; then
+            violation=background
+            break
+          fi
+        else
+          exited_ticks=0
+        fi
+        sleep 0.05
+      done
+      group_stopped=1
+      [ -z "$violation" ] || stop_process_group "$command_pgid" || group_stopped=0
       set +e; wait "$command_pid"; command_rc=$?; set -e
-      [ "$exceeded" -eq 0 ] || { echo "payload exceeded byte bound while command was running" >&2; return 1; }
-      [ "$command_rc" -eq 0 ]
+      if [ "$violation" = bound ]; then
+        echo "payload exceeded file, aggregate, or count bound while command was running" >&2
+        return 1
+      elif [ "$violation" = background ]; then
+        echo "command leader exited with persistent background processes" >&2
+        return 1
+      elif [ "$group_stopped" -eq 0 ]; then
+        return 1
+      fi
+      tree_bytes "$watched" >/dev/null || { echo "payload exceeded file, aggregate, or count bound at command completion" >&2; return 1; }
+      return "$command_rc"
     }
   '';
   selectJob =
@@ -287,8 +357,7 @@ let
       run_bounded_tree_command "$source_dir" bash -c 'restic dump "$1" fleet-payload.tar >"$2"' _ "$selected" "$archive"
       validate_archive "$archive"
       mkdir "$source_dir/payload"
-      max_blocks=$(( (max_payload_bytes + 511) / 512 ))
-      run_bounded_tree_command "$source_dir/payload" bash -c 'ulimit -f "$1"; exec tar -C "$2" -xf "$3"' _ "$max_blocks" "$source_dir/payload" "$archive"
+      run_bounded_tree_command "$source_dir/payload" tar -C "$source_dir/payload" -xf "$archive"
       rm "$archive"
       validate_payload "$source_dir/payload"
       tree_bytes "$source_dir/payload" >/dev/null

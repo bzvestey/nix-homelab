@@ -216,6 +216,9 @@
       });
 
       checks = forAllSystems (system: {
+        observability = import ./checks/observability.nix {
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         telemetry-agent = import ./checks/telemetry-agent.nix {
           pkgs = nixpkgs.legacyPackages.${system};
         };

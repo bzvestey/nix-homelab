@@ -10,6 +10,10 @@ let
 
     ip saddr 10.15.4.6 tcp dport 9464 accept comment "observability agent scrape"
   '';
+  observabilityRule = ''
+    ip saddr 10.15.4.0/24 tcp dport { 4319, 4320 } accept comment "fleet OTLP gateway"
+
+  '';
   remoteIdentity = remote: {
     inherit (remote) name url;
   };
@@ -134,7 +138,9 @@ let
     assert config.networking.firewall.enable;
     assert config.networking.nftables.enable;
     assert !(builtins.elem 4243 config.networking.firewall.allowedTCPPorts);
-    assert config.networking.firewall.extraInputRules == exporterRule;
+    assert
+      config.networking.firewall.extraInputRules
+      == lib.optionalString (hostname == "observability-pi") observabilityRule + exporterRule;
     assert comin.exporter.listen_address == "0.0.0.0";
     assert comin.exporter.port == 4243;
     assert comin.exporter.openFirewall == false;

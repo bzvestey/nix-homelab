@@ -8,18 +8,13 @@
   ...
 }:
 let
-  allHardwareModules =
-    (import (modulesPath + "/hardware/all-hardware.nix") {
-      inherit config lib pkgs;
-    }).config.content.boot.initrd.availableKernelModules;
-  piModules = [
-    "usb-storage"
-    "usbhid"
-    "vc4"
-    "nvme"
-    "pcie-brcmstb"
-    "clk-rp1"
-    "rp1"
+  irrelevantRockchipModules = [
+    "dw-hdmi"
+    "dw-mipi-dsi"
+    "rockchipdrm"
+    "rockchip-rga"
+    "phy-rockchip-pcie"
+    "pcie-rockchip-host"
   ];
   guard = pkgs.replaceVars ./destructive-device-guard.sh {
     bash = "${pkgs.bash}/bin/bash";
@@ -89,17 +84,24 @@ in
   imports = [ (modulesPath + "/installer/sd-card/sd-image-aarch64.nix") ];
   assertions = [
     {
-      assertion = !(builtins.elem "dw-hdmi" config.boot.initrd.availableKernelModules);
-      message = "Pi images must exclude dw-hdmi from the specialized Raspberry Pi kernel initrd";
+      assertion = lib.all (
+        module: !(builtins.elem module config.boot.initrd.availableKernelModules)
+      ) irrelevantRockchipModules;
+      message = "Pi images must exclude Rockchip-only modules from the Raspberry Pi kernel initrd";
     }
   ];
   image.fileName = lib.mkForce "${targetHost}-bootstrap.img.zst";
   sdImage.compressImage = true;
-  # all-hardware is required by the generic image profile, but its Rockchip HDMI module is absent
-  # from the specialized Raspberry Pi kernel.
-  boot.initrd.availableKernelModules = lib.mkForce (
-    builtins.filter (module: module != "dw-hdmi") (allHardwareModules ++ piModules)
-  );
+  # The generic image profile enables all hardware. These Rockchip-only modules are absent from
+  # linux-rpi; disable only that contiguous platform-specific group as recommended by Nixpkgs.
+  boot.initrd.availableKernelModules = {
+    dw-hdmi = lib.mkForce false;
+    dw-mipi-dsi = lib.mkForce false;
+    rockchipdrm = lib.mkForce false;
+    rockchip-rga = lib.mkForce false;
+    phy-rockchip-pcie = lib.mkForce false;
+    pcie-rockchip-host = lib.mkForce false;
+  };
   boot.loader = {
     grub.enable = lib.mkForce false;
     generic-extlinux-compatible.enable = true;

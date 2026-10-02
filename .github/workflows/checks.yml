@@ -33,7 +33,20 @@ jobs:
           set -o pipefail
           log="$RUNNER_TEMP/flake-check.log"
           set +e
-          nix flake check --show-trace 2>&1 | tee "$log"
+          if [[ '${{ matrix.architecture }}' == x86_64-linux ]]; then
+            nix flake check --show-trace --option max-jobs 1 2>&1 | tee "$log"
+          else
+            {
+              nix flake check --no-build --show-trace
+              nix build \
+                .#checks.aarch64-linux.installers \
+                .#checks.aarch64-linux.secrets \
+                .#checks.aarch64-linux.common-host \
+                .#checks.aarch64-linux.evaluation \
+                .#checks.aarch64-linux.inventory \
+                .#checks.aarch64-linux.inventory-fixtures
+            } 2>&1 | tee "$log"
+          fi
           status=${PIPESTATUS[0]}
           set -e
           if (( status != 0 )); then

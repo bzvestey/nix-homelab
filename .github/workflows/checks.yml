@@ -52,7 +52,7 @@ jobs:
               echo
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            diagnostic=$(tail -n 80 "$log" | tail -c 12000)
+            diagnostic=$(tail -n 40 "$log" | tail -c 3500)
             diagnostic=${diagnostic//'%'/'%25'}
             diagnostic=${diagnostic//$'\r'/'%0D'}
             diagnostic=${diagnostic//$'\n'/'%0A'}
@@ -78,7 +78,7 @@ jobs:
               echo
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            diagnostic=$(tail -n 80 "$log" | tail -c 12000)
+            diagnostic=$(tail -n 40 "$log" | tail -c 3500)
             diagnostic=${diagnostic//'%'/'%25'}
             diagnostic=${diagnostic//$'\r'/'%0D'}
             diagnostic=${diagnostic//$'\n'/'%0A'}

@@ -13,6 +13,7 @@ let
     sysDevBlock = "/sys/dev/block";
     readlink = "${pkgs.coreutils}/bin/readlink";
     stat = "${pkgs.coreutils}/bin/stat";
+    logGuard = ":";
   };
   telemetryInitializer = pkgs.writeShellApplication {
     name = "initialize-telemetry-ssd";

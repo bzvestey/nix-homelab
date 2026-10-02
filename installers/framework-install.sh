@@ -4,12 +4,18 @@ set -euo pipefail
 refuse() { echo "refusing: $*" >&2; exit 1; }
 @requireRoot@
 
-initial_namespace=$(@readlink@ /proc/1/ns/mnt) || refuse "cannot identify host mount namespace"
-current_namespace=$(@readlink@ /proc/self/ns/mnt) || refuse "cannot identify installer mount namespace"
-if [ "$current_namespace" = "$initial_namespace" ]; then
-  exec @unshare@ --mount --propagation private -- @bash@ "$0" "$@"
-fi
-[ "$current_namespace" != "$initial_namespace" ] || refuse "installer requires a private mount namespace"
+@awk@ '
+  $5 == "/" || $5 == "/dev" || index($5, "/dev/") == 1 {
+    if ($5 == "/") root_seen = 1
+    separator = 0
+    for (field = 7; field <= NF; field++) {
+      if ($field == "-") { separator = field; break }
+      if ($field ~ /^(shared|master):/) exit 1
+    }
+    if (separator == 0) exit 1
+  }
+  END { if (!root_seen) exit 1 }
+' @procMountinfo@ || refuse "installer mount propagation is not private"
 
 read -r -p "Type @host@ to authorize erasing its matched disk: " typed_host
 token=$(@bash@ @guard@ @guardArgs@ "$typed_host")
@@ -19,12 +25,13 @@ IFS='|' read -r stable_id canonical parent_major_minor model serial sectors <<<"
 work=@workDir@
 key="$work/recovery.key"
 success=false
+disko_started=false
 cleanup() {
   status=$?
   trap - EXIT
   set +e
   unmount_status=0
-  if [ -n "${bound_device:-}" ]; then
+  if [ "$disko_started" = true ]; then
     @disko@ --argstr device "$bound_device" --mode umount @diskConfig@ >/dev/null 2>&1 || unmount_status=$?
   fi
   bind_unmount_status=0
@@ -82,6 +89,7 @@ printf 'Type PCR7 %s ACKNOWLEDGED to continue: ' "$secure_boot" >@ttyOut@
 IFS= read -r pcr_ack <@ttyPcrIn@
 [ "$pcr_ack" = "PCR7 $secure_boot ACKNOWLEDGED" ] || refuse "PCR 7 policy not acknowledged"
 
+disko_started=true
 @disko@ --argstr device "$bound_device" --mode disko @diskConfig@
 @postDisko@
 

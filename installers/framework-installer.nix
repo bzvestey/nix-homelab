@@ -18,6 +18,7 @@ let
   command = name: fallback: commands.${name} or fallback;
   devRoot = roots.dev or "/dev";
   sysRoot = roots.sys or "/sys";
+  procRoot = roots.proc or "/proc";
   runRoot = roots.run or "/run";
   guard = pkgs.replaceVars ./destructive-device-guard.sh {
     bash = command "bash" "${pkgs.bash}/bin/bash";
@@ -62,7 +63,8 @@ let
     shred = command "shred" "${pkgs.coreutils}/bin/shred";
     stat = command "stat" "${pkgs.coreutils}/bin/stat";
     readlink = command "readlink" "${pkgs.coreutils}/bin/readlink";
-    unshare = command "unshare" "${pkgs.util-linux}/bin/unshare";
+    awk = command "awk" "${pkgs.gawk}/bin/awk";
+    procMountinfo = "${procRoot}/self/mountinfo";
     mount = command "mount" "${pkgs.util-linux}/bin/mount";
     umount = command "umount" "${pkgs.util-linux}/bin/umount";
     udevadm = command "udevadm" "${pkgs.systemd}/bin/udevadm";
@@ -79,16 +81,20 @@ let
     inherit secureBootState;
     pcrPolicy = "7";
   };
+  inner = pkgs.writeShellScript "install-${targetHost}-inner" ''
+    set -euo pipefail
+    for member in ${lib.escapeShellArgs nicMembers}; do
+      [ -r "${sysRoot}/class/net/$member/address" ] || { echo "missing NIC member $member" >&2; exit 1; }
+      [ "$(cat "${sysRoot}/class/net/$member/address")" = "${nicMac}" ] || { echo "MAC mismatch on $member" >&2; exit 1; }
+    done
+    gpu=$(printf '%s' '${gpuPciId}' | tr '[:upper:]' '[:lower:]')
+    vendor=''${gpu%:*}; product=''${gpu#*:}
+    grep -Fqx "0x$vendor" "${sysRoot}/bus/pci/devices/0000:00:02.0/vendor" || { echo "GPU vendor mismatch" >&2; exit 1; }
+    grep -Fqx "0x$product" "${sysRoot}/bus/pci/devices/0000:00:02.0/device" || { echo "GPU device mismatch" >&2; exit 1; }
+    exec ${command "bash" "${pkgs.bash}/bin/bash"} ${core} "$@"
+  '';
 in
 pkgs.writeShellScriptBin "install-${targetHost}" ''
   set -euo pipefail
-  for member in ${lib.escapeShellArgs nicMembers}; do
-    [ -r "${sysRoot}/class/net/$member/address" ] || { echo "missing NIC member $member" >&2; exit 1; }
-    [ "$(cat "${sysRoot}/class/net/$member/address")" = "${nicMac}" ] || { echo "MAC mismatch on $member" >&2; exit 1; }
-  done
-  gpu=$(printf '%s' '${gpuPciId}' | tr '[:upper:]' '[:lower:]')
-  vendor=''${gpu%:*}; product=''${gpu#*:}
-  grep -Fqx "0x$vendor" "${sysRoot}/bus/pci/devices/0000:00:02.0/vendor" || { echo "GPU vendor mismatch" >&2; exit 1; }
-  grep -Fqx "0x$product" "${sysRoot}/bus/pci/devices/0000:00:02.0/device" || { echo "GPU device mismatch" >&2; exit 1; }
-  exec ${command "bash" "${pkgs.bash}/bin/bash"} ${core}
+  exec ${command "unshare" "${pkgs.util-linux}/bin/unshare"} --mount --propagation private -- ${command "bash" "${pkgs.bash}/bin/bash"} ${inner} "$@"
 ''

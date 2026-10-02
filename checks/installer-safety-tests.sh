@@ -1,7 +1,7 @@
 set -euo pipefail
 state=/build/fixture
 rm -rf "$state"
-mkdir -p "$state"/{dev/disk/by-id,sys/dev/block,sys/devices/nvme0n1/nvme0n1p1,sys/devices/nvme0n1/nvme0n1p2,sys/class/net,sys/bus/pci/devices/0000:00:02.0,run}
+mkdir -p "$state"/{dev/disk/by-id,proc/1/ns,proc/self/ns,sys/dev/block,sys/devices/nvme0n1/nvme0n1p1,sys/devices/nvme0n1/nvme0n1p2,sys/class/net,sys/bus/pci/devices/0000:00:02.0,run}
 touch "$state/dev/nvme0n1" "$state/dev/nvme0n1p1" "$state/dev/nvme0n1p2" "$state/dev/sda" "$state/dev/disk/by-id/nvme-Samsung"
 ln -s "$state/sys/devices/nvme0n1/nvme0n1p1" "$state/sys/dev/block/259:1"
 ln -s "$state/sys/devices/nvme0n1/nvme0n1p2" "$state/sys/dev/block/259:2"
@@ -10,9 +10,14 @@ touch "$state/sys/devices/nvme0n1/nvme0n1p1/partition" "$state/sys/devices/nvme0
 printf '103 0\n' >"$state/hex_major_minor" # realistic NVMe 0x103 == decimal 259
 printf block >"$state/type"
 : >"$state/log"; : >"$state/output"
+printf 'mnt:[1]\n' >"$state/proc/1/ns/mnt"
+printf 'mnt:[2]\n' >"$state/proc/self/ns/mnt"
 
 setup_host() {
   host=$1
+  # Model an already-unshared namespace which still has shared propagation.
+  ! cmp -s "$state/proc/1/ns/mnt" "$state/proc/self/ns/mnt"
+  printf '24 1 0:20 / / rw,relatime shared:1 - ext4 /dev/root rw\n25 24 0:5 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw\n' >"$state/proc/self/mountinfo"
   rm -rf "$state/sys/class/net"; mkdir -p "$state/sys/class/net"
   case "$host" in
     framework-01) model='Samsung SSD 970 EVO Plus 2TB'; serial=S59CNM0W713317D; sectors=3907029168; members='enp0s13f0u1 enp0s13f0u2'; mac=9c:bf:0d:00:23:fe; gpu=9a49 ;;
@@ -30,7 +35,7 @@ setup_host() {
   printf 'PCR7 DISABLED ACKNOWLEDGED\n' >"$state/pcr-input"
 }
 
-assert_no_destruction() { ! grep -Eq 'disko:.*--mode disko|systemd-cryptenroll:' "$state/log"; }
+assert_no_destruction() { ! grep -Eq 'disko:|systemd-cryptenroll:' "$state/log"; }
 for spec in framework-01:$INSTALL_01 framework-02:$INSTALL_02 framework-03:$INSTALL_03; do
   host=${spec%%:*}; entry=${spec#*:}; setup_host "$host"; : >"$state/log"
   printf '%s\n' "$host" | "$entry"
@@ -55,9 +60,10 @@ assert_no_destruction; rm "$state/bind-fails"
 setup_host framework-01; touch "$state/bound-mismatch"; : >"$state/log"
 if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction; grep -q '^umount:' "$state/log"; rm "$state/bound-mismatch"
-setup_host framework-01; touch "$state/no-namespace"; : >"$state/log"
+setup_host framework-01; touch "$state/propagation-fails"; : >"$state/log"
 if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
-assert_no_destruction; ! grep -q '^mount:' "$state/log"; rm "$state/no-namespace"
+grep -Eq '^unshare:--mount --propagation private -- ' "$state/log"
+assert_no_destruction; ! grep -q '^mount:' "$state/log"; rm "$state/propagation-fails"
 
 setup_host framework-01; : >"$state/log"; export FIXTURE_UID=1000
 if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi

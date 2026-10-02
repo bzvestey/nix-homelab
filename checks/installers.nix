@@ -19,8 +19,6 @@ let
           guard-log) ;;
           readlink)
             case "$*" in
-              /proc/1/ns/mnt) echo 'mnt:[1]' ;;
-              /proc/self/ns/mnt) if [ "''${FIXTURE_PRIVATE_NS:-0}" = 1 ] && [ ! -e "$state/no-namespace" ]; then echo 'mnt:[2]'; else echo 'mnt:[1]'; fi ;;
               *sys/dev/block/259:1*) echo "$state/sys/devices/nvme0n1/nvme0n1p1" ;;
               *sys/dev/block/259:2*) echo "$state/sys/devices/nvme0n1/nvme0n1p2" ;;
               *) [ -e "$state/unsupported-canonical" ] && echo "$state/dev/sda" || echo "$state/dev/nvme0n1" ;;
@@ -35,9 +33,9 @@ let
             esac
             ;;
           unshare)
-            if [ -e "$state/no-namespace" ] && [ "''${FIXTURE_PRIVATE_NS:-0}" = 1 ]; then exit 5; fi
             shift 4
-            FIXTURE_PRIVATE_NS=1 exec "$@"
+            [ -e "$state/propagation-fails" ] || sed -i 's/ shared:1//' "$state/proc/self/mountinfo"
+            exec "$@"
             ;;
           mount)
             [ ! -e "$state/bind-fails" ] || exit 6
@@ -82,6 +80,7 @@ let
   roots = {
     dev = "/build/fixture/dev";
     sys = "/build/fixture/sys";
+    proc = "/build/fixture/proc";
     run = "/build/fixture/run";
     urandom = "/dev/zero";
     ttyIn = "/build/fixture/input";

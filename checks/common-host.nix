@@ -148,7 +148,7 @@ let
     checkPhase = ''
       runHook preCheck
       go test ./internal/repository -run 'Test(HeadSignedBy|UpdateGpg|UpdateSSHSigning)$'
-      go test ./internal/manager -run TestBuild
+      go test ./internal/manager -run 'Test(Build|RejectUnverifiedSSHCommits)$'
       runHook postCheck
     '';
   });

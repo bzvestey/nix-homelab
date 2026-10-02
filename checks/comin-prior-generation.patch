@@ -1,8 +1,85 @@
 diff --git a/internal/manager/manager_test.go b/internal/manager/manager_test.go
-index f94d59e..1e5410b 100644
+index f94d59e..6162215 100644
 --- a/internal/manager/manager_test.go
 +++ b/internal/manager/manager_test.go
-@@ -103,6 +103,22 @@ func TestBuild(t *testing.T) {
+@@ -18,6 +18,7 @@ import (
+ 	"github.com/nlewo/comin/pkg/protobuf"
+ 	"github.com/sirupsen/logrus"
+ 	"github.com/stretchr/testify/assert"
++	"google.golang.org/protobuf/types/known/wrapperspb"
+ )
+ 
+ var emptyConfigurationOperations = map[string]map[string]string{}
+@@ -84,6 +85,68 @@ func NewExecutorMock(machineId string) ExecutorMock {
+ 	}
+ }
+ 
++func TestRejectUnverifiedSSHCommits(t *testing.T) {
++	for _, fixture := range []string{"unsigned", "wrong-signer"} {
++		t.Run(fixture, func(t *testing.T) {
++			r := utils.NewRepositoryMock()
++			tmp := t.TempDir()
++			bk := broker.New()
++			bk.Start()
++			f := fetcher.NewGitFetcher(r, bk)
++			f.Start(t.Context())
++			s, err := store.New(bk, tmp+"/state.json", tmp+"/gcroots", 1, 1, 1)
++			assert.NoError(t, err)
++			eMock := NewExecutorMock("")
++			b := builder.New(s, eMock, bk, "repoPath", "", "", "my-machine", false, 2*time.Second, 2*time.Second)
++			deployFunc := func(context.Context, string, string, []string, io.WriteCloser, io.WriteCloser) (bool, string, error) {
++				return false, "profile-path", nil
++			}
++			d := deployer.New(s, deployFunc, nil, "", bk)
++			e, err := executor.NewGitNixFlakeNixOS("", false)
++			assert.NoError(t, err)
++			bc := NewConfirmer(bk, Without, 0, "")
++			bc.Start()
++			dc := NewConfirmer(bk, Without, 0, "")
++			dc.Start()
++			m := New(s, prometheus.New(), scheduler.New(), f, b, d, "", "", e, bc, dc, bk, emptyConfigurationOperations)
++			go m.Run(t.Context())
++
++			prior := &protobuf.Generation{
++				Source: &protobuf.Source{
++					Source: &protobuf.Source_Git{
++						Git: &protobuf.Git{SelectedCommitId: "prior-generation-sentinel"},
++					},
++				},
++			}
++			d.Submit(prior, "switch", false, "fixture prior generation")
++			assert.EventuallyWithT(t, func(c *assert.CollectT) {
++				deployment := d.Deployment()
++				if assert.NotNil(c, deployment) {
++					assert.Equal(c, "prior-generation-sentinel", deployment.Generation.Source.GetGit().SelectedCommitId)
++				}
++			}, 5*time.Second, 100*time.Millisecond)
++
++			f.TriggerFetch([]string{"remote"})
++			r.RsCh <- &protobuf.GitRepositoryStatus{
++				SelectedCommitId:             fixture,
++				SelectedCommitShouldBeSigned: wrapperspb.Bool(true),
++				SelectedCommitSigned:         wrapperspb.Bool(false),
++			}
++			assert.Eventually(t, func() bool {
++				return !f.IsFetching()
++			}, 5*time.Second, 100*time.Millisecond)
++			assert.Never(t, func() bool {
++				return m.Builder.State().IsEvaluating.GetValue() || m.Builder.State().IsBuilding.GetValue()
++			}, time.Second, 50*time.Millisecond)
++			assert.Nil(t, m.deployer.GenerationToDeploy)
++			deployment := d.Deployment()
++			if assert.NotNil(t, deployment) {
++				assert.Equal(t, "prior-generation-sentinel", deployment.Generation.Source.GetGit().SelectedCommitId)
++			}
++		})
++	}
++}
++
+ func TestBuild(t *testing.T) {
+ 	logrus.SetLevel(logrus.DebugLevel)
+ 	r := utils.NewRepositoryMock()
+@@ -103,6 +166,22 @@ func TestBuild(t *testing.T) {
  	dc.Start()
  	m := New(s, prometheus.New(), scheduler.New(), f, b, d, "", "", e, bc, dc, bk, emptyConfigurationOperations)
  	go m.Run(t.Context())
@@ -25,7 +102,7 @@ index f94d59e..1e5410b 100644
  	assert.False(t, m.Fetcher.GetState().IsFetching.GetValue())
  	assert.False(t, m.Builder.State().IsEvaluating.GetValue())
  	assert.False(t, m.Builder.State().IsBuilding.GetValue())
-@@ -125,6 +141,7 @@ func TestBuild(t *testing.T) {
+@@ -125,6 +204,7 @@ func TestBuild(t *testing.T) {
  		g, _ := m.storage.GenerationGet(m.Builder.GenerationUuid)
  		assert.NotNil(c, g.EvalErr)
  		assert.Nil(c, m.deployer.GenerationToDeploy)
@@ -33,7 +110,7 @@ index f94d59e..1e5410b 100644
  	}, 5*time.Second, 100*time.Millisecond)
  
  	commitId = "id-2"
-@@ -150,6 +167,7 @@ func TestBuild(t *testing.T) {
+@@ -150,6 +230,7 @@ func TestBuild(t *testing.T) {
  		g, _ := m.storage.GenerationGet(m.Builder.GenerationUuid)
  		assert.NotNil(c, g.BuildErr)
  		assert.Nil(c, m.deployer.GenerationToDeploy)

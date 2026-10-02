@@ -43,16 +43,46 @@ let
   };
   fakeSystemd = pkgs.runCommand "fake-systemd" { } ''
     mkdir -p $out/bin
+    cat >$out/bin/systemd-run <<'EOF'
+    #!${pkgs.bash}/bin/bash
+    unit=
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --unit=*) unit=''${1#--unit=};;
+        --) shift; break;;
+      esac
+      shift
+    done
+    [ ! -e ${root}/fail-transient-start ] || exit 125
+    mkdir -p ${root}/transient
+    "$@" & pid=$!
+    printf '%s\n' "$pid" >${root}/transient/$unit.pid
+    printf active >${root}/transient/$unit.state
+    set +e; wait "$pid"; rc=$?; set -e
+    printf inactive >${root}/transient/$unit.state
+    exit "$rc"
+    EOF
     cat >$out/bin/systemctl <<'EOF'
     #!${pkgs.bash}/bin/bash
     echo "systemctl:$*" >> ${root}/log
-    if [ "$1" = is-active ]; then
+    if [ "$1" = show ]; then
+      [ ! -e ${root}/fail-transient-control ] || exit 1
+      unit=$2
+      [ -e ${root}/transient/$unit.state ] || exit 1
+      printf 'LoadState=loaded\nActiveState=%s\nMainPID=%s\nControlGroup=\n' "$(cat ${root}/transient/$unit.state)" "$(cat ${root}/transient/$unit.pid)"
+    elif [ "$1" = kill ]; then
+      unit=''${!#}; signal=TERM
+      printf '%s\n' "$*" | grep -q -- --signal=KILL && signal=KILL
+      kill -"$signal" "$(cat ${root}/transient/$unit.pid)" 2>/dev/null || true
+    elif [ "$1" = reset-failed ]; then
+      exit 0
+    elif [ "$1" = is-active ]; then
       [ ! -e ${root}/systemctl-error ] || exit 4
       [ -e ${root}/active ] && exit 0 || exit 3
     elif [ "$1" = start ] && [ -e ${root}/fail-start ] && [ "$2" = second.service ]; then exit 5
     else exit 0; fi
     EOF
-    chmod +x $out/bin/systemctl
+    chmod +x $out/bin/systemctl $out/bin/systemd-run
   '';
   jobs = {
     files = {
@@ -60,22 +90,6 @@ let
       paths = [ "${root}/target" ];
       createCommand = ''
         [ ! -e ${root}/hold-create ] || { touch ${root}/create-entered; sleep 30; }
-        [ ! -e ${root}/term-resistant-export ] || {
-          awk '{ print $5 }' "/proc/$BASHPID/stat" >${root}/writer-pgid
-          trap "" TERM
-          n=0
-          while :; do dd if=/dev/zero of="$FLEET_BACKUP_STAGING_DIR/growing-$n" bs=8192 count=1 status=none; n=$(( n + 1 )); sleep 0.05; done
-        }
-        [ ! -e ${root}/background-export ] || {
-          awk '{ print $5 }' "/proc/$BASHPID/stat" >${root}/writer-pgid
-          (
-            trap "" TERM
-            printf '%s\n' "$BASHPID" >${root}/writer-pid
-            n=0
-            while :; do dd if=/dev/zero of="$FLEET_BACKUP_STAGING_DIR/growing-$n" bs=8192 count=1 status=none; n=$(( n + 1 )); sleep 0.05; done
-          ) &
-          exit 0
-        }
         [ ! -e ${root}/growing-export ] || { while :; do dd if=/dev/zero bs=8192 count=1 >>"$FLEET_BACKUP_STAGING_DIR/growing"; sleep 0.05; done; }
         [ ! -e ${root}/missing-required ] || { printf unrelated >"$FLEET_BACKUP_STAGING_DIR/unrelated"; exit 0; }
         [ ! -e ${root}/oversized ] || { dd if=/dev/zero of="$FLEET_BACKUP_STAGING_DIR/large" bs=2048 count=1; exit 9; }
@@ -170,6 +184,7 @@ let
   };
   realTools = pkgs.callPackage ../packages/fleet-restore.nix {
     jobs = realJobs;
+    systemd = fakeSystemd;
     repositoryFile = "${root}/real-repository";
     passwordFile = "${root}/real-password";
     stateDirectory = "${root}/real-state";
@@ -189,24 +204,6 @@ pkgs.runCommand "backup-restore-tests"
         printf original >${root}/source/data
         printf repository >${root}/repository
         printf password >${root}/password
-        group_has_live_member() {
-          target_pgid=$1
-          for stat_file in /proc/[0-9]*/stat; do
-            [ -r "$stat_file" ] || continue
-            stat_line=$(cat "$stat_file" 2>/dev/null) || continue
-            stat_fields=''${stat_line##*) }
-            read -r state _ process_pgid _ <<<"$stat_fields"
-            [ "$process_pgid" = "$target_pgid" ] || continue
-            [ "$state" = Z ] || [ "$state" = X ] || return 0
-          done
-          return 1
-        }
-        process_is_live() {
-          stat_line=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
-          stat_fields=''${stat_line##*) }
-          read -r state _ <<<"$stat_fields"
-          [ "$state" != Z ] && [ "$state" != X ]
-        }
 
         # The module executes this same generated production program.
         grep -F '/bin/fleet-backup-run files' ${pkgs.writeText "exec" evaluated.config.systemd.services.fleet-backup-files.serviceConfig.ExecStart}
@@ -244,26 +241,14 @@ pkgs.runCommand "backup-restore-tests"
         rm ${root}/growing-export
         test "$(find ${root}/state/files/failed -type f -printf '%s\n' | sort -nr | head -1)" -le 65536
 
-        # A TERM-resistant producer and an exited leader with a surviving writer
-        # are killed as complete process groups without retaining locks or data.
-        for hostile in term-resistant-export background-export; do
-          rm -f ${root}/writer-pid ${root}/writer-pgid
-          touch ${root}/$hostile
-          timeout -k 1 5 ${tools}/bin/fleet-backup-run files && exit 1 || true
-          pgid=$(cat ${root}/writer-pgid)
-          if group_has_live_member "$pgid"; then
-            kill -KILL -- "-$pgid" 2>/dev/null || true
-            echo "$hostile left a surviving process group" >&2
-            exit 1
-          fi
-          if [ -e ${root}/writer-pid ]; then
-            ! process_is_live "$(cat ${root}/writer-pid)"
-          fi
-          test "$(du -sb ${root}/state/files/failed | cut -f1)" -le 1024
-          test "$(find ${root}/state/files/failed -type f -printf '%s\n' | sort -nr | head -1)" -le 65536
-          rm ${root}/$hostile
-          timeout 5 ${tools}/bin/fleet-backup-run files
+        # Transient service startup/control failures refuse before repository work.
+        for failure in fail-transient-start fail-transient-control; do
+          touch ${root}/$failure; : >${root}/log
+          timeout 5 ${tools}/bin/fleet-backup-run files && exit 1 || true
+          ! grep -F 'restic:backup' ${root}/log
+          rm ${root}/$failure
         done
+        timeout 5 ${tools}/bin/fleet-backup-run files
 
         touch ${root}/hold-create; : >${root}/log
         ${tools}/bin/fleet-backup-run files & lock_pid=$!

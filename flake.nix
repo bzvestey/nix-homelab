@@ -214,10 +214,20 @@
       });
 
       checks = forAllSystems (system: {
-        backup-restore = import ./checks/backup-restore.nix {
-          inherit nixpkgs;
-          pkgs = nixpkgs.legacyPackages.${system};
-        };
+        backup-restore =
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+          in
+          pkgs.linkFarm "backup-restore-checks" [
+            {
+              name = "integration";
+              path = import ./checks/backup-restore.nix { inherit nixpkgs pkgs; };
+            }
+            {
+              name = "cgroup-vm";
+              path = import ./checks/backup-cgroup.nix { inherit pkgs; };
+            }
+          ];
         installers = import ./checks/installers.nix {
           inherit disko;
           pkgs = nixpkgs.legacyPackages.${system};

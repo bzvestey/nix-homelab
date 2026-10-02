@@ -1,6 +1,8 @@
 {
+  bash,
   coreutils,
   findutils,
+  gawk,
   gnugrep,
   jq,
   lib,
@@ -29,8 +31,10 @@ let
     lib.all validName names
     && lib.all (job: lib.all validRelative job.requiredPaths) (builtins.attrValues jobs);
   runtimeInputs = [
+    bash
     coreutils
     findutils
+    gawk
     gnugrep
     gnutar
     jq
@@ -104,66 +108,105 @@ let
     tree_bytes() {
       find "$1" -type f -printf '%s\n' | awk '{ count++; if (count > 100000 || $1 > max || total > max - $1) exit 1; total += $1 } END { print total + 0 }' max="$max_payload_bytes"
     }
-    process_group_has_live_member() {
-      target_pgid=$1
-      for stat_file in /proc/[0-9]*/stat; do
-        [ -r "$stat_file" ] || continue
-        stat_line=$(cat "$stat_file" 2>/dev/null) || continue
-        stat_fields=''${stat_line##*) }
-        read -r state _ process_pgid _ <<<"$stat_fields"
-        [ "$process_pgid" = "$target_pgid" ] || continue
-        [ "$state" = Z ] || [ "$state" = X ] || return 0
-      done
-      return 1
-    }
     leader_has_exited() {
       stat_line=$(cat "/proc/$1/stat" 2>/dev/null) || return 0
       stat_fields=''${stat_line##*) }
       read -r state _ <<<"$stat_fields"
       [ "$state" = Z ] || [ "$state" = X ]
     }
-    stop_process_group() {
-      target_pgid=$1
-      kill -TERM -- "-$target_pgid" 2>/dev/null || true
+    unit_state() {
+      systemctl show "$1" --property=LoadState --property=ActiveState --property=MainPID --property=ControlGroup
+    }
+    unit_has_members() {
+      control_group=$1
+      [ -n "$control_group" ] && [ -s "/sys/fs/cgroup$control_group/cgroup.procs" ]
+    }
+    unit_is_inactive_and_empty() {
+      target_unit=$1
+      known_cgroup=$2
+      if state=$(unit_state "$target_unit" 2>/dev/null); then
+        active=$(printf '%s\n' "$state" | sed -n 's/^ActiveState=//p')
+        cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
+        [ -n "$cgroup" ] || cgroup=$known_cgroup
+        { [ "$active" = inactive ] || [ "$active" = failed ]; } && ! unit_has_members "$cgroup"
+        return
+      fi
+      set +e; systemctl is-active --quiet "$target_unit" >/dev/null 2>&1; active_rc=$?; set -e
+      { [ "$active_rc" -eq 3 ] || [ "$active_rc" -eq 4 ]; } && ! unit_has_members "$known_cgroup"
+    }
+    stop_transient_unit() {
+      target_unit=$1
+      known_cgroup=''${2:-}
+      systemctl kill --kill-whom=all --signal=TERM "$target_unit" >/dev/null 2>&1 || true
       for _ in {1..20}; do
-        process_group_has_live_member "$target_pgid" || return 0
+        unit_is_inactive_and_empty "$target_unit" "$known_cgroup" && return 0
         sleep 0.05
       done
-      kill -KILL -- "-$target_pgid" 2>/dev/null || true
+      systemctl kill --kill-whom=all --signal=KILL "$target_unit" >/dev/null 2>&1 || true
       for _ in {1..20}; do
-        process_group_has_live_member "$target_pgid" || return 0
+        unit_is_inactive_and_empty "$target_unit" "$known_cgroup" && return 0
         sleep 0.05
       done
-      echo "command process group did not terminate after KILL" >&2
+      echo "transient command cgroup did not become inactive and empty after KILL" >&2
       return 1
     }
     run_bounded_tree_command() {
       watched=$1; shift
       max_blocks=$(( (max_payload_bytes + 511) / 512 ))
-      pgid_file=$(mktemp)
-      setsid --wait bash -c "printf '%s\\n' \"\$BASHPID\" >\"\$1\"; ulimit -f \"\$2\"; shift 2; exec \"\$@\"" _ "$pgid_file" "$max_blocks" "$@" & command_pid=$!
-      for _ in {1..20}; do
-        [ ! -s "$pgid_file" ] || break
-        kill -0 "$command_pid" 2>/dev/null || break
+      leader_file=$(mktemp)
+      unit_token_file=$(mktemp)
+      unit_token=$(basename "$unit_token_file")
+      rm -f "$unit_token_file"
+      unit="fleet-bounded-$job-$$-$unit_token.service"
+      run_environment=(--setenv=PATH --setenv=RESTIC_REPOSITORY --setenv=RESTIC_PASSWORD_FILE --setenv=RESTIC_CACHE_DIR)
+      [ -z "''${FLEET_BACKUP_STAGING_DIR:-}" ] || run_environment+=(--setenv=FLEET_BACKUP_STAGING_DIR)
+      systemd-run --quiet --wait --collect --service-type=exec --unit="$unit" \
+        --property=KillMode=control-group --property=TimeoutStopSec=1s \
+        --property="LimitFSIZE=$max_payload_bytes" "''${run_environment[@]}" -- \
+        bash -c 'printf "%s\n" "$BASHPID" >"$1"; ulimit -f "$2"; shift 2; exec "$@"' _ "$leader_file" "$max_blocks" "$@" & run_pid=$!
+      started=0
+      control_seen=0
+      for _ in {1..100}; do
+        if state=$(unit_state "$unit" 2>/dev/null); then
+          control_seen=1
+          load=$(printf '%s\n' "$state" | sed -n 's/^LoadState=//p')
+          active=$(printf '%s\n' "$state" | sed -n 's/^ActiveState=//p')
+          [ "$load" = loaded ] && { [ "$active" = activating ] || [ "$active" = active ] || [ "$active" = deactivating ]; } && started=1 && break
+        fi
+        kill -0 "$run_pid" 2>/dev/null || break
         sleep 0.01
       done
-      if ! read -r command_pgid <"$pgid_file"; then
-        rm -f "$pgid_file"
-        set +e; wait "$command_pid"; command_rc=$?; set -e
-        return "$command_rc"
+      if [ "$started" -eq 0 ]; then
+        if [ "$control_seen" -eq 1 ] && [ -s "$leader_file" ] && ! kill -0 "$run_pid" 2>/dev/null; then
+          set +e; wait "$run_pid"; command_rc=$?; set -e
+          rm -f "$leader_file"
+          systemctl reset-failed "$unit" >/dev/null 2>&1 || true
+          tree_bytes "$watched" >/dev/null || { echo "payload exceeded file, aggregate, or count bound at command completion" >&2; return 1; }
+          return "$command_rc"
+        fi
+        stop_transient_unit "$unit" "''${cgroup:-}" || true
+        set +e; wait "$run_pid"; command_rc=$?; set -e
+        rm -f "$leader_file"
+        echo "transient command unit failed to start or could not be controlled" >&2
+        return 1
       fi
-      rm -f "$pgid_file"
       violation=
       exited_ticks=0
-      while process_group_has_live_member "$command_pgid"; do
+      while kill -0 "$run_pid" 2>/dev/null; do
+        if ! state=$(unit_state "$unit" 2>/dev/null); then
+          violation=control
+          break
+        fi
+        active=$(printf '%s\n' "$state" | sed -n 's/^ActiveState=//p')
+        cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
         if ! tree_bytes "$watched" >/dev/null; then
           violation=bound
           break
         fi
-        if leader_has_exited "$command_pgid"; then
+        if read -r leader_pid <"$leader_file" && leader_has_exited "$leader_pid" && { unit_has_members "$cgroup" || [ "$active" = active ] || [ "$active" = deactivating ]; }; then
           exited_ticks=$(( exited_ticks + 1 ))
           if [ "$exited_ticks" -ge 5 ]; then
-            violation=background
+            violation=descendant
             break
           fi
         else
@@ -171,16 +214,21 @@ let
         fi
         sleep 0.05
       done
-      group_stopped=1
-      [ -z "$violation" ] || stop_process_group "$command_pgid" || group_stopped=0
-      set +e; wait "$command_pid"; command_rc=$?; set -e
+      stopped=1
+      [ -z "$violation" ] || stop_transient_unit "$unit" "''${cgroup:-}" || stopped=0
+      set +e; wait "$run_pid"; command_rc=$?; set -e
+      rm -f "$leader_file"
+      systemctl reset-failed "$unit" >/dev/null 2>&1 || true
       if [ "$violation" = bound ]; then
         echo "payload exceeded file, aggregate, or count bound while command was running" >&2
         return 1
-      elif [ "$violation" = background ]; then
-        echo "command leader exited with persistent background processes" >&2
+      elif [ "$violation" = descendant ]; then
+        echo "command leader exited with persistent cgroup descendants" >&2
         return 1
-      elif [ "$group_stopped" -eq 0 ]; then
+      elif [ "$violation" = control ]; then
+        echo "lost control of transient command unit" >&2
+        return 1
+      elif [ "$stopped" -eq 0 ]; then
         return 1
       fi
       tree_bytes "$watched" >/dev/null || { echo "payload exceeded file, aggregate, or count bound at command completion" >&2; return 1; }
@@ -279,7 +327,10 @@ let
   backup = writeShellApplication {
     name = "fleet-backup-run";
     inherit runtimeInputs;
-    excludeShellChecks = [ "SC2154" ];
+    excludeShellChecks = [
+      "SC2016"
+      "SC2154"
+    ];
     text = ''
       ${common}
       job="''${1:-}"
@@ -293,7 +344,10 @@ let
   check = writeShellApplication {
     name = "fleet-backup-check";
     inherit runtimeInputs;
-    excludeShellChecks = [ "SC2154" ];
+    excludeShellChecks = [
+      "SC2016"
+      "SC2154"
+    ];
     text = ''
       ${common}
       job=check

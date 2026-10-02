@@ -21,7 +21,7 @@ let
     static_configs = [ { targets = [ address ]; } ];
   }) targets;
   baseSettings = {
-    extensions.file_storage = {
+    extensions."file_storage/journald" = {
       directory = "/var/lib/opentelemetry-collector/checkpoints";
       create_directory = true;
     };
@@ -41,7 +41,7 @@ let
       journald = {
         directory = "/var/log/journal";
         start_at = "end";
-        storage = "file_storage";
+        storage = "file_storage/journald";
       };
       prometheus.config.scrape_configs = scrapeConfigs;
       otlp.protocols = {
@@ -129,12 +129,12 @@ let
           enabled = true;
           initial_interval = "1s";
           max_interval = "10s";
-          max_elapsed_time = "60s";
+          max_elapsed_time = cfg.retryMaxElapsedTime;
         };
       };
     };
     service = {
-      extensions = [ "file_storage" ];
+      extensions = [ "file_storage/journald" ];
       pipelines = {
         metrics = {
           receivers = [
@@ -189,6 +189,11 @@ in
       type = lib.types.port;
       default = 9464;
       description = "Consolidated Prometheus endpoint port.";
+    };
+    retryMaxElapsedTime = lib.mkOption {
+      type = lib.types.strMatching "[1-9][0-9]*s";
+      default = "60s";
+      description = "Maximum elapsed time for retrying failed telemetry exports.";
     };
     revision = lib.mkOption {
       type = lib.types.str;

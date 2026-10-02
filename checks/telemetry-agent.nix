@@ -16,6 +16,7 @@ pkgs.testers.runNixOSTest {
       fleet.telemetry = {
         enable = true;
         gatewayEndpoint = "http://gateway:4318";
+        retryMaxElapsedTime = "10s";
         revision = "test-revision";
         localPrometheusTargets.fixture = "127.0.0.1:18080";
       };
@@ -172,15 +173,21 @@ pkgs.testers.runNixOSTest {
     gateway.wait_until_succeeds("grep -q JOURNAL_BENIGN /var/lib/opentelemetry-collector/gateway.json")
     gateway.wait_until_succeeds("grep -q PODMAN_JOURNAL_FIXTURE /var/lib/opentelemetry-collector/gateway.json")
 
-    retries_before = int(agent.succeed("curl -fsS http://127.0.0.1:8888/metrics | awk '/^otelcol_exporter_in_flight_requests/ { sum += $NF } END { print int(sum) }'").strip())
+    agent.wait_until_succeeds("test -n \"$(find -L /var/lib/opentelemetry-collector -type f -print -quit)\"", timeout=30)
+    state = agent.succeed("find -L /var/lib/opentelemetry-collector -type f -printf '%P\\n'").splitlines()
+    assert state
+    assert all(path.startswith("checkpoints/") for path in state)
+
     gateway.succeed("systemctl stop opentelemetry-collector.service")
-    agent.succeed("systemd-cat -t outage-fixture echo JOURNAL_AFTER_RECOVERY")
-    agent.wait_until_succeeds("test $(curl -fsS http://127.0.0.1:8888/metrics | awk '/^otelcol_exporter_in_flight_requests/ { sum += $NF } END { print int(sum) }') -gt " + str(retries_before), timeout=30)
+    agent.succeed("systemd-cat -t outage-fixture echo JOURNAL_DURING_OUTAGE")
+    agent.wait_until_succeeds("journalctl -u opentelemetry-collector.service --since '-30 seconds' --grep='Exporting failed. Will retry' --quiet", timeout=30)
+    agent.wait_until_succeeds("curl -fsS http://127.0.0.1:8888/metrics | awk '/^otelcol_exporter_send_failed_log_records{/ && /exporter=/ && $NF > 0 { found=1 } END { exit !found }'", timeout=30)
+    failed = agent.succeed("curl -fsS http://127.0.0.1:8888/metrics | grep '^otelcol_exporter_send_failed_log_records{'")
+    assert 'exporter="otlphttp"' in failed
     agent.succeed("systemctl is-active unrelated-application.service")
-    state = agent.succeed("find /var/lib/opentelemetry-collector -type f -printf '%P\\n'")
-    assert all("checkpoints" in path for path in state.splitlines())
     gateway.succeed("systemctl start opentelemetry-collector.service")
-    gateway.wait_until_succeeds("grep -q JOURNAL_AFTER_RECOVERY /var/lib/opentelemetry-collector/gateway.json", timeout=60)
+    agent.succeed("systemd-cat -t recovery-fixture echo JOURNAL_AFTER_RECOVERY")
+    gateway.wait_until_succeeds("grep -q JOURNAL_AFTER_RECOVERY /var/lib/opentelemetry-collector/gateway.json", timeout=10)
 
     before = gateway.succeed("grep -c JOURNAL_AFTER_RECOVERY /var/lib/opentelemetry-collector/gateway.json").strip()
     agent.succeed("systemctl restart opentelemetry-collector.service")

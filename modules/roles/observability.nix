@@ -7,6 +7,26 @@
 let
   cfg = config.fleet.observability;
   stateRoot = "/var/lib/telemetry";
+  gib = 1024 * 1024 * 1024;
+  effectiveBudget =
+    name:
+    if cfg.testMode then cfg.storage.backends.${name}.testBytes else cfg.storage.backends.${name}.bytes;
+  totalBudgetBytes = lib.foldl' (total: backend: total + backend.bytes) 0 (
+    lib.attrValues cfg.storage.backends
+  );
+  quotaCommands = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (
+      name: backend:
+      let
+        kibibytes = effectiveBudget name / 1024;
+      in
+      ''
+        install -d -m 0750 -o ${backend.owner} -g ${backend.group} ${stateRoot}/${name}
+        ${pkgs.e2fsprogs}/bin/chattr -p ${toString backend.projectId} +P ${stateRoot}/${name}
+        ${pkgs.quota}/bin/setquota -P ${toString backend.projectId} ${toString kibibytes} ${toString kibibytes} 0 0 ${stateRoot}
+      ''
+    ) cfg.storage.backends
+  );
   dashboards = pkgs.linkFarm "fleet-dashboards" (
     map
       (name: {
@@ -69,7 +89,45 @@ let
           {
             context = "log";
             statements = [
-              ''delete_matching_keys(attributes, "(?i)(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|path|revision)")''
+              ''delete_matching_keys(attributes, "(?i)(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|request[._-]?id|user[._-]?id|session[._-]?id|path|revision)")''
+            ];
+          }
+        ];
+      };
+      "transform/attribute-safety" = {
+        error_mode = "ignore";
+        metric_statements = [
+          {
+            context = "resource";
+            statements = [ ''keep_keys(attributes, ["host.name", "service.name", "deployment.environment"])'' ];
+          }
+          {
+            # Stable operational dimensions only. Request IDs, paths, users,
+            # container IDs, revisions, and arbitrary application labels are
+            # intentionally excluded to bound Prometheus cardinality.
+            context = "datapoint";
+            statements = [
+              ''keep_keys(attributes, ["cpu", "device", "direction", "filesystem", "interface", "mode", "mountpoint", "operation", "state", "status", "unit"])''
+            ];
+          }
+        ];
+        trace_statements = [
+          {
+            context = "resource";
+            statements = [ ''keep_keys(attributes, ["host.name", "service.name", "deployment.environment"])'' ];
+          }
+          {
+            context = "span";
+            statements = [
+              ''delete_matching_keys(attributes, "(?i)(^|[._-])(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|request[._-]?id|user[._-]?id|session[._-]?id|path|revision)([._-]|$)")''
+            ];
+          }
+        ];
+        log_statements = [
+          {
+            context = "log";
+            statements = [
+              ''delete_matching_keys(attributes, "(?i)(^|[._-])(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|request[._-]?id|user[._-]?id|session[._-]?id|path|revision)([._-]|$)")''
             ];
           }
         ];
@@ -113,6 +171,7 @@ let
           receivers = [ "otlp" ];
           processors = [
             "memory_limiter"
+            "transform/attribute-safety"
             "batch"
           ];
           exporters = [ "prometheus" ];
@@ -122,6 +181,7 @@ let
           processors = [
             "memory_limiter"
             "transform/log-safety"
+            "transform/attribute-safety"
             "batch"
           ];
           exporters = [ "otlphttp/loki" ];
@@ -130,6 +190,7 @@ let
           receivers = [ "otlp" ];
           processors = [
             "memory_limiter"
+            "transform/attribute-safety"
             "tail_sampling"
             "batch"
           ];
@@ -149,6 +210,7 @@ let
     bindsTo = [ "var-lib-telemetry.mount" ];
     after = [ "var-lib-telemetry.mount" ];
     unitConfig.ConditionPathIsMountPoint = stateRoot;
+    serviceConfig.StateDirectory = lib.mkForce "";
   };
 in
 {
@@ -170,9 +232,71 @@ in
       ];
       description = "Authoritative LAN host-agent scrape targets.";
     };
+    storage = {
+      minimumFilesystemBytes = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 2000 * gib;
+        readOnly = true;
+      };
+      backends = lib.mkOption {
+        type = lib.types.attrsOf (
+          lib.types.submodule {
+            options = {
+              projectId = lib.mkOption { type = lib.types.ints.positive; };
+              bytes = lib.mkOption { type = lib.types.ints.positive; };
+              testBytes = lib.mkOption { type = lib.types.ints.positive; };
+              owner = lib.mkOption { type = lib.types.str; };
+              group = lib.mkOption { type = lib.types.str; };
+            };
+          }
+        );
+        readOnly = true;
+        default = {
+          prometheus = {
+            projectId = 1001;
+            bytes = 750 * gib;
+            testBytes = 256 * 1024 * 1024;
+            owner = "prometheus";
+            group = "prometheus";
+          };
+          loki = {
+            projectId = 1002;
+            bytes = 500 * gib;
+            testBytes = 128 * 1024 * 1024;
+            owner = "loki";
+            group = "loki";
+          };
+          tempo = {
+            projectId = 1003;
+            bytes = 180 * gib;
+            testBytes = 64 * 1024 * 1024;
+            owner = "tempo";
+            group = "tempo";
+          };
+          grafana = {
+            projectId = 1004;
+            bytes = 10 * gib;
+            testBytes = 32 * 1024 * 1024;
+            owner = "grafana";
+            group = "grafana";
+          };
+        };
+      };
+      totalBudgetBytes = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = totalBudgetBytes;
+        readOnly = true;
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = totalBudgetBytes <= cfg.storage.minimumFilesystemBytes * 85 / 100;
+        message = "Observability backend budgets must reserve at least 15% of the minimum telemetry SSD.";
+      }
+    ];
     fileSystems.${stateRoot} = lib.mkIf (!cfg.testMode) {
       device = "/dev/disk/by-label/telemetry";
       fsType = "ext4";
@@ -182,18 +306,7 @@ in
         "prjquota"
       ];
     };
-    systemd.tmpfiles.rules =
-      map
-        (
-          entry:
-          "d ${stateRoot}/${entry} 0750 ${if entry == "grafana" then "grafana grafana" else "root root"} -"
-        )
-        [
-          "prometheus"
-          "loki"
-          "tempo"
-          "grafana"
-        ];
+    systemd.tmpfiles.rules = [ "d ${stateRoot} 0755 root root -" ];
     systemd.services = lib.genAttrs guardedUnits (_: guard) // {
       tempo = guard // {
         serviceConfig = {
@@ -209,23 +322,18 @@ in
         requiredBy = map (unit: "${unit}.service") guardedUnits;
         serviceConfig.Type = "oneshot";
         script = ''
-          install -d -m 0750 -o prometheus -g prometheus ${stateRoot}/prometheus
-          install -d -m 0750 -o loki -g loki ${stateRoot}/loki
-          install -d -m 0750 -o tempo -g tempo ${stateRoot}/tempo
-          install -d -m 0750 -o grafana -g grafana ${stateRoot}/grafana
-          ${pkgs.e2fsprogs}/bin/chattr -p 1001 ${stateRoot}/prometheus
-          ${pkgs.e2fsprogs}/bin/chattr -p 1002 ${stateRoot}/loki
-          ${pkgs.e2fsprogs}/bin/chattr -p 1003 ${stateRoot}/tempo
-          ${pkgs.e2fsprogs}/bin/chattr -p 1004 ${stateRoot}/grafana
-          ${pkgs.quota}/bin/setquota -P 1001 0 786432000 0 0 ${stateRoot}
-          ${pkgs.quota}/bin/setquota -P 1002 0 524288000 0 0 ${stateRoot}
-          ${pkgs.quota}/bin/setquota -P 1003 0 188743680 0 0 ${stateRoot}
-          ${pkgs.quota}/bin/setquota -P 1004 0 10485760 0 0 ${stateRoot}
+          ${pkgs.util-linux}/bin/mountpoint -q ${stateRoot}
+          ${lib.optionalString (!cfg.testMode) ''
+            test "$(${pkgs.coreutils}/bin/df --output=size -B1 ${stateRoot} | tail -1)" -ge ${toString cfg.storage.minimumFilesystemBytes}
+          ''}
+          ${pkgs.quota}/bin/quotaon -P ${stateRoot} 2>/dev/null || ${pkgs.quota}/bin/quotaon -p ${stateRoot} | grep -q 'project quota on'
+          ${quotaCommands}
         '';
       };
       otel-gateway = guard // {
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
+          StateDirectory = lib.mkForce "";
           ExecStart = "${pkgs.opentelemetry-collector-contrib}/bin/otelcol-contrib --config=file:${gatewayConfig}";
           DynamicUser = true;
           Restart = "on-failure";
@@ -235,31 +343,42 @@ in
         };
       };
       grafana = guard // {
-        serviceConfig.ExecStartPre = lib.mkBefore [
-          "+${pkgs.writeShellScript "grafana-secret-key" ''
-            key=${stateRoot}/grafana/secret-key
-            if [ ! -s "$key" ]; then
-              umask 077
-              ${pkgs.openssl}/bin/openssl rand -hex 32 > "$key"
-              chown grafana:grafana "$key"
-            fi
-          ''}"
-        ];
+        serviceConfig = {
+          StateDirectory = lib.mkForce "";
+          ExecStartPre = lib.mkBefore [
+            "+${pkgs.writeShellScript "grafana-secret-key" ''
+              for key in secret-key admin-password; do
+                path=${stateRoot}/grafana/$key
+                if [ ! -s "$path" ]; then
+                  umask 077
+                  ${pkgs.openssl}/bin/openssl rand -base64 48 > "$path"
+                  chown grafana:grafana "$path"
+                fi
+              done
+            ''}"
+          ];
+        };
       };
     };
 
-    users.groups.tempo = { };
-    users.users.tempo = {
-      isSystemUser = true;
-      group = "tempo";
-      home = "${stateRoot}/tempo";
+    users = {
+      groups.tempo = { };
+      users = {
+        grafana.createHome = lib.mkForce false;
+        loki.createHome = lib.mkForce false;
+        tempo = {
+          isSystemUser = true;
+          group = "tempo";
+          home = "${stateRoot}/tempo";
+        };
+      };
     };
     services = {
       prometheus = {
         enable = true;
         stateDir = "telemetry/prometheus";
         retentionTime = "90d";
-        extraFlags = [ "--storage.tsdb.retention.size=750GB" ];
+        extraFlags = [ "--storage.tsdb.retention.size=${toString (effectiveBudget "prometheus")}B" ];
         ruleFiles = [
           (pkgs.writeText "fleet-alerts.yml" (builtins.toJSON { groups = import ../../alerts/fleet.nix; }))
         ];
@@ -292,7 +411,10 @@ in
         dataDir = "${stateRoot}/loki";
         configuration = {
           auth_enabled = false;
-          server.http_listen_port = 3100;
+          server = {
+            http_listen_port = 3100;
+            grpc_listen_port = 9096;
+          };
           common = {
             path_prefix = "${stateRoot}/loki";
             replication_factor = 1;
@@ -320,6 +442,37 @@ in
             retention_period = "720h";
             allow_structured_metadata = true;
             volume_enabled = true;
+            otlp_config = {
+              resource_attributes = {
+                ignore_defaults = true;
+                attributes_config = [
+                  {
+                    action = "index_label";
+                    attributes = [
+                      "host.name"
+                      "service.name"
+                      "deployment.environment"
+                    ];
+                  }
+                  {
+                    action = "drop";
+                    regex = "(?i)(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|path|revision)";
+                  }
+                ];
+              };
+              scope_attributes = [
+                {
+                  action = "drop";
+                  regex = ".*";
+                }
+              ];
+              log_attributes = [
+                {
+                  action = "drop";
+                  regex = "(?i)(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|path|revision)";
+                }
+              ];
+            };
           };
         };
       };
@@ -328,6 +481,7 @@ in
         extraFlags = [ "-backend-scheduler.provider.work.compaction.block-retention=336h" ];
         settings = {
           server.http_listen_port = 3200;
+          backend_scheduler.local_work_path = "${stateRoot}/tempo/backend-scheduler";
           distributor.receivers.otlp.protocols = {
             grpc.endpoint = "127.0.0.1:4321";
             http.endpoint = "127.0.0.1:4322";
@@ -336,6 +490,10 @@ in
             backend = "local";
             local.path = "${stateRoot}/tempo/blocks";
             wal.path = "${stateRoot}/tempo/wal";
+          };
+          live_store = {
+            shutdown_marker_dir = "${stateRoot}/tempo/live-store/shutdown-marker";
+            wal.path = "${stateRoot}/tempo/live-store/wal";
           };
         };
       };
@@ -347,11 +505,10 @@ in
             http_addr = "127.0.0.1";
             http_port = 3000;
           };
-          security.admin_password = "admin";
+          security.admin_password = "$__file{${stateRoot}/grafana/admin-password}";
           security.secret_key = "$__file{${stateRoot}/grafana/secret-key}";
           "auth.anonymous" = {
-            enabled = true;
-            org_role = "Admin";
+            enabled = false;
           };
         };
         provision = {
@@ -365,6 +522,7 @@ in
                 type = "prometheus";
                 url = "http://127.0.0.1:9090";
                 isDefault = true;
+                jsonData.manageAlerts = true;
               }
               {
                 name = "Loki";
@@ -402,8 +560,9 @@ in
     };
     fleet.backup.jobs.grafana-state = {
       frequency = "*-*-* 02:15:00";
-      paths = [ "${stateRoot}/grafana/grafana.db" ];
+      paths = [ "${stateRoot}/grafana" ];
       requiredPaths = [
+        "admin-password"
         "grafana.db"
         "secret-key"
       ];
@@ -416,10 +575,15 @@ in
       maxPayloadBytes = 1073741824;
       createCommand = ''
         ${pkgs.sqlite}/bin/sqlite3 ${stateRoot}/grafana/grafana.db ".backup '$FLEET_BACKUP_STAGING_DIR/grafana.db'"
+        install -m 0600 ${stateRoot}/grafana/admin-password "$FLEET_BACKUP_STAGING_DIR/admin-password"
         install -m 0600 ${stateRoot}/grafana/secret-key "$FLEET_BACKUP_STAGING_DIR/secret-key"
+        # Keep the bounded transient command observable through systemd's
+        # accounting handoff even when this tiny payload completes instantly.
+        sleep 1
       '';
       restoreCommand = ''
         install -m 0640 "$FLEET_RESTORE_SOURCE_DIR/grafana.db" ${stateRoot}/grafana/grafana.db
+        install -m 0600 "$FLEET_RESTORE_SOURCE_DIR/admin-password" ${stateRoot}/grafana/admin-password
         install -m 0600 "$FLEET_RESTORE_SOURCE_DIR/secret-key" ${stateRoot}/grafana/secret-key
       '';
       healthCheckCommand = ''test "$(${pkgs.sqlite}/bin/sqlite3 ${stateRoot}/grafana/grafana.db 'pragma integrity_check')" = ok'';

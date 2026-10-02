@@ -69,7 +69,7 @@
       }
       {
         alert = "TelemetryRefusedOrDropped";
-        expr = "increase(otelcol_receiver_refused_spans[5m]) + increase(otelcol_receiver_refused_log_records[5m]) + increase(otelcol_receiver_refused_metric_points[5m]) + increase(otelcol_exporter_send_failed_spans[5m]) > 0";
+        expr = "sum(increase({__name__=~\"otelcol_receiver_refused_(spans|log_records|metric_points)|otelcol_exporter_send_failed_(spans|log_records|metric_points)\"}[5m])) > 0";
         labels.severity = "warning";
       }
       {

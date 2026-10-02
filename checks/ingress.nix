@@ -106,7 +106,7 @@ let
   };
   connector =
     address:
-    {
+    pkgs.lib.recursiveUpdate (lan address) {
       imports = [ ../modules/fleet/cloudflared.nix ];
       fleet.cloudflared = {
         enable = true;
@@ -121,107 +121,109 @@ let
         prometheus.wantedBy = [ "multi-user.target" ];
         prometheus.serviceConfig.ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
       };
+      networking.nftables.enable = true;
       networking.firewall.extraInputRules = ''
         iifname "eth1" ip saddr 10.15.4.20 tcp dport 8888 accept
       '';
-    }
-    // lan address;
+    };
 in
 pkgs.testers.runNixOSTest {
   name = "fleet-ingress";
   nodes = {
     origin5 =
-      origin "10.15.4.5"
-        [
-          {
-            hostname = "foundry.minastas.xyz";
-            upstream = "http://127.0.0.1:9001";
-            exposure = "public";
-          }
-          {
-            hostname = "matrix.minastas.social";
-            upstream = "http://127.0.0.1:9002";
-            exposure = "public";
-          }
-          {
-            hostname = "knot.minastas.xyz";
-            upstream = "http://127.0.0.1:9003";
-            exposure = "public";
-          }
-          {
-            hostname = "minastas.social";
-            upstream = "http://127.0.0.1:9004";
-            exposure = "public";
-          }
-          {
-            hostname = "pds.minastas.social";
-            upstream = "http://127.0.0.1:9005";
-            exposure = "public";
-          }
-          {
-            hostname = "*.minastas.social";
-            upstream = "http://127.0.0.1:9006";
-            exposure = "public";
-          }
-          {
-            hostname = "private.tailbc181.ts.net";
-            upstream = "http://127.0.0.1:9007";
-            exposure = "tailnet";
-          }
-        ]
-        [
-          {
-            name = "foundry";
-            identity = "foundry-.5";
-            port = 9001;
-          }
-          {
-            name = "matrix";
-            identity = "matrix-.5";
-            port = 9002;
-          }
-          {
-            name = "knot";
-            identity = "knot-.5";
-            port = 9003;
-          }
-          {
-            name = "root";
-            identity = "root-.5";
-            port = 9004;
-          }
-          {
-            name = "pds";
-            identity = "pds-.5";
-            port = 9005;
-          }
-          {
-            name = "wildcard";
-            identity = "wildcard-.5";
-            port = 9006;
-          }
-          {
-            name = "private";
-            identity = "private-.5";
-            port = 9007;
-          }
-        ]
-      // {
-        virtualisation.vlans = [
-          1
-          2
-        ];
-        systemd.network.links."10-tailnet" = {
-          matchConfig.OriginalName = "eth2";
-          linkConfig.Name = "tailscale0";
+      pkgs.lib.recursiveUpdate
+        (origin "10.15.4.5"
+          [
+            {
+              hostname = "foundry.minastas.xyz";
+              upstream = "http://127.0.0.1:9001";
+              exposure = "public";
+            }
+            {
+              hostname = "matrix.minastas.social";
+              upstream = "http://127.0.0.1:9002";
+              exposure = "public";
+            }
+            {
+              hostname = "knot.minastas.xyz";
+              upstream = "http://127.0.0.1:9003";
+              exposure = "public";
+            }
+            {
+              hostname = "minastas.social";
+              upstream = "http://127.0.0.1:9004";
+              exposure = "public";
+            }
+            {
+              hostname = "pds.minastas.social";
+              upstream = "http://127.0.0.1:9005";
+              exposure = "public";
+            }
+            {
+              hostname = "*.minastas.social";
+              upstream = "http://127.0.0.1:9006";
+              exposure = "public";
+            }
+            {
+              hostname = "private.tailbc181.ts.net";
+              upstream = "http://127.0.0.1:9007";
+              exposure = "tailnet";
+            }
+          ]
+          [
+            {
+              name = "foundry";
+              identity = "foundry-.5";
+              port = 9001;
+            }
+            {
+              name = "matrix";
+              identity = "matrix-.5";
+              port = 9002;
+            }
+            {
+              name = "knot";
+              identity = "knot-.5";
+              port = 9003;
+            }
+            {
+              name = "root";
+              identity = "root-.5";
+              port = 9004;
+            }
+            {
+              name = "pds";
+              identity = "pds-.5";
+              port = 9005;
+            }
+            {
+              name = "wildcard";
+              identity = "wildcard-.5";
+              port = 9006;
+            }
+            {
+              name = "private-app";
+              identity = "private-.5";
+              port = 9007;
+            }
+          ]
+        )
+        {
+          virtualisation.vlans = [
+            1
+            2
+          ];
+          systemd.network.links."10-tailnet" = {
+            matchConfig.OriginalName = "eth2";
+            linkConfig.Name = "tailscale0";
+          };
+          networking.interfaces.tailscale0.ipv4.addresses = [
+            {
+              address = "100.64.0.5";
+              prefixLength = 24;
+            }
+          ];
         };
-        networking.interfaces.tailscale0.ipv4.addresses = [
-          {
-            address = "100.64.0.5";
-            prefixLength = 24;
-          }
-        ];
-      };
     origin9 =
       origin "10.15.4.9"
         [
@@ -284,11 +286,21 @@ pkgs.testers.runNixOSTest {
         connector.wait_for_unit("loki.service")
         connector.succeed("systemctl is-system-running --wait || true")
         connector.fail("systemctl is-active cloudflared-fleet.service")
-    origin5.succeed("systemctl is-active foundry matrix knot root pds wildcard private caddy")
+    origin5.succeed("systemctl is-active foundry matrix knot root pds wildcard private-app caddy")
+    origin5.wait_for_unit("private-app.service")
     origin9.succeed("systemctl is-active pocket-id caddy")
-    lanClient.fail("curl --max-time 1 --fail http://10.15.4.5:9001")
-    lanClient.fail("curl --max-time 1 --fail -H 'Host: foundry.minastas.xyz' http://10.15.4.5:8080")
-    lanClient.fail("curl --max-time 1 --insecure --fail --resolve private.tailbc181.ts.net:443:10.15.4.5 https://private.tailbc181.ts.net")
+    lanClient.fail("curl --noproxy '*' --max-time 1 --fail http://10.15.4.5:9001")
+    lanClient.fail("curl --noproxy '*' --max-time 1 --fail -H 'Host: foundry.minastas.xyz' http://10.15.4.5:8080")
+    lanClient.fail("curl --noproxy '*' --max-time 1 --insecure --fail --resolve private.tailbc181.ts.net:443:10.15.4.5 https://private.tailbc181.ts.net")
+    origin5.succeed("${pkgs.nftables}/bin/nft list ruleset | grep -F 'tailnet Caddy' | grep -F 'iifname \"tailscale0\"' | grep -F 'tcp dport 443' | grep -F accept")
+    assert "origin=private-.5 host=private.tailbc181.ts.net" in tailClient.succeed(
+        "curl --noproxy '*' --max-time 5 --insecure --fail --resolve private.tailbc181.ts.net:443:100.64.0.5 https://private.tailbc181.ts.net"
+    )
+    for origin_node in (origin5, origin9):
+        origin_node.succeed("${pkgs.nftables}/bin/nft list ruleset | grep -F 'cloudflared origins' | grep -F 'iifname \"eth1\"' | grep -F '10.15.4.4' | grep -F '10.15.4.6' | grep -F 'tcp dport 8080' | grep -F accept")
+    origin9.fail("${pkgs.nftables}/bin/nft list ruleset | grep -F 'tcp dport 443 accept'")
+    for origin_node in (origin5, origin9):
+        origin_node.fail("${pkgs.nftables}/bin/nft list ruleset | grep -E 'tcp dport (8080|443|9001|9002|9003|9004|9005|9006|9007|9010|4317|4318) accept' | grep -vE 'iifname \"(eth1|tailscale0)\"'")
     for connector in (connectorA, connectorB):
         connector.succeed("install -d -m 0700 /run/secrets; printf '%s' '{\"TunnelID\":\"\",\"Secret\":\"${sentinel}\"}' > /run/secrets/cloudflared-tunnel.json; chmod 0400 /run/secrets/cloudflared-tunnel.json")
         connector.succeed("systemctl start --no-block cloudflared-fleet.service; sleep 1; ! systemctl is-active cloudflared-fleet.service")
@@ -298,7 +310,10 @@ pkgs.testers.runNixOSTest {
         connector.wait_for_unit("cloudflared-fleet.service")
         connector.wait_for_open_port(8888, timeout=10)
         connector.succeed("timeout 10 ${pkgs.cloudflared}/bin/cloudflared --config /etc/cloudflared/fleet-ingress.yml tunnel ingress validate")
-        connector.succeed("! grep -R '${sentinel}' /nix/store /etc/systemd/system /proc/$(systemctl show -p MainPID --value cloudflared-fleet)/cmdline /proc/$(systemctl show -p MainPID --value cloudflared-fleet)/environ 2>/dev/null")
+        connector.succeed("systemctl cat cloudflared-fleet.service | grep -F 'LoadCredential=tunnel.json:/run/secrets/cloudflared-tunnel.json'")
+        connector.succeed("! systemctl show -p ExecStart --value cloudflared-fleet.service | grep -F -- '--credentials-file'")
+        connector.succeed("unit=$(systemctl cat cloudflared-fleet.service); launcher=$(printf '%s\\n' \"$unit\" | sed -n 's/^ExecStart=\\([^ ]*\\).*$/\\1/p'); test -n \"$launcher\"; test -r \"$launcher\"; ! grep -F '${sentinel}' /etc/cloudflared/fleet-ingress.yml \"$launcher\"; exec_path=$(systemctl show -p ExecStart --value cloudflared-fleet.service | sed -n 's/^{ path=\\([^ ;]*\\).*$/\\1/p'); test \"$exec_path\" = \"$launcher\"")
+        connector.succeed("pid=$(systemctl show -p MainPID --value cloudflared-fleet.service); test \"$pid\" -gt 1; test -r /proc/$pid/cmdline; test -r /proc/$pid/environ; ! tr '\\0' '\\n' < /proc/$pid/cmdline | grep -F '${sentinel}'; ! tr '\\0' '\\n' < /proc/$pid/environ | grep -F '${sentinel}'")
     config_a = yaml.safe_load(connectorA.succeed("cat /etc/cloudflared/fleet-ingress.yml"))
     config_b = yaml.safe_load(connectorB.succeed("cat /etc/cloudflared/fleet-ingress.yml"))
     assert config_a == config_b
@@ -320,12 +335,13 @@ pkgs.testers.runNixOSTest {
     connectorB.succeed("systemctl stop cloudflared-fleet")
     assert probes["id.minastas.xyz"] in probe("id.minastas.xyz")
     connectorB.succeed("systemctl start cloudflared-fleet")
+    connectorB.wait_for_open_port(8888, timeout=10)
     connectorA.succeed("systemctl stop cloudflared-fleet")
     assert probes["foundry.minastas.xyz"] in probe("foundry.minastas.xyz")
     connectorB.succeed("systemctl stop loki prometheus")
     assert probes["foundry.minastas.xyz"] in probe("foundry.minastas.xyz")
     connectorB.succeed("systemctl stop cloudflared-fleet")
     edge.fail("curl --max-time 2 --fail -H 'Host: foundry.minastas.xyz' http://127.0.0.1:8081")
-    origin5.succeed("systemctl is-active foundry matrix knot root pds wildcard private caddy")
+    origin5.succeed("systemctl is-active foundry matrix knot root pds wildcard private-app caddy")
   '';
 }

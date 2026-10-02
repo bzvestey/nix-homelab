@@ -117,6 +117,7 @@ in
         enable = true;
         configFile = caddyfile;
       };
+      networking.nftables.enable = true;
       networking.firewall.extraInputRules = ''
         ${lib.optionalString (publicRoutes != [ ]) ''
           iifname "${cfg.lanInterface}" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport ${toString cfg.publicPort} accept comment "cloudflared origins"

@@ -23,13 +23,8 @@
           "collectionCommand": "for i in /sys/class/net/*; do printf '%s ' \"$(basename \"$i\")\"; cat \"$i/address\"; done; ip -br link; ip route"
         },
         "gpu": {
-          "status": "observed",
-          "evidence": {
-            "type": "declaration",
-            "reference": "approved target role has no GPU requirement"
-          },
-          "stableId": "not-required",
-          "observedAt": "2026-10-02"
+          "status": "not-applicable",
+          "reason": "approved target role has no GPU requirement"
         }
       },
       "hardwareRequirements": {
@@ -155,13 +150,8 @@
           "collectionCommand": "for i in /sys/class/net/*; do printf '%s ' \"$(basename \"$i\")\"; cat \"$i/address\"; done; ip -br link; ip route"
         },
         "gpu": {
-          "status": "observed",
-          "evidence": {
-            "type": "declaration",
-            "reference": "approved target role has no GPU requirement"
-          },
-          "stableId": "not-required",
-          "observedAt": "2026-10-02"
+          "status": "not-applicable",
+          "reason": "approved target role has no GPU requirement"
         }
       },
       "hardwareRequirements": {
@@ -194,8 +184,7 @@
       },
       "ownerServices": [
         "comma-feed"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "deluge-config",
@@ -214,8 +203,7 @@
       },
       "ownerServices": [
         "deluge"
-      ],
-      "databaseBytesIncluded": false
+      ]
     },
     {
       "id": "donetick-data",
@@ -239,8 +227,7 @@
       },
       "ownerServices": [
         "donetick"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "forgejo-data",
@@ -266,8 +253,7 @@
       },
       "ownerServices": [
         "forgejo"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "foundry-data",
@@ -293,8 +279,7 @@
       },
       "ownerServices": [
         "foundry"
-      ],
-      "databaseBytesIncluded": false
+      ]
     },
     {
       "id": "homarr-data",
@@ -318,8 +303,7 @@
       },
       "ownerServices": [
         "homarr"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "immich-data",
@@ -345,8 +329,7 @@
       },
       "ownerServices": [
         "immich"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "jellyfin-config",
@@ -370,8 +353,7 @@
       },
       "ownerServices": [
         "jellyfin"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "kavita-config",
@@ -395,8 +377,7 @@
       },
       "ownerServices": [
         "kavita"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "mealie-data",
@@ -422,8 +403,7 @@
       },
       "ownerServices": [
         "mealie"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "pocket-id-data",
@@ -447,8 +427,7 @@
       },
       "ownerServices": [
         "pocket-id"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "prowlarr-config",
@@ -472,8 +451,7 @@
       },
       "ownerServices": [
         "prowlarr"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "publication-manager-data",
@@ -494,8 +472,7 @@
       },
       "ownerServices": [
         "publication-manager"
-      ],
-      "databaseBytesIncluded": false
+      ]
     },
     {
       "id": "radarr-config",
@@ -519,8 +496,7 @@
       },
       "ownerServices": [
         "radarr"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "sabnzbd-config",
@@ -544,8 +520,7 @@
       },
       "ownerServices": [
         "sabnzbd"
-      ],
-      "databaseBytesIncluded": false
+      ]
     },
     {
       "id": "sonarr-config",
@@ -569,8 +544,7 @@
       },
       "ownerServices": [
         "sonarr"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "tangled-knot-data",
@@ -594,8 +568,7 @@
       },
       "ownerServices": [
         "tangled-knot"
-      ],
-      "databaseBytesIncluded": false
+      ]
     },
     {
       "id": "tranquil-pds-data",
@@ -621,8 +594,7 @@
       },
       "ownerServices": [
         "tranquil-pds"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "tuwunel-data",
@@ -641,8 +613,7 @@
       },
       "ownerServices": [
         "tuwunel"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "vikunja-data",
@@ -668,8 +639,7 @@
       },
       "ownerServices": [
         "vikunja"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "wallos-data",
@@ -695,8 +665,7 @@
       },
       "ownerServices": [
         "wallos"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "whisparr-config",
@@ -720,8 +689,7 @@
       },
       "ownerServices": [
         "whisparr"
-      ],
-      "databaseBytesIncluded": true
+      ]
     },
     {
       "id": "shared-video-library",
@@ -746,8 +714,7 @@
         "sabnzbd",
         "sonarr",
         "whisparr"
-      ],
-      "databaseBytesIncluded": false
+      ]
     },
     {
       "id": "kavita-library",
@@ -767,8 +734,7 @@
       },
       "ownerServices": [
         "kavita"
-      ],
-      "databaseBytesIncluded": false
+      ]
     }
   ],
   "services": [
@@ -788,7 +754,8 @@
           "reason": "runtime database version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <comma-feed-pod> -- java -cp /commafeed/* org.h2.tools.Shell -url 'jdbc:h2:/commafeed/data/db' -sql 'select h2version()'"
         },
-        "datasetId": "comma-feed-data"
+        "datasetId": "comma-feed-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /commafeed/data; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "comma-feed-data"
@@ -824,7 +791,7 @@
       ],
       "endpoints": [
         "https://deluge.tailbc181.ts.net/",
-        "service://deluge-direct"
+        "platform://deluge-direct"
       ],
       "backupEvidence": {
         "status": "blocked",
@@ -853,7 +820,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <donetick-pod> -- sqlite3 --version"
         },
-        "datasetId": "donetick-data"
+        "datasetId": "donetick-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /donetick_data; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "donetick-data"
@@ -889,6 +857,7 @@
         "kind": "external",
         "engine": "PostgreSQL",
         "datasetId": "forgejo-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
           "value": "18.1",
@@ -962,7 +931,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <homarr-pod> -- sqlite3 --version"
         },
-        "datasetId": "homarr-data"
+        "datasetId": "homarr-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /appdata; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "homarr-data"
@@ -993,15 +963,11 @@
         "kind": "external",
         "engine": "PostgreSQL/vectorchord",
         "datasetId": "immich-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
-          "status": "observed",
-          "value": "16",
-          "stableId": "immich-database-version",
-          "observedAt": "2026-10-02",
-          "evidence": {
-            "type": "api",
-            "reference": "CNPG image and cluster status"
-          }
+          "status": "blocked",
+          "reason": "CNPG image observation only established major version 16, not an observed numeric dotted database version",
+          "collectionCommand": "kubectl exec -n <namespace> <postgres-pod> -- psql -Atqc 'show server_version'"
         }
       },
       "datasetIds": [
@@ -1037,7 +1003,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <jellyfin-pod> -- sqlite3 --version"
         },
-        "datasetId": "jellyfin-config"
+        "datasetId": "jellyfin-config",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "jellyfin-config",
@@ -1073,7 +1040,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <kavita-pod> -- sqlite3 --version"
         },
-        "datasetId": "kavita-config"
+        "datasetId": "kavita-config",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "kavita-config",
@@ -1137,6 +1105,7 @@
         "kind": "external",
         "engine": "PostgreSQL",
         "datasetId": "mealie-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
           "value": "17.5",
@@ -1181,7 +1150,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <pocket-id-pod> -- sqlite3 --version"
         },
-        "datasetId": "pocket-id-data"
+        "datasetId": "pocket-id-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /app/data; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "pocket-id-data"
@@ -1219,7 +1189,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <prowlarr-pod> -- sqlite3 --version"
         },
-        "datasetId": "prowlarr-config"
+        "datasetId": "prowlarr-config",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "prowlarr-config"
@@ -1283,7 +1254,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <radarr-pod> -- sqlite3 --version"
         },
-        "datasetId": "radarr-config"
+        "datasetId": "radarr-config",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "radarr-config",
@@ -1348,7 +1320,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <sonarr-pod> -- sqlite3 --version"
         },
-        "datasetId": "sonarr-config"
+        "datasetId": "sonarr-config",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "sonarr-config",
@@ -1409,6 +1382,7 @@
         "kind": "external",
         "engine": "PostgreSQL",
         "datasetId": "tranquil-pds-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
           "value": "18.1",
@@ -1455,7 +1429,8 @@
           "reason": "RocksDB format/runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <tuwunel-pod> -- /usr/local/bin/tuwunel --version"
         },
-        "datasetId": "tuwunel-data"
+        "datasetId": "tuwunel-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage and size are unobserved", "collectionCommand": "du -sb /var/lib/tuwunel; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "tuwunel-data"
@@ -1464,8 +1439,7 @@
         "https://matrix.minastas.social/",
         "https://matrix.minastas.social/webhook",
         "https://matrix.minastas.social/_matrix/client/unstable/login/sso/callback/9c05911b-c58f-449f-9792-40e87bb25b12",
-        "https://id.minastas.xyz/",
-        "service://hookshot:9993"
+        "https://id.minastas.xyz/"
       ],
       "backupEvidence": {
         "status": "blocked",
@@ -1490,6 +1464,7 @@
         "kind": "external",
         "engine": "PostgreSQL",
         "datasetId": "vikunja-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
           "value": "17.5",
@@ -1538,7 +1513,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <wallos-pod> -- sqlite3 --version"
         },
-        "datasetId": "wallos-data"
+        "datasetId": "wallos-data",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/www/html/db; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "wallos-data"
@@ -1573,7 +1549,8 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <whisparr-pod> -- sqlite3 --version"
         },
-        "datasetId": "whisparr-config"
+        "datasetId": "whisparr-config",
+        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
         "whisparr-config",

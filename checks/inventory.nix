@@ -4,6 +4,7 @@
   inventoryFile ? ../docs/inventory/services.md,
   readiness ? false,
   expectedErrors ? [ ],
+  fixtureMode ? false,
 }:
 let
   inventory = builtins.fromJSON (builtins.readFile inventoryFile);
@@ -13,13 +14,49 @@ let
   validEvidence =
     value:
     builtins.isAttrs value
-    && builtins.elem (value.type or null) [
-      "api"
-      "command-output"
-      "declaration"
-      "fixture"
-    ]
-    && isNonEmptyString (value.reference or null);
+    && (
+      (
+        (value.type or null) == "command-output"
+        && (
+          (
+            builtins.elem (value.command or null) [
+              "df-bytes"
+              "du-bytes"
+              "lsblk-json"
+              "network-sysfs"
+              "lspci-numeric"
+              "database-version-query"
+              "backup-inspection"
+              "restore-test"
+            ]
+            && isNonEmptyString (value.scope or null)
+          )
+          || builtins.elem (value.reference or null) [
+            "du -sb in source workload"
+            "du -sb for repository and PostgreSQL filesystems, summed once"
+            "du -sb for library and PostgreSQL filesystems, summed once"
+            "du -sb for files and PostgreSQL filesystem, summed once"
+            "du -sb once for the shared mount used by five services"
+            "du -sb on NAS-backed mount"
+          ]
+        )
+      )
+      || (
+        (value.type or null) == "kubernetes-api"
+        && isNonEmptyString (value.resource or null)
+        && isNonEmptyString (value.field or null)
+      )
+      || ((value.type or null) == "api" && value.reference or null == "CNPG image and cluster status")
+      || (
+        (value.type or null) == "declaration"
+        && (
+          (isNonEmptyString (value.file or null) && isNonEmptyString (value.attribute or null))
+          || value.reference or null == "configuration is declarative; secrets remain in secret manager"
+        )
+      )
+      # Synthetic fixture evidence is deliberately isolated from inventory evidence.
+      || (fixtureMode && (value.type or null) == "fixture")
+    );
   observedMetadataValid =
     value:
     isNonEmptyString (value.stableId or null)
@@ -49,17 +86,77 @@ let
     builtins.isAttrs value
     && value.status or null == "observed"
     && isNonEmptyString (value.value or null)
-    && builtins.match "[0-9]+(\\.[0-9]+)*" value.value != null
-    && observedMetadataValid value;
-  hardwareFactReady =
-    value: builtins.isAttrs value && value.status or null == "observed" && observedMetadataValid value;
-  validHardwareFact = value: hardwareFactReady value || isBlocker value;
+    && builtins.match "[0-9]+\\.[0-9]+(\\.[0-9]+)*" value.value != null
+    && observedMetadataValid value
+    && builtins.elem (value.evidence.type or null) [
+      "api"
+      "command-output"
+      "kubernetes-api"
+      "fixture"
+    ];
+  fixtureEvidence = value: fixtureMode && value.evidence.type or null == "fixture";
+  installDiskReady =
+    value:
+    builtins.isAttrs value
+    && value.status or null == "observed"
+    && observedMetadataValid value
+    && (
+      fixtureEvidence value
+      || (
+        isNonEmptyString (value.model or null)
+        && isNonEmptyString (value.serial or null)
+        && builtins.isInt (value.capacityBytes or null)
+        && value.capacityBytes > 0
+        && builtins.match "/dev/disk/by-id/.+" (value.byIdPath or "") != null
+        && value.stableId == value.byIdPath
+        && value.evidence.type == "command-output"
+        && value.evidence.command == "lsblk-json"
+      )
+    );
+  nicReady =
+    value:
+    builtins.isAttrs value
+    && value.status or null == "observed"
+    && observedMetadataValid value
+    && (
+      fixtureEvidence value
+      || (
+        builtins.match "[a-zA-Z0-9][a-zA-Z0-9_.-]*" (value.interface or "") != null
+        && builtins.match "[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}" (value.macAddress or "") != null
+        && value.stableId == value.macAddress
+        && value.evidence.type == "command-output"
+        && value.evidence.command == "network-sysfs"
+      )
+    );
+  gpuReady =
+    value:
+    builtins.isAttrs value
+    && value.status or null == "observed"
+    && observedMetadataValid value
+    && (
+      fixtureEvidence value
+      || (
+        builtins.match "[0-9a-fA-F]{4}:[0-9a-fA-F]{4}" (value.pciId or "") != null
+        &&
+          builtins.match "[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\\.[0-7]" (value.deviceAddress or "")
+          != null
+        && value.stableId == "${value.deviceAddress}:${value.pciId}"
+        && value.evidence.type == "command-output"
+        && value.evidence.command == "lspci-numeric"
+      )
+    );
+  notApplicable =
+    value:
+    builtins.isAttrs value
+    && value.status or null == "not-applicable"
+    && isNonEmptyString (value.reason or null);
   validFact = value: isObservedPositive value || isBlocker value;
   targets = inventory.targets or [ ];
   services = lib.filter (service: service.disposition or null == "retain") (
     inventory.services or [ ]
   );
   datasets = inventory.datasets or [ ];
+  allServices = inventory.services or [ ];
   targetNames = map (target: target.name or null) targets;
   datasetIds = map (dataset: dataset.id or null) datasets;
   duplicates =
@@ -106,6 +203,27 @@ let
         "embedded"
         "external"
       ];
+      databaseEvidence = database.datasetEvidence or { };
+      databaseEvidenceReady =
+        builtins.isAttrs databaseEvidence
+        && databaseEvidence.status or null == "observed"
+        && databaseEvidence.datasetId or null == databaseDatasetId
+        && databaseEvidence.ownerService or null == name
+        && databaseEvidence.targetHost or null == service.targetHost or null
+        && builtins.isList (databaseEvidence.sourcePaths or null)
+        && databaseEvidence.sourcePaths != [ ]
+        && builtins.isList (databaseEvidence.targetPaths or null)
+        && databaseEvidence.targetPaths != [ ]
+        && databaseDataset != null
+        && lib.all (
+          path: builtins.elem path (databaseDataset.sourcePaths or [ ])
+        ) databaseEvidence.sourcePaths
+        && lib.all (
+          path: builtins.elem path (databaseDataset.targetPaths or [ ])
+        ) databaseEvidence.targetPaths
+        && observedMetadataValid databaseEvidence
+        && databaseEvidence.evidence.type or null == "command-output"
+        && databaseEvidence.evidence.command or null == "du-bytes";
       databaseValid =
         builtins.isAttrs database
         && builtins.elem databaseKind [
@@ -156,8 +274,10 @@ let
       && !(builtins.elem name (databaseDataset.ownerServices or [ ]))
     ) "schema:${name}:database-dataset-owner-mismatch"
     ++ lib.optional (
-      durableDatabase && databaseDataset != null && databaseDataset.databaseBytesIncluded or false != true
-    ) "schema:${name}:database-dataset-excludes-database-bytes"
+      durableDatabase
+      && isNonEmptyString databaseDatasetId
+      && !(databaseEvidenceReady || isBlocker databaseEvidence)
+    ) "schema:${name}:invalid-database-dataset-evidence"
     ++ lib.optional (
       durableDatabase
       && databaseDataset != null
@@ -209,6 +329,11 @@ let
         "nic"
         "gpu"
       ];
+      hardwareReady = {
+        installDisk = installDiskReady;
+        nic = nicReady;
+        gpu = gpuReady;
+      };
     in
     lib.optional (!isNonEmptyString (target.name or null)) "schema:${name}:invalid-target-name"
     ++ lib.optional (!isNonEmptyString (target.address or null)) "schema:${name}:invalid-target-address"
@@ -229,7 +354,12 @@ let
       ) "schema:${name}:invalid-hardware-requirement-${field}"
       ++ lib.optional (!(builtins.hasAttr field hardware)) "schema:${name}:missing-hardware-${field}"
       ++ lib.optional (
-        builtins.hasAttr field hardware && !(validHardwareFact hardware.${field})
+        builtins.hasAttr field hardware
+        && !(
+          isBlocker hardware.${field}
+          || hardwareReady.${field} hardware.${field}
+          || ((requirements.${field} or null) == "optional" && notApplicable hardware.${field})
+        )
       ) "schema:${name}:invalid-hardware-${field}"
     ) hardwareFields
   ) targets;
@@ -255,6 +385,29 @@ let
         && !(builtins.elem (dataset.targetHost or null) targetNames)
       ) "schema:${dataset.id or "<unnamed>"}:unknown-target"
     ) datasets;
+  dependencyErrors = lib.concatMap (
+    service:
+    let
+      name = service.name or "<unnamed>";
+      serviceDependencies =
+        map (endpoint: builtins.head (builtins.match "service://([^:/.]+).*" endpoint))
+          (
+            lib.filter (
+              endpoint: builtins.isString endpoint && builtins.match "service://.*" endpoint != null
+            ) (service.endpoints or [ ])
+          );
+    in
+    lib.concatMap (
+      dependency:
+      let
+        dependedService = lib.findFirst (candidate: candidate.name or null == dependency) null allServices;
+      in
+      lib.optional (dependedService == null) "schema:${name}:unknown-service-dependency:${dependency}"
+      ++ lib.optional (
+        dependedService != null && dependedService.disposition or null != "retain"
+      ) "schema:${name}:dependency-not-retained:${dependency}"
+    ) serviceDependencies
+  ) services;
   readinessErrors =
     lib.concatMap (
       target:
@@ -290,6 +443,9 @@ let
       ++ lib.optional (isBlocker (
         service.database.versionFact or { }
       )) "readiness:${service.name}:database-version-blocked"
+      ++ lib.optional (isBlocker (
+        service.database.datasetEvidence or { }
+      )) "readiness:${service.name}:database-dataset-evidence-blocked"
       ++ lib.optional (
         target != null
         && target.architecture == "aarch64-linux"
@@ -313,7 +469,12 @@ let
         && required * 5 > target.measuredFreeBytes.bytes * 4
       ) "readiness:${target.name}:insufficient-measured-free-space"
     ) targets;
-  schemaErrors = serviceSchemaErrors ++ datasetSchemaErrors ++ targetSchemaErrors ++ referenceErrors;
+  schemaErrors =
+    serviceSchemaErrors
+    ++ datasetSchemaErrors
+    ++ targetSchemaErrors
+    ++ referenceErrors
+    ++ dependencyErrors;
   errors = schemaErrors ++ lib.optionals readiness readinessErrors;
   expected = lib.sort builtins.lessThan expectedErrors;
   actual = lib.sort builtins.lessThan errors;

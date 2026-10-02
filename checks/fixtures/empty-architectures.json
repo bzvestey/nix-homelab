@@ -63,7 +63,8 @@
       },
       "datasetIds": [],
       "endpoints": [
-        "https://app.example.invalid/"
+        "https://app.example.invalid/",
+        "service://retired-service"
       ],
       "backupEvidence": {
         "status": "observed",
@@ -85,6 +86,10 @@
           "reference": "fixture"
         }
       }
+    },
+    {
+      "name": "retired-service",
+      "disposition": "retire"
     }
   ]
 }

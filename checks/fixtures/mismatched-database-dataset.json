@@ -92,12 +92,13 @@
         "datasetId": "wrong-data",
         "versionFact": {
           "status": "observed",
-          "value": "16.2",
+          "value": "1",
           "stableId": "fixture-version",
           "observedAt": "2026-10-02",
           "evidence": {
-            "type": "fixture",
-            "reference": "fixture"
+            "type": "declaration",
+            "file": "fixture.json",
+            "attribute": "untrusted version"
           }
         }
       },

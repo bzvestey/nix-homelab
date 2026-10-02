@@ -113,6 +113,7 @@
                 inherit (nixpkgs) lib;
                 inventoryFile = file;
                 readiness = true;
+                fixtureMode = true;
               };
             tests = [
               (fixture ./checks/fixtures/zero-size.json [ "schema:data:invalid-size" ])
@@ -129,7 +130,9 @@
                 "readiness:no-evidence:restore-blocked"
               ])
               (fixture ./checks/fixtures/missing-hardware.json [
-                "schema:framework-01:missing-hardware-gpu"
+                "schema:framework-01:invalid-hardware-gpu"
+                "schema:framework-01:invalid-hardware-installDisk"
+                "schema:framework-01:invalid-hardware-nic"
               ])
               (fixture ./checks/fixtures/malformed-observed-evidence.json [
                 "schema:data:invalid-size"
@@ -138,10 +141,12 @@
                 "schema:db-app:missing-database-dataset"
               ])
               (fixture ./checks/fixtures/mismatched-database-dataset.json [
-                "schema:db-app:database-dataset-excludes-database-bytes"
                 "schema:db-app:database-dataset-owner-mismatch"
+                "schema:db-app:invalid-database"
+                "schema:db-app:invalid-database-dataset-evidence"
               ])
               (fixture ./checks/fixtures/empty-architectures.json [
+                "schema:empty-arch:dependency-not-retained:retired-service"
                 "schema:empty-arch:invalid-architectures"
               ])
               (fixture ./checks/fixtures/shared-accounting.json [ ])

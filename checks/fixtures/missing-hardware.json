@@ -25,8 +25,9 @@
           "stableId": "installDisk-fixture",
           "observedAt": "2026-10-02",
           "evidence": {
-            "type": "fixture",
-            "reference": "fixture"
+            "type": "declaration",
+            "file": "fixture.json",
+            "attribute": "incomplete disk"
           }
         },
         "nic": {
@@ -34,8 +35,19 @@
           "stableId": "nic-fixture",
           "observedAt": "2026-10-02",
           "evidence": {
-            "type": "fixture",
-            "reference": "fixture"
+            "type": "declaration",
+            "file": "fixture.json",
+            "attribute": "incomplete NIC"
+          }
+        },
+        "gpu": {
+          "status": "observed",
+          "stableId": "gpu-fixture",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "declaration",
+            "file": "fixture.json",
+            "attribute": "incomplete GPU"
           }
         }
       }

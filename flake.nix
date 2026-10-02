@@ -36,7 +36,8 @@
       ...
     }:
     let
-      mkHost = import ./lib/mk-host.nix { inherit nixpkgs; };
+      revision = self.rev or self.dirtyRev or "dirty-local";
+      mkHost = import ./lib/mk-host.nix { inherit nixpkgs revision; };
       fleetModules = [
         sops-nix.nixosModules.sops
         ./modules/fleet/secrets.nix

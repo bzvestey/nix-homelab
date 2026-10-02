@@ -1,4 +1,4 @@
-{ nixpkgs }:
+{ nixpkgs, revision }:
 {
   system,
   hostname,
@@ -16,6 +16,7 @@ nixpkgs.lib.nixosSystem {
           fsType = "tmpfs";
         };
         networking.hostName = hostname;
+        fleet.telemetry.revision = lib.mkDefault revision;
         system.stateVersion = "25.05";
       }
     )

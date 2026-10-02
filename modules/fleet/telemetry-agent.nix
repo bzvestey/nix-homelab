@@ -15,6 +15,7 @@ let
   }
   // lib.optionalAttrs hasComin { comin = "127.0.0.1:4243"; };
   targets = builtInTargets // cfg.localPrometheusTargets;
+  secretKeyPattern = "(?i)(^|[._-])(password|token|secret|authorization|cookie|api[._-]?key)($|[._-])";
   scrapeConfigs = lib.mapAttrsToList (name: address: {
     job_name = name;
     static_configs = [ { targets = [ address ]; } ];
@@ -64,13 +65,13 @@ let
               ''set(attributes["deployment.environment"], "homelab")''
               ''set(attributes["deployment.revision"], "${cfg.revision}")''
               ''set(attributes["service.name"], "host-agent") where attributes["service.name"] == nil''
-              ''delete_matching_keys(attributes, "(?i)^(password|token|secret|authorization|cookie|api[._-]?key)$")''
+              ''delete_matching_keys(attributes, "${secretKeyPattern}")''
             ];
           }
           {
             context = "datapoint";
             statements = [
-              ''delete_matching_keys(attributes, "(?i)^(password|token|secret|authorization|cookie|api[._-]?key)$")''
+              ''delete_matching_keys(attributes, "${secretKeyPattern}")''
             ];
           }
         ];
@@ -82,13 +83,13 @@ let
               ''set(attributes["deployment.environment"], "homelab")''
               ''set(attributes["deployment.revision"], "${cfg.revision}")''
               ''set(attributes["service.name"], "host-agent") where attributes["service.name"] == nil''
-              ''delete_matching_keys(attributes, "(?i)^(password|token|secret|authorization|cookie|api[._-]?key)$")''
+              ''delete_matching_keys(attributes, "${secretKeyPattern}")''
             ];
           }
           {
             context = "log";
             statements = [
-              ''delete_matching_keys(attributes, "(?i)^(password|token|secret|authorization|cookie|api[._-]?key)$")''
+              ''delete_matching_keys(attributes, "${secretKeyPattern}")''
             ];
           }
         ];
@@ -100,13 +101,13 @@ let
               ''set(attributes["deployment.environment"], "homelab")''
               ''set(attributes["deployment.revision"], "${cfg.revision}")''
               ''set(attributes["service.name"], "host-agent") where attributes["service.name"] == nil''
-              ''delete_matching_keys(attributes, "(?i)^(password|token|secret|authorization|cookie|api[._-]?key)$")''
+              ''delete_matching_keys(attributes, "${secretKeyPattern}")''
             ];
           }
           {
             context = "span";
             statements = [
-              ''delete_matching_keys(attributes, "(?i)^(password|token|secret|authorization|cookie|api[._-]?key)$")''
+              ''delete_matching_keys(attributes, "${secretKeyPattern}")''
             ];
           }
         ];
@@ -199,18 +200,13 @@ in
       default = { };
       description = "Named, authoritative local Prometheus host:port targets registered by service modules.";
     };
-    extraCollectorSettings = lib.mkOption {
-      type = lib.types.attrs;
-      default = { };
-      description = "Additional collector components merged without replacing registered scrape targets.";
-    };
   };
 
   config = lib.mkIf cfg.enable {
     services.opentelemetry-collector = {
       enable = true;
       package = pkgs.opentelemetry-collector-contrib;
-      settings = lib.recursiveUpdate baseSettings cfg.extraCollectorSettings;
+      settings = baseSettings;
     };
     services.prometheus.exporters.node = {
       enable = true;

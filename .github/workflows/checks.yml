@@ -1,0 +1,35 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            hosts: framework-01 framework-02 framework-03
+          - runner: ubuntu-24.04-arm
+            hosts: observability-pi services-pi
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v19
+      - name: Check formatting
+        run: nix run nixpkgs#nixfmt -- --check .
+      - name: Run statix
+        run: nix run nixpkgs#statix -- check .
+      - name: Run deadnix
+        run: nix run nixpkgs#deadnix -- --fail .
+      - name: Check flake
+        run: nix flake check --show-trace
+      - name: Build host closures
+        run: |
+          for host in ${{ matrix.hosts }}; do
+            nix build ".#nixosConfigurations.${host}.config.system.build.toplevel"
+          done

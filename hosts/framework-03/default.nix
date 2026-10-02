@@ -5,6 +5,10 @@
     ../../modules/fleet/networking.nix
     ../../modules/fleet/comin.nix
   ];
+  fleet.storage.nfsMounts.videos = {
+    source = "10.15.4.101:/mnt/spinners-1/videos";
+    target = "/mnt/bulk/videos";
+  };
   systemd.network = {
     netdevs."10-bond0".netdevConfig = {
       Kind = "bond";

@@ -38,6 +38,8 @@
       fleetModules = [
         sops-nix.nixosModules.sops
         ./modules/fleet/secrets.nix
+        ./modules/fleet/podman.nix
+        ./modules/fleet/storage.nix
       ];
       nixosConfigurations = {
         observability-pi = mkHost {
@@ -120,6 +122,9 @@
       });
 
       checks = forAllSystems (system: {
+        storage = import ./checks/storage.nix {
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         secrets = import ./checks/secrets.nix {
           inherit comin sops-nix;
           pkgs = nixpkgs.legacyPackages.${system};

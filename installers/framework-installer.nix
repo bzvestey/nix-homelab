@@ -62,6 +62,9 @@ let
     shred = command "shred" "${pkgs.coreutils}/bin/shred";
     stat = command "stat" "${pkgs.coreutils}/bin/stat";
     readlink = command "readlink" "${pkgs.coreutils}/bin/readlink";
+    unshare = command "unshare" "${pkgs.util-linux}/bin/unshare";
+    mount = command "mount" "${pkgs.util-linux}/bin/mount";
+    umount = command "umount" "${pkgs.util-linux}/bin/umount";
     udevadm = command "udevadm" "${pkgs.systemd}/bin/udevadm";
     cryptenroll = command "cryptenroll" "${pkgs.systemd}/bin/systemd-cryptenroll";
     flock = command "flock" "${pkgs.util-linux}/bin/flock";
@@ -72,6 +75,7 @@ let
     ttyIn = roots.ttyIn or "/dev/tty";
     ttyPcrIn = roots.ttyPcrIn or "/dev/tty";
     sysDevBlock = "${sysRoot}/dev/block";
+    canonicalDevRoot = devRoot;
     inherit secureBootState;
     pcrPolicy = "7";
   };

@@ -209,6 +209,7 @@
 
       checks = forAllSystems (system: {
         installers = import ./checks/installers.nix {
+          inherit disko;
           pkgs = nixpkgs.legacyPackages.${system};
         };
         storage = import ./checks/storage.nix {

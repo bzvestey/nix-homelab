@@ -2,7 +2,7 @@ set -euo pipefail
 state=/build/fixture
 rm -rf "$state"
 mkdir -p "$state"/{dev/disk/by-id,sys/dev/block,sys/devices/nvme0n1/nvme0n1p1,sys/devices/nvme0n1/nvme0n1p2,sys/class/net,sys/bus/pci/devices/0000:00:02.0,run}
-touch "$state/dev/nvme0n1" "$state/dev/nvme0n1p1" "$state/dev/nvme0n1p2" "$state/dev/disk/by-id/nvme-Samsung"
+touch "$state/dev/nvme0n1" "$state/dev/nvme0n1p1" "$state/dev/nvme0n1p2" "$state/dev/sda" "$state/dev/disk/by-id/nvme-Samsung"
 ln -s "$state/sys/devices/nvme0n1/nvme0n1p1" "$state/sys/dev/block/259:1"
 ln -s "$state/sys/devices/nvme0n1/nvme0n1p2" "$state/sys/dev/block/259:2"
 printf '259:0\n' >"$state/sys/devices/nvme0n1/dev"
@@ -35,10 +35,29 @@ for spec in framework-01:$INSTALL_01 framework-02:$INSTALL_02 framework-03:$INST
   host=${spec%%:*}; entry=${spec#*:}; setup_host "$host"; : >"$state/log"
   printf '%s\n' "$host" | "$entry"
   grep -Eq '^id:' "$state/log"
+  grep -Eq '^unshare:--mount --propagation private -- ' "$state/log"
   test "$(grep -c '^guard-log:' "$state/log")" -ge 2
-  grep -Eq 'disko:--argstr device /proc/[0-9]+/fd/[0-9]+ --mode disko' "$state/log"
+  grep -Fq "mount:--bind -- /proc/" "$state/log"
+  grep -Fq "disko:--argstr device $state/dev/nvme0n1 --mode disko" "$state/log"
+  bind_line=$(grep -n '^mount:--bind' "$state/log" | cut -d: -f1)
+  bound_stat_line=$(grep -n "^stat:-Lc %t %T -- $state/dev/nvme0n1" "$state/log" | tail -1 | cut -d: -f1)
+  disko_line=$(grep -n 'disko:.*--mode disko' "$state/log" | cut -d: -f1)
+  test "$bind_line" -lt "$bound_stat_line" && test "$bound_stat_line" -lt "$disko_line"
   test "$(grep -c 'systemd-cryptenroll:.* /proc/[0-9]*/fd/' "$state/log")" -eq 2
 done
+
+setup_host framework-01; touch "$state/unsupported-canonical"; : >"$state/log"
+if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+assert_no_destruction; ! grep -q '^mount:' "$state/log"; rm "$state/unsupported-canonical"
+setup_host framework-01; touch "$state/bind-fails"; : >"$state/log"
+if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+assert_no_destruction; rm "$state/bind-fails"
+setup_host framework-01; touch "$state/bound-mismatch"; : >"$state/log"
+if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+assert_no_destruction; grep -q '^umount:' "$state/log"; rm "$state/bound-mismatch"
+setup_host framework-01; touch "$state/no-namespace"; : >"$state/log"
+if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+assert_no_destruction; ! grep -q '^mount:' "$state/log"; rm "$state/no-namespace"
 
 setup_host framework-01; : >"$state/log"; export FIXTURE_UID=1000
 if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi

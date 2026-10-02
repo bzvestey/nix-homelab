@@ -1,5 +1,13 @@
-{ pkgs }:
+{ pkgs, disko }:
 let
+  canonicalDevice = "/dev/nvme0n1";
+  actualDiskConfig = import ../installers/framework-disk-layout.nix { device = canonicalDevice; };
+  rootDevice = disko.lib.deviceNumbering actualDiskConfig.disko.devices.disk.system.device 2;
+  dataDevice = disko.lib.deviceNumbering actualDiskConfig.disko.devices.disk.system.device 3;
+  evaluatedDiskConfig =
+    assert rootDevice == "/dev/nvme0n1p2";
+    assert dataDevice == "/dev/nvme0n1p3";
+    pkgs.writeText "evaluated-framework-disk-config" (builtins.toJSON actualDiskConfig);
   fakeTool = pkgs.writeShellScript "installer-fixture-tool" ''
         set -euo pipefail
         state=/build/fixture
@@ -11,9 +19,11 @@ let
           guard-log) ;;
           readlink)
             case "$*" in
+              /proc/1/ns/mnt) echo 'mnt:[1]' ;;
+              /proc/self/ns/mnt) if [ "''${FIXTURE_PRIVATE_NS:-0}" = 1 ] && [ ! -e "$state/no-namespace" ]; then echo 'mnt:[2]'; else echo 'mnt:[1]'; fi ;;
               *sys/dev/block/259:1*) echo "$state/sys/devices/nvme0n1/nvme0n1p1" ;;
               *sys/dev/block/259:2*) echo "$state/sys/devices/nvme0n1/nvme0n1p2" ;;
-              *) echo "$state/dev/nvme0n1" ;;
+              *) [ -e "$state/unsupported-canonical" ] && echo "$state/dev/sda" || echo "$state/dev/nvme0n1" ;;
             esac
             ;;
           stat)
@@ -21,9 +31,19 @@ let
             case "''${*: -1}" in
               *p1|*/fd/11) [ -e "$state/child-swap" ] && echo '103 9' || echo '103 1' ;;
               *p2|*/fd/12) echo '103 2' ;;
-              *) cat "$state/hex_major_minor" ;;
+              *) [ -e "$state/bound" ] && [ -e "$state/bound-mismatch" ] && echo '8 0' || cat "$state/hex_major_minor" ;;
             esac
             ;;
+          unshare)
+            if [ -e "$state/no-namespace" ] && [ "''${FIXTURE_PRIVATE_NS:-0}" = 1 ]; then exit 5; fi
+            shift 4
+            FIXTURE_PRIVATE_NS=1 exec "$@"
+            ;;
+          mount)
+            [ ! -e "$state/bind-fails" ] || exit 6
+            touch "$state/bound"
+            ;;
+          umount) rm -f "$state/bound" ;;
           udevadm|flock|post-disko) ;;
           secure-boot-state) echo DISABLED ;;
           disko)
@@ -48,6 +68,9 @@ let
     readlink = tool "readlink";
     stat = tool "stat";
     udevadm = tool "udevadm";
+    unshare = tool "unshare";
+    mount = tool "mount";
+    umount = tool "umount";
     flock = tool "flock";
     disko = tool "disko";
     lsblk = tool "lsblk";
@@ -147,6 +170,7 @@ pkgs.runCommand "installer-safety-tests"
     export INSTALL_02=${installer "framework-02"}/bin/install-framework-02
     export INSTALL_03=${installer "framework-03"}/bin/install-framework-03
     export PROD_01=${productionInstaller}
+    test -s ${evaluatedDiskConfig}
     bash ${./installer-safety-tests.sh}
     touch "$out"
   ''

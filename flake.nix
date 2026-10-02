@@ -43,6 +43,7 @@
         ./modules/fleet/podman.nix
         ./modules/fleet/storage.nix
         ./modules/fleet/backup.nix
+        ./modules/fleet/telemetry-agent.nix
       ];
       frameworkModules = fleetModules ++ [ disko.nixosModules.disko ];
       nixosConfigurations = {
@@ -214,6 +215,9 @@
       });
 
       checks = forAllSystems (system: {
+        telemetry-agent = import ./checks/telemetry-agent.nix {
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         backup-restore =
           let
             pkgs = nixpkgs.legacyPackages.${system};

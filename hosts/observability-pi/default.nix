@@ -7,7 +7,9 @@ in
     ../../modules/fleet/base.nix
     ../../modules/fleet/networking.nix
     ../../modules/fleet/comin.nix
+    ../../modules/fleet/telemetry-agent.nix
   ];
+  fleet.telemetry.enable = true;
   # Bootstrap remains reachable, but comin cannot switch this host until the
   # physical link's observed MAC is recorded in inventory and used here.
   services.comin.enable = lib.mkForce false;

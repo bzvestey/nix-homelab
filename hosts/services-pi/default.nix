@@ -4,7 +4,9 @@
     ../../modules/fleet/base.nix
     ../../modules/fleet/networking.nix
     ../../modules/fleet/comin.nix
+    ../../modules/fleet/telemetry-agent.nix
   ];
+  fleet.telemetry.enable = true;
   systemd.network.networks."20-lan" = {
     matchConfig = {
       Name = "end0";

@@ -5,7 +5,9 @@
     ../../modules/fleet/base.nix
     ../../modules/fleet/networking.nix
     ../../modules/fleet/comin.nix
+    ../../modules/fleet/telemetry-agent.nix
   ];
+  fleet.telemetry.enable = true;
   boot = {
     loader = {
       grub.enable = false;

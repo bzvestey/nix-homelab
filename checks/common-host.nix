@@ -7,6 +7,8 @@ let
   adminKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMpx0yPdFPKUFBLn6OKJJAyqnlvoLmll4m97l/YMLu8 bryan@vestey.dev";
   exporterRule = ''
     ip saddr 10.15.4.6 tcp dport 4243 accept comment "observability comin scrape"
+
+    ip saddr 10.15.4.6 tcp dport 9464 accept comment "observability agent scrape"
   '';
   remoteIdentity = remote: {
     inherit (remote) name url;

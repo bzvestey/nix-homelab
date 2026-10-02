@@ -78,6 +78,10 @@
           inherit (nixpkgs) lib;
           pkgs = nixpkgs.legacyPackages.${system};
         };
+        inventory = import ./checks/inventory.nix {
+          inherit (nixpkgs) lib;
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
       });
     };
 }

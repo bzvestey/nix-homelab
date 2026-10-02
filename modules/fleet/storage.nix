@@ -1,13 +1,13 @@
 {
   config,
   lib,
+  utils,
   ...
 }:
 let
   cfg = config.fleet.storage;
   mounts = lib.attrValues cfg.nfsMounts;
-  mountUnit =
-    target: "${lib.replaceStrings [ "-" "/" ] [ "\\x2d" "-" ] (lib.removePrefix "/" target)}.mount";
+  mountUnit = target: "${utils.escapeSystemdPath target}.mount";
 in
 {
   options.fleet.storage.nfsMounts = lib.mkOption {

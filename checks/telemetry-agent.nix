@@ -185,8 +185,10 @@ pkgs.testers.runNixOSTest {
     failed = agent.succeed("curl -fsS http://127.0.0.1:8888/metrics | grep '^otelcol_exporter_send_failed_log_records{'")
     assert 'exporter="otlphttp"' in failed
     agent.succeed("systemctl is-active unrelated-application.service")
-    gateway.succeed("systemctl start opentelemetry-collector.service")
+    retry_events_before = int(agent.succeed("journalctl -u opentelemetry-collector.service --grep='Exporting failed. Will retry' --output=cat | wc -l").strip())
     agent.succeed("systemd-cat -t recovery-fixture echo JOURNAL_AFTER_RECOVERY")
+    agent.wait_until_succeeds("test $(journalctl -u opentelemetry-collector.service --grep='Exporting failed. Will retry' --output=cat | wc -l) -gt " + str(retry_events_before), timeout=8)
+    gateway.succeed("systemctl start opentelemetry-collector.service")
     gateway.wait_until_succeeds("grep -q JOURNAL_AFTER_RECOVERY /var/lib/opentelemetry-collector/gateway.json", timeout=10)
 
     before = gateway.succeed("grep -c JOURNAL_AFTER_RECOVERY /var/lib/opentelemetry-collector/gateway.json").strip()

@@ -42,6 +42,7 @@
         ./modules/fleet/secrets.nix
         ./modules/fleet/podman.nix
         ./modules/fleet/storage.nix
+        ./modules/fleet/backup.nix
       ];
       frameworkModules = fleetModules ++ [ disko.nixosModules.disko ];
       nixosConfigurations = {
@@ -184,6 +185,11 @@
       packages = forAllSystems (system: {
         inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
         fleet-enroll = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-enroll.nix { };
+        fleet-restore = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-restore.nix {
+          jobs = { };
+          repositoryFile = "/run/secrets/restic-repository";
+          passwordFile = "/run/secrets/restic-password";
+        };
       });
 
       apps = forAllSystems (system: {
@@ -208,6 +214,10 @@
       });
 
       checks = forAllSystems (system: {
+        backup-restore = import ./checks/backup-restore.nix {
+          inherit nixpkgs;
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         installers = import ./checks/installers.nix {
           inherit disko;
           pkgs = nixpkgs.legacyPackages.${system};

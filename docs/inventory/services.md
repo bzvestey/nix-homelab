@@ -754,7 +754,10 @@
           "reason": "runtime database version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <comma-feed-pod> -- java -cp /commafeed/* org.h2.tools.Shell -url 'jdbc:h2:/commafeed/data/db' -sql 'select h2version()'"
         },
+        "databaseId": "comma-feed-database",
         "datasetId": "comma-feed-data",
+        "sourcePaths": [ "/commafeed/data" ],
+        "targetPaths": [ "/var/lib/comma-feed" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /commafeed/data; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -820,7 +823,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <donetick-pod> -- sqlite3 --version"
         },
+        "databaseId": "donetick-database",
         "datasetId": "donetick-data",
+        "sourcePaths": [ "/donetick_data" ],
+        "targetPaths": [ "/var/lib/donetick" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /donetick_data; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -856,7 +862,10 @@
       "database": {
         "kind": "external",
         "engine": "PostgreSQL",
+        "databaseId": "forgejo-database",
         "datasetId": "forgejo-data",
+        "sourcePaths": [ "/var/lib/postgresql/data" ],
+        "targetPaths": [ "/var/lib/postgresql" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
@@ -931,7 +940,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <homarr-pod> -- sqlite3 --version"
         },
+        "databaseId": "homarr-database",
         "datasetId": "homarr-data",
+        "sourcePaths": [ "/appdata" ],
+        "targetPaths": [ "/var/lib/homarr" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /appdata; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -962,7 +974,10 @@
       "database": {
         "kind": "external",
         "engine": "PostgreSQL/vectorchord",
+        "databaseId": "immich-database",
         "datasetId": "immich-data",
+        "sourcePaths": [ "/var/lib/postgresql/data" ],
+        "targetPaths": [ "/var/lib/postgresql" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "blocked",
@@ -1003,7 +1018,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <jellyfin-pod> -- sqlite3 --version"
         },
+        "databaseId": "jellyfin-database",
         "datasetId": "jellyfin-config",
+        "sourcePaths": [ "/config" ],
+        "targetPaths": [ "/var/lib/jellyfin" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1040,7 +1058,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <kavita-pod> -- sqlite3 --version"
         },
+        "databaseId": "kavita-database",
         "datasetId": "kavita-config",
+        "sourcePaths": [ "/config" ],
+        "targetPaths": [ "/var/lib/kavita" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1104,7 +1125,10 @@
       "database": {
         "kind": "external",
         "engine": "PostgreSQL",
+        "databaseId": "mealie-database",
         "datasetId": "mealie-data",
+        "sourcePaths": [ "/var/lib/postgresql/data" ],
+        "targetPaths": [ "/var/lib/postgresql" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
@@ -1150,7 +1174,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <pocket-id-pod> -- sqlite3 --version"
         },
+        "databaseId": "pocket-id-database",
         "datasetId": "pocket-id-data",
+        "sourcePaths": [ "/app/data" ],
+        "targetPaths": [ "/var/lib/pocket-id" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /app/data; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1189,7 +1216,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <prowlarr-pod> -- sqlite3 --version"
         },
+        "databaseId": "prowlarr-database",
         "datasetId": "prowlarr-config",
+        "sourcePaths": [ "/config" ],
+        "targetPaths": [ "/var/lib/prowlarr" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1254,7 +1284,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <radarr-pod> -- sqlite3 --version"
         },
+        "databaseId": "radarr-database",
         "datasetId": "radarr-config",
+        "sourcePaths": [ "/config" ],
+        "targetPaths": [ "/var/lib/radarr" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1320,7 +1353,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <sonarr-pod> -- sqlite3 --version"
         },
+        "databaseId": "sonarr-database",
         "datasetId": "sonarr-config",
+        "sourcePaths": [ "/config" ],
+        "targetPaths": [ "/var/lib/sonarr" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1381,7 +1417,10 @@
       "database": {
         "kind": "external",
         "engine": "PostgreSQL",
+        "databaseId": "tranquil-pds-database",
         "datasetId": "tranquil-pds-data",
+        "sourcePaths": [ "/var/lib/postgresql/data" ],
+        "targetPaths": [ "/var/lib/postgresql" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
@@ -1429,7 +1468,10 @@
           "reason": "RocksDB format/runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <tuwunel-pod> -- /usr/local/bin/tuwunel --version"
         },
+        "databaseId": "tuwunel-database",
         "datasetId": "tuwunel-data",
+        "sourcePaths": [ "/var/lib/tuwunel" ],
+        "targetPaths": [ "/var/lib/tuwunel" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage and size are unobserved", "collectionCommand": "du -sb /var/lib/tuwunel; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1463,7 +1505,10 @@
       "database": {
         "kind": "external",
         "engine": "PostgreSQL",
+        "databaseId": "vikunja-database",
         "datasetId": "vikunja-data",
+        "sourcePaths": [ "/var/lib/postgresql/data" ],
+        "targetPaths": [ "/var/lib/postgresql" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
         "versionFact": {
           "status": "observed",
@@ -1513,7 +1558,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <wallos-pod> -- sqlite3 --version"
         },
+        "databaseId": "wallos-database",
         "datasetId": "wallos-data",
+        "sourcePaths": [ "/var/www/html/db" ],
+        "targetPaths": [ "/var/lib/wallos/db" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/www/html/db; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [
@@ -1549,7 +1597,10 @@
           "reason": "SQLite runtime version not collected",
           "collectionCommand": "kubectl exec -n <namespace> <whisparr-pod> -- sqlite3 --version"
         },
+        "databaseId": "whisparr-database",
         "datasetId": "whisparr-config",
+        "sourcePaths": [ "/config" ],
+        "targetPaths": [ "/var/lib/whisparr" ],
         "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
       },
       "datasetIds": [

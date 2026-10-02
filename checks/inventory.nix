@@ -26,6 +26,7 @@ let
               "network-sysfs"
               "lspci-numeric"
               "database-version-query"
+              "database-path-du-bytes"
               "backup-inspection"
               "restore-test"
             ]
@@ -199,6 +200,9 @@ let
       databaseKind = database.kind or null;
       databaseDatasetId = database.datasetId or null;
       databaseDataset = lib.findFirst (dataset: dataset.id or null == databaseDatasetId) null datasets;
+      databaseId = database.databaseId or null;
+      databaseSourcePaths = database.sourcePaths or null;
+      databaseTargetPaths = database.targetPaths or null;
       durableDatabase = builtins.elem databaseKind [
         "embedded"
         "external"
@@ -207,23 +211,26 @@ let
       databaseEvidenceReady =
         builtins.isAttrs databaseEvidence
         && databaseEvidence.status or null == "observed"
+        && databaseEvidence.databaseId or null == databaseId
         && databaseEvidence.datasetId or null == databaseDatasetId
         && databaseEvidence.ownerService or null == name
         && databaseEvidence.targetHost or null == service.targetHost or null
         && builtins.isList (databaseEvidence.sourcePaths or null)
-        && databaseEvidence.sourcePaths != [ ]
+        &&
+          lib.sort builtins.lessThan databaseEvidence.sourcePaths
+          == lib.sort builtins.lessThan databaseSourcePaths
         && builtins.isList (databaseEvidence.targetPaths or null)
-        && databaseEvidence.targetPaths != [ ]
+        &&
+          lib.sort builtins.lessThan databaseEvidence.targetPaths
+          == lib.sort builtins.lessThan databaseTargetPaths
         && databaseDataset != null
-        && lib.all (
-          path: builtins.elem path (databaseDataset.sourcePaths or [ ])
-        ) databaseEvidence.sourcePaths
-        && lib.all (
-          path: builtins.elem path (databaseDataset.targetPaths or [ ])
-        ) databaseEvidence.targetPaths
+        && isObservedPositive (databaseDataset.size or { })
+        && databaseEvidence.sizeObservationStableId or null == databaseDataset.size.stableId
+        && databaseEvidence.sizeObservationBytes or null == databaseDataset.size.bytes
         && observedMetadataValid databaseEvidence
         && databaseEvidence.evidence.type or null == "command-output"
-        && databaseEvidence.evidence.command or null == "du-bytes";
+        && databaseEvidence.evidence.command or null == "database-path-du-bytes"
+        && databaseEvidence.evidence.scope or null == "declared-database-paths";
       databaseValid =
         builtins.isAttrs database
         && builtins.elem databaseKind [
@@ -237,7 +244,17 @@ let
             "none"
             "rebuildable-cache"
           ]
-          || isNonEmptyString (database.engine or null)
+          || (
+            isNonEmptyString (database.engine or null)
+            && isNonEmptyString databaseId
+            && builtins.isList databaseSourcePaths
+            && databaseSourcePaths != [ ]
+            && builtins.isList databaseTargetPaths
+            && databaseTargetPaths != [ ]
+            && databaseDataset != null
+            && lib.all (path: builtins.elem path (databaseDataset.sourcePaths or [ ])) databaseSourcePaths
+            && lib.all (path: builtins.elem path (databaseDataset.targetPaths or [ ])) databaseTargetPaths
+          )
         )
         && (
           builtins.elem databaseKind [

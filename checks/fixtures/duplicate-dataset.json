@@ -19,8 +19,7 @@
       },
       "ownerServices": [
         "fixture"
-      ],
-      "databaseBytesIncluded": false
+      ]
     },
     {
       "id": "shared",
@@ -40,8 +39,7 @@
       },
       "ownerServices": [
         "fixture"
-      ],
-      "databaseBytesIncluded": false
+      ]
     }
   ],
   "services": []

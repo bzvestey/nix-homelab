@@ -138,6 +138,7 @@
                 "schema:data:invalid-size"
               ])
               (fixture ./checks/fixtures/missing-database-dataset.json [
+                "schema:db-app:invalid-database"
                 "schema:db-app:missing-database-dataset"
               ])
               (fixture ./checks/fixtures/mismatched-database-dataset.json [
@@ -145,6 +146,16 @@
                 "schema:db-app:invalid-database"
                 "schema:db-app:invalid-database-dataset-evidence"
               ])
+              (fixture ./checks/fixtures/database-unrelated-path.json [
+                "schema:app:invalid-database-dataset-evidence"
+              ])
+              (fixture ./checks/fixtures/database-identity-mismatch.json [
+                "schema:app:invalid-database-dataset-evidence"
+              ])
+              (fixture ./checks/fixtures/database-size-observation-mismatch.json [
+                "schema:app:invalid-database-dataset-evidence"
+              ])
+              (fixture ./checks/fixtures/database-coverage-matching.json [ ])
               (fixture ./checks/fixtures/empty-architectures.json [
                 "schema:empty-arch:dependency-not-retained:retired-service"
                 "schema:empty-arch:invalid-architectures"

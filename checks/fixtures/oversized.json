@@ -70,8 +70,7 @@
       },
       "ownerServices": [
         "fixture"
-      ],
-      "databaseBytesIncluded": false
+      ]
     }
   ],
   "services": []

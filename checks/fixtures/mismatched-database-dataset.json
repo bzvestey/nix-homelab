@@ -58,7 +58,6 @@
       "ownerServices": [
         "other-app"
       ],
-      "databaseBytesIncluded": false,
       "sourcePaths": [
         "/data"
       ],
@@ -89,7 +88,14 @@
       "database": {
         "kind": "external",
         "engine": "PostgreSQL",
+        "databaseId": "db-app-database",
         "datasetId": "wrong-data",
+        "sourcePaths": [
+          "/data"
+        ],
+        "targetPaths": [
+          "/var/lib/data"
+        ],
         "versionFact": {
           "status": "observed",
           "value": "1",

@@ -1,9 +1,18 @@
-{ ... }:
+{ lib, ... }:
+let
+  wiredLink = import ../../lib/wired-link.nix;
+in
 {
-  imports = [ ../../modules/fleet/base.nix ../../modules/fleet/networking.nix ../../modules/fleet/comin.nix ];
-  # Bootstrap only: deployment is forbidden until acceptance records the MAC.
+  imports = [
+    ../../modules/fleet/base.nix
+    ../../modules/fleet/networking.nix
+    ../../modules/fleet/comin.nix
+  ];
+  # Bootstrap remains reachable, but comin cannot switch this host until the
+  # physical link's observed MAC is recorded in inventory and used here.
+  services.comin.enable = lib.mkForce false;
   systemd.network.networks."20-bootstrap-lan" = {
-    matchConfig.Type = "ether";
+    inherit (wiredLink) matchConfig;
     address = [ "10.15.4.6/24" ];
     routes = [ { Gateway = "10.15.4.1"; } ];
     networkConfig.DNS = [ "10.15.4.1" ];
@@ -15,13 +24,10 @@
     serviceConfig.Type = "oneshot";
     script = ''
       count=0
-      for type in /sys/class/net/*/type; do
-        [ "$(cat "$type")" = 1 ] || continue
-        [ "$(basename "$(dirname "$type")")" = lo ] && continue
+      while IFS= read -r link; do
         count=$((count + 1))
-      done
+      done < <(${wiredLink.selectScript})
       [ "$count" -eq 1 ] || { echo "bootstrap requires exactly one Ethernet link; found $count" >&2; exit 1; }
     '';
   };
-  warnings = [ "observability-pi physical deployment is forbidden until acceptance records its Ethernet MAC" ];
 }

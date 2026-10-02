@@ -1,5 +1,4 @@
-_:
-{
+_: {
   networking = {
     useDHCP = false;
     useNetworkd = true;

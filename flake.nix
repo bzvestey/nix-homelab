@@ -38,27 +38,42 @@
         observability-pi = mkHost {
           system = "aarch64-linux";
           hostname = "observability-pi";
-          modules = [ comin.nixosModules.comin ./hosts/observability-pi ];
+          modules = [
+            comin.nixosModules.comin
+            ./hosts/observability-pi
+          ];
         };
         framework-01 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-01";
-          modules = [ comin.nixosModules.comin ./hosts/framework-01 ];
+          modules = [
+            comin.nixosModules.comin
+            ./hosts/framework-01
+          ];
         };
         framework-02 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-02";
-          modules = [ comin.nixosModules.comin ./hosts/framework-02 ];
+          modules = [
+            comin.nixosModules.comin
+            ./hosts/framework-02
+          ];
         };
         framework-03 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-03";
-          modules = [ comin.nixosModules.comin ./hosts/framework-03 ];
+          modules = [
+            comin.nixosModules.comin
+            ./hosts/framework-03
+          ];
         };
         services-pi = mkHost {
           system = "aarch64-linux";
           hostname = "services-pi";
-          modules = [ comin.nixosModules.comin ./hosts/services-pi ];
+          modules = [
+            comin.nixosModules.comin
+            ./hosts/services-pi
+          ];
         };
       };
       forAllSystems = nixpkgs.lib.genAttrs [

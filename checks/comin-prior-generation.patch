@@ -1,0 +1,43 @@
+diff --git a/internal/manager/manager_test.go b/internal/manager/manager_test.go
+index f94d59e..1e5410b 100644
+--- a/internal/manager/manager_test.go
++++ b/internal/manager/manager_test.go
+@@ -103,6 +103,22 @@ func TestBuild(t *testing.T) {
+ 	dc.Start()
+ 	m := New(s, prometheus.New(), scheduler.New(), f, b, d, "", "", e, bc, dc, bk, emptyConfigurationOperations)
+ 	go m.Run(t.Context())
++	prior := &protobuf.Generation{
++		Source: &protobuf.Source{
++			Source: &protobuf.Source_Git{
++				Git: &protobuf.Git{
++					SelectedCommitId: "prior-generation-sentinel",
++				},
++			},
++		},
++	}
++	d.Submit(prior, "switch", false, "fixture prior generation")
++	assert.EventuallyWithT(t, func(c *assert.CollectT) {
++		deployment := d.Deployment()
++		if assert.NotNil(c, deployment) {
++			assert.Equal(c, "prior-generation-sentinel", deployment.Generation.Source.GetGit().SelectedCommitId)
++		}
++	}, 5*time.Second, 100*time.Millisecond)
+ 	assert.False(t, m.Fetcher.GetState().IsFetching.GetValue())
+ 	assert.False(t, m.Builder.State().IsEvaluating.GetValue())
+ 	assert.False(t, m.Builder.State().IsBuilding.GetValue())
+@@ -125,6 +141,7 @@ func TestBuild(t *testing.T) {
+ 		g, _ := m.storage.GenerationGet(m.Builder.GenerationUuid)
+ 		assert.NotNil(c, g.EvalErr)
+ 		assert.Nil(c, m.deployer.GenerationToDeploy)
++		assert.Equal(c, "prior-generation-sentinel", d.Deployment().Generation.Source.GetGit().SelectedCommitId)
+ 	}, 5*time.Second, 100*time.Millisecond)
+ 
+ 	commitId = "id-2"
+@@ -150,6 +167,7 @@ func TestBuild(t *testing.T) {
+ 		g, _ := m.storage.GenerationGet(m.Builder.GenerationUuid)
+ 		assert.NotNil(c, g.BuildErr)
+ 		assert.Nil(c, m.deployer.GenerationToDeploy)
++		assert.Equal(c, "prior-generation-sentinel", d.Deployment().Generation.Source.GetGit().SelectedCommitId)
+ 	}, 5*time.Second, 100*time.Millisecond)
+ 
+ 	// This simulates the success of a build

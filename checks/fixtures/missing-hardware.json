@@ -1,0 +1,46 @@
+{
+  "targets": [
+    {
+      "name": "framework-01",
+      "address": "10.15.4.5",
+      "architecture": "x86_64-linux",
+      "measuredFreeBytes": {
+        "status": "observed",
+        "bytes": 100,
+        "stableId": "fixture-free",
+        "observedAt": "2026-10-02",
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        }
+      },
+      "hardwareRequirements": {
+        "installDisk": "required",
+        "nic": "required",
+        "gpu": "required"
+      },
+      "hardware": {
+        "installDisk": {
+          "status": "observed",
+          "stableId": "installDisk-fixture",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        },
+        "nic": {
+          "status": "observed",
+          "stableId": "nic-fixture",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        }
+      }
+    }
+  ],
+  "datasets": [],
+  "services": []
+}

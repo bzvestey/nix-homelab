@@ -1,0 +1,1 @@
+{"targets":[],"datasets":[{"id":"data","placement":"shared-retained","ownerServices":["fixture"],"sourcePaths":["/data"],"size":{"status":"observed","bytes":1,"stableId":"","observedAt":"yesterday","evidence":{"type":"rumor","reference":""}}}],"services":[]}

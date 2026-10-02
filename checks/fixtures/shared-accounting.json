@@ -1,1 +1,99 @@
-{"targets":[{"name":"framework-01","address":"10.15.4.5","architecture":"x86_64-linux","measuredFreeBytes":{"status":"observed","bytes":100,"evidence":"fixture"},"hardware":{}}],"datasets":[{"id":"local","placement":"local-copy","targetHost":"framework-01","sourcePaths":["/local"],"size":{"status":"observed","bytes":1,"evidence":"fixture"}},{"id":"shared","placement":"shared-retained","sourcePaths":["/shared"],"size":{"status":"observed","bytes":1000,"evidence":"fixture"}}],"services":[]}
+{
+  "targets": [
+    {
+      "name": "framework-01",
+      "address": "10.15.4.5",
+      "architecture": "x86_64-linux",
+      "measuredFreeBytes": {
+        "status": "observed",
+        "bytes": 100,
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        },
+        "stableId": "fixture-free",
+        "observedAt": "2026-10-02"
+      },
+      "hardware": {
+        "installDisk": {
+          "status": "observed",
+          "stableId": "fixture-disk",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        },
+        "nic": {
+          "status": "observed",
+          "stableId": "fixture-nic",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        },
+        "gpu": {
+          "status": "observed",
+          "stableId": "not-required",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        }
+      },
+      "hardwareRequirements": {
+        "installDisk": "required",
+        "nic": "required",
+        "gpu": "optional"
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "id": "local",
+      "placement": "local-copy",
+      "targetHost": "framework-01",
+      "sourcePaths": [
+        "/local"
+      ],
+      "size": {
+        "status": "observed",
+        "bytes": 1,
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        },
+        "stableId": "fixture-size",
+        "observedAt": "2026-10-02"
+      },
+      "ownerServices": [
+        "fixture"
+      ],
+      "databaseBytesIncluded": false
+    },
+    {
+      "id": "shared",
+      "placement": "shared-retained",
+      "sourcePaths": [
+        "/shared"
+      ],
+      "size": {
+        "status": "observed",
+        "bytes": 1000,
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        },
+        "stableId": "fixture-size",
+        "observedAt": "2026-10-02"
+      },
+      "ownerServices": [
+        "fixture"
+      ],
+      "databaseBytesIncluded": false
+    }
+  ],
+  "services": []
+}

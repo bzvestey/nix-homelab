@@ -1,23 +1,28 @@
 {
   "targets": [
     {
-      "name": "services-pi",
-      "address": "10.15.4.4",
-      "architecture": "aarch64-linux",
+      "name": "framework-01",
+      "address": "10.15.4.5",
+      "architecture": "x86_64-linux",
       "measuredFreeBytes": {
         "status": "observed",
         "bytes": 100,
+        "stableId": "fixture-free",
+        "observedAt": "2026-10-02",
         "evidence": {
           "type": "fixture",
           "reference": "fixture"
-        },
-        "stableId": "fixture-free",
-        "observedAt": "2026-10-02"
+        }
+      },
+      "hardwareRequirements": {
+        "installDisk": "required",
+        "nic": "required",
+        "gpu": "optional"
       },
       "hardware": {
         "installDisk": {
           "status": "observed",
-          "stableId": "fixture-disk",
+          "stableId": "installDisk-fixture",
           "observedAt": "2026-10-02",
           "evidence": {
             "type": "fixture",
@@ -26,7 +31,7 @@
         },
         "nic": {
           "status": "observed",
-          "stableId": "fixture-nic",
+          "stableId": "nic-fixture",
           "observedAt": "2026-10-02",
           "evidence": {
             "type": "fixture",
@@ -35,57 +40,50 @@
         },
         "gpu": {
           "status": "observed",
-          "stableId": "not-required",
+          "stableId": "gpu-fixture",
           "observedAt": "2026-10-02",
           "evidence": {
             "type": "fixture",
             "reference": "fixture"
           }
         }
-      },
-      "hardwareRequirements": {
-        "installDisk": "required",
-        "nic": "required",
-        "gpu": "optional"
       }
     }
   ],
   "datasets": [],
   "services": [
     {
-      "name": "bad-arch",
+      "name": "empty-arch",
       "disposition": "retain",
-      "targetHost": "services-pi",
+      "targetHost": "framework-01",
       "image": "example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "architectures": [
-        "linux/amd64"
-      ],
+      "architectures": [],
       "database": {
         "kind": "none"
       },
       "datasetIds": [],
       "endpoints": [
-        "none"
+        "https://app.example.invalid/"
       ],
       "backupEvidence": {
         "status": "observed",
-        "id": "backup-1",
+        "id": "backup",
+        "stableId": "backup",
         "observedAt": "2026-10-02",
         "evidence": {
           "type": "fixture",
           "reference": "fixture"
-        },
-        "stableId": "backup-1"
+        }
       },
       "restoreEvidence": {
         "status": "observed",
-        "id": "restore-1",
+        "id": "restore",
+        "stableId": "restore",
         "observedAt": "2026-10-02",
         "evidence": {
           "type": "fixture",
           "reference": "fixture"
-        },
-        "stableId": "restore-1"
+        }
       }
     }
   ]

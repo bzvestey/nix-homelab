@@ -1,1 +1,48 @@
-{"targets":[],"datasets":[{"id":"shared","placement":"shared-retained","sourcePaths":["/one"],"size":{"status":"observed","bytes":1,"evidence":"fixture"}},{"id":"shared","placement":"shared-retained","sourcePaths":["/two"],"size":{"status":"observed","bytes":1,"evidence":"fixture"}}],"services":[]}
+{
+  "targets": [],
+  "datasets": [
+    {
+      "id": "shared",
+      "placement": "shared-retained",
+      "sourcePaths": [
+        "/one"
+      ],
+      "size": {
+        "status": "observed",
+        "bytes": 1,
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        },
+        "stableId": "fixture-size",
+        "observedAt": "2026-10-02"
+      },
+      "ownerServices": [
+        "fixture"
+      ],
+      "databaseBytesIncluded": false
+    },
+    {
+      "id": "shared",
+      "placement": "shared-retained",
+      "sourcePaths": [
+        "/two"
+      ],
+      "size": {
+        "status": "observed",
+        "bytes": 1,
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        },
+        "stableId": "fixture-size",
+        "observedAt": "2026-10-02"
+      },
+      "ownerServices": [
+        "fixture"
+      ],
+      "databaseBytesIncluded": false
+    }
+  ],
+  "services": []
+}

@@ -26,3 +26,5 @@ df -B1 --output=source,target,avail / /var/lib /var/lib/telemetry 2>/dev/null
 ```
 
 Match the mounted destination filesystem to the stable `lsblk` identity before recording free bytes. The machine-readable typed blockers and per-fact commands are in `services.md`.
+
+Every target declares whether install-disk, NIC, and GPU evidence is required or optional, and all three fact slots are mandatory even when optional. The Pi GPU slots are explicitly `optional` with an observed `not-required` role declaration; Framework GPU identities remain required blockers. Observed facts require a stable ID, an ISO date, and a typed evidence source.

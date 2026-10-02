@@ -1,1 +1,82 @@
-{"targets":[{"name":"framework-01","address":"10.15.4.5","architecture":"x86_64-linux","measuredFreeBytes":{"status":"observed","bytes":100,"evidence":"fixture"},"hardware":{}}],"datasets":[],"services":[{"name":"no-evidence","disposition":"retain","targetHost":"framework-01","image":"example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","architectures":["linux/amd64"],"database":{"kind":"none"},"datasetIds":[],"endpoints":["none"],"backupEvidence":{"status":"blocked","reason":"missing","collectionCommand":"collect backup"},"restoreEvidence":{"status":"blocked","reason":"missing","collectionCommand":"perform isolated restore"}}]}
+{
+  "targets": [
+    {
+      "name": "framework-01",
+      "address": "10.15.4.5",
+      "architecture": "x86_64-linux",
+      "measuredFreeBytes": {
+        "status": "observed",
+        "bytes": 100,
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        },
+        "stableId": "fixture-free",
+        "observedAt": "2026-10-02"
+      },
+      "hardware": {
+        "installDisk": {
+          "status": "observed",
+          "stableId": "fixture-disk",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        },
+        "nic": {
+          "status": "observed",
+          "stableId": "fixture-nic",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        },
+        "gpu": {
+          "status": "observed",
+          "stableId": "not-required",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "fixture",
+            "reference": "fixture"
+          }
+        }
+      },
+      "hardwareRequirements": {
+        "installDisk": "required",
+        "nic": "required",
+        "gpu": "optional"
+      }
+    }
+  ],
+  "datasets": [],
+  "services": [
+    {
+      "name": "no-evidence",
+      "disposition": "retain",
+      "targetHost": "framework-01",
+      "image": "example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "architectures": [
+        "linux/amd64"
+      ],
+      "database": {
+        "kind": "none"
+      },
+      "datasetIds": [],
+      "endpoints": [
+        "none"
+      ],
+      "backupEvidence": {
+        "status": "blocked",
+        "reason": "missing",
+        "collectionCommand": "collect backup"
+      },
+      "restoreEvidence": {
+        "status": "blocked",
+        "reason": "missing",
+        "collectionCommand": "perform isolated restore"
+      }
+    }
+  ]
+}

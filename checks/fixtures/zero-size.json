@@ -1,1 +1,27 @@
-{"targets":[],"datasets":[{"id":"data","placement":"shared-retained","sourcePaths":["/data"],"size":{"status":"observed","bytes":0,"evidence":"fixture"}}],"services":[]}
+{
+  "targets": [],
+  "datasets": [
+    {
+      "id": "data",
+      "placement": "shared-retained",
+      "sourcePaths": [
+        "/data"
+      ],
+      "size": {
+        "status": "observed",
+        "bytes": 0,
+        "evidence": {
+          "type": "fixture",
+          "reference": "fixture"
+        },
+        "stableId": "fixture-size",
+        "observedAt": "2026-10-02"
+      },
+      "ownerServices": [
+        "fixture"
+      ],
+      "databaseBytesIncluded": false
+    }
+  ],
+  "services": []
+}

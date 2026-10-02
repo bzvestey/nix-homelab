@@ -8,13 +8,30 @@
 let
   inventory = builtins.fromJSON (builtins.readFile inventoryFile);
   isNonEmptyString = value: builtins.isString value && value != "";
+  isObservationDate =
+    value: builtins.isString value && builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" value != null;
+  validEvidence =
+    value:
+    builtins.isAttrs value
+    && builtins.elem (value.type or null) [
+      "api"
+      "command-output"
+      "declaration"
+      "fixture"
+    ]
+    && isNonEmptyString (value.reference or null);
+  observedMetadataValid =
+    value:
+    isNonEmptyString (value.stableId or null)
+    && isObservationDate (value.observedAt or null)
+    && validEvidence (value.evidence or { });
   isObservedPositive =
     value:
     builtins.isAttrs value
     && value.status or null == "observed"
     && builtins.isInt (value.bytes or null)
     && value.bytes > 0
-    && isNonEmptyString (value.evidence or null);
+    && observedMetadataValid value;
   isBlocker =
     value:
     builtins.isAttrs value
@@ -26,8 +43,17 @@ let
     builtins.isAttrs value
     && value.status or null == "observed"
     && isNonEmptyString (value.id or null)
-    && isNonEmptyString (value.observedAt or null)
-    && isNonEmptyString (value.evidence or null);
+    && observedMetadataValid value;
+  versionReady =
+    value:
+    builtins.isAttrs value
+    && value.status or null == "observed"
+    && isNonEmptyString (value.value or null)
+    && builtins.match "[0-9]+(\\.[0-9]+)*" value.value != null
+    && observedMetadataValid value;
+  hardwareFactReady =
+    value: builtins.isAttrs value && value.status or null == "observed" && observedMetadataValid value;
+  validHardwareFact = value: hardwareFactReady value || isBlocker value;
   validFact = value: isObservedPositive value || isBlocker value;
   targets = inventory.targets or [ ];
   services = lib.filter (service: service.disposition or null == "retain") (
@@ -73,25 +99,75 @@ let
         field: builtins.hasAttr field service && !isNonEmptyString service.${field}
       ) requiredStrings;
       database = service.database or { };
+      databaseKind = database.kind or null;
+      databaseDatasetId = database.datasetId or null;
+      databaseDataset = lib.findFirst (dataset: dataset.id or null == databaseDatasetId) null datasets;
+      durableDatabase = builtins.elem databaseKind [
+        "embedded"
+        "external"
+      ];
       databaseValid =
         builtins.isAttrs database
-        && builtins.elem (database.kind or null) [
+        && builtins.elem databaseKind [
           "none"
+          "rebuildable-cache"
           "external"
           "embedded"
         ]
-        && ((database.kind or null) == "none" || isNonEmptyString (database.engine or null))
         && (
-          (database.kind or null) == "none"
-          || isNonEmptyString (database.version or null)
+          builtins.elem databaseKind [
+            "none"
+            "rebuildable-cache"
+          ]
+          || isNonEmptyString (database.engine or null)
+        )
+        && (
+          builtins.elem databaseKind [
+            "none"
+            "rebuildable-cache"
+          ]
+          || versionReady (database.versionFact or { })
           || isBlocker (database.versionFact or { })
         );
     in
     (map (field: "schema:${name}:missing-${field}") missing)
     ++ (map (field: "schema:${name}:invalid-${field}") badLists)
     ++ (map (field: "schema:${name}:invalid-${field}") badStrings)
+    ++ lib.optional (
+      !(builtins.isList (service.architectures or null))
+      || service.architectures == [ ]
+      || !lib.all (
+        architecture:
+        builtins.elem architecture [
+          "linux/amd64"
+          "linux/arm64"
+          "linux/arm"
+        ]
+      ) service.architectures
+    ) "schema:${name}:invalid-architectures"
     ++ lib.optional (!(digestValid (service.image or null))) "schema:${name}:invalid-image-digest"
     ++ lib.optional (!databaseValid) "schema:${name}:invalid-database"
+    ++ lib.optional (
+      durableDatabase && !isNonEmptyString databaseDatasetId
+    ) "schema:${name}:missing-database-dataset"
+    ++ lib.optional (
+      durableDatabase
+      && databaseDataset != null
+      && !(builtins.elem name (databaseDataset.ownerServices or [ ]))
+    ) "schema:${name}:database-dataset-owner-mismatch"
+    ++ lib.optional (
+      durableDatabase && databaseDataset != null && databaseDataset.databaseBytesIncluded or false != true
+    ) "schema:${name}:database-dataset-excludes-database-bytes"
+    ++ lib.optional (
+      durableDatabase
+      && databaseDataset != null
+      && databaseDataset.targetHost or null != service.targetHost or null
+    ) "schema:${name}:database-dataset-target-mismatch"
+    ++ lib.optional (
+      durableDatabase
+      && isNonEmptyString databaseDatasetId
+      && !(builtins.elem databaseDatasetId (service.datasetIds or [ ]))
+    ) "schema:${name}:database-dataset-not-linked"
     ++ lib.optional (
       !(isBlocker (service.backupEvidence or { }) || evidenceReady (service.backupEvidence or { }))
     ) "schema:${name}:invalid-backup-evidence"
@@ -113,6 +189,9 @@ let
     ) "schema:${name}:invalid-placement"
     ++ lib.optional (!(validFact (dataset.size or { }))) "schema:${name}:invalid-size"
     ++ lib.optional (
+      !(builtins.isList (dataset.ownerServices or null)) || dataset.ownerServices == [ ]
+    ) "schema:${name}:invalid-owner-services"
+    ++ lib.optional (
       !(builtins.isList (dataset.sourcePaths or null)) || dataset.sourcePaths == [ ]
     ) "schema:${name}:invalid-source-paths"
     ++ lib.optional (
@@ -123,6 +202,13 @@ let
     target:
     let
       name = target.name or "<unnamed>";
+      requirements = target.hardwareRequirements or { };
+      hardware = target.hardware or { };
+      hardwareFields = [
+        "installDisk"
+        "nic"
+        "gpu"
+      ];
     in
     lib.optional (!isNonEmptyString (target.name or null)) "schema:${name}:invalid-target-name"
     ++ lib.optional (!isNonEmptyString (target.address or null)) "schema:${name}:invalid-target-address"
@@ -133,6 +219,19 @@ let
       ])
     ) "schema:${name}:invalid-target-architecture"
     ++ lib.optional (!(validFact (target.measuredFreeBytes or { }))) "schema:${name}:invalid-free-bytes"
+    ++ lib.concatMap (
+      field:
+      lib.optional (
+        !(builtins.elem (requirements.${field} or null) [
+          "required"
+          "optional"
+        ])
+      ) "schema:${name}:invalid-hardware-requirement-${field}"
+      ++ lib.optional (!(builtins.hasAttr field hardware)) "schema:${name}:missing-hardware-${field}"
+      ++ lib.optional (
+        builtins.hasAttr field hardware && !(validHardwareFact hardware.${field})
+      ) "schema:${name}:invalid-hardware-${field}"
+    ) hardwareFields
   ) targets;
   referenceErrors =
     (map (name: "schema:duplicate-target:${name}") (duplicates targetNames))
@@ -163,11 +262,17 @@ let
         target.measuredFreeBytes or { }
       )) "readiness:${target.name}:free-bytes-blocked"
       ++ map (field: "readiness:${target.name}:${field}-blocked") (
-        lib.filter (field: isBlocker (target.hardware.${field} or { })) [
-          "installDisk"
-          "nic"
-          "gpu"
-        ]
+        lib.filter
+          (
+            field:
+            target.hardwareRequirements.${field} or null == "required"
+            && isBlocker (target.hardware.${field} or { })
+          )
+          [
+            "installDisk"
+            "nic"
+            "gpu"
+          ]
       )
     ) targets
     ++ lib.concatMap (

@@ -134,6 +134,10 @@
                 "schema:framework-01:invalid-hardware-installDisk"
                 "schema:framework-01:invalid-hardware-nic"
               ])
+              (fixture ./checks/fixtures/sysfs-hardware.json [
+                "readiness:framework-01:free-bytes-blocked"
+                "readiness:framework-01:installDisk-blocked"
+              ])
               (fixture ./checks/fixtures/malformed-observed-evidence.json [
                 "schema:data:invalid-size"
               ])

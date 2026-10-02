@@ -45,18 +45,52 @@
       "hardware": {
         "installDisk": {
           "status": "blocked",
-          "reason": "stable model/serial unavailable",
-          "collectionCommand": "lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS"
+          "reason": "model, serial, and capacity were observed, but /dev/disk/by-id was not exposed",
+          "collectionCommand": "ls -l /dev/disk/by-id; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS",
+          "partialObservation": {
+            "model": "Samsung SSD 970 EVO Plus 2TB",
+            "serial": "S59CNM0W713317D",
+            "capacityBytes": 2000398934016,
+            "stableId": "framework-01:nvme0n1:S59CNM0W713317D",
+            "observedAt": "2026-10-02",
+            "evidence": {
+              "type": "command-output",
+              "command": "block-device-sysfs",
+              "scope": "kubernetes-node/framework-01/sysfs/block/nvme0n1"
+            }
+          }
         },
         "nic": {
-          "status": "blocked",
-          "reason": "bond member names are known but stable interface/MAC mapping is unavailable",
-          "collectionCommand": "for i in /sys/class/net/*; do printf '%s ' \"$(basename \"$i\")\"; cat \"$i/address\"; done; ip -d link show bond0; ip route"
+          "status": "observed",
+          "members": [
+            {
+              "interface": "enp0s13f0u1",
+              "macAddress": "9c:bf:0d:00:23:fe"
+            },
+            {
+              "interface": "enp0s13f0u2",
+              "macAddress": "9c:bf:0d:00:23:fe"
+            }
+          ],
+          "stableId": "9c:bf:0d:00:23:fe",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "command-output",
+            "command": "network-sysfs",
+            "scope": "kubernetes-node/framework-01/sysfs/class/net"
+          }
         },
         "gpu": {
-          "status": "blocked",
-          "reason": "GPU PCI identity unavailable",
-          "collectionCommand": "lspci -Dnn | grep -Ei 'vga|3d|display'"
+          "status": "observed",
+          "pciId": "8086:9a49",
+          "deviceAddress": "0000:00:02.0",
+          "stableId": "0000:00:02.0:8086:9a49",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "command-output",
+            "command": "pci-sysfs",
+            "scope": "kubernetes-node/framework-01/sysfs/bus/pci/devices/0000:00:02.0"
+          }
         }
       },
       "hardwareRequirements": {
@@ -77,18 +111,52 @@
       "hardware": {
         "installDisk": {
           "status": "blocked",
-          "reason": "stable model/serial unavailable",
-          "collectionCommand": "lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS"
+          "reason": "model, serial, and capacity were observed, but /dev/disk/by-id was not exposed",
+          "collectionCommand": "ls -l /dev/disk/by-id; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS",
+          "partialObservation": {
+            "model": "Samsung SSD 980 1TB",
+            "serial": "S64ANS0RB36721W",
+            "capacityBytes": 1000204886016,
+            "stableId": "framework-02:nvme0n1:S64ANS0RB36721W",
+            "observedAt": "2026-10-02",
+            "evidence": {
+              "type": "command-output",
+              "command": "block-device-sysfs",
+              "scope": "kubernetes-node/framework-02/sysfs/block/nvme0n1"
+            }
+          }
         },
         "nic": {
-          "status": "blocked",
-          "reason": "bond member names are known but stable interface/MAC mapping is unavailable",
-          "collectionCommand": "for i in /sys/class/net/*; do printf '%s ' \"$(basename \"$i\")\"; cat \"$i/address\"; done; ip -d link show bond0; ip route"
+          "status": "observed",
+          "members": [
+            {
+              "interface": "enp0s13f0u3",
+              "macAddress": "9c:bf:0d:00:0d:3c"
+            },
+            {
+              "interface": "enp0s13f0u4",
+              "macAddress": "9c:bf:0d:00:0d:3c"
+            }
+          ],
+          "stableId": "9c:bf:0d:00:0d:3c",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "command-output",
+            "command": "network-sysfs",
+            "scope": "kubernetes-node/framework-02/sysfs/class/net"
+          }
         },
         "gpu": {
-          "status": "blocked",
-          "reason": "GPU PCI identity unavailable",
-          "collectionCommand": "lspci -Dnn | grep -Ei 'vga|3d|display'"
+          "status": "observed",
+          "pciId": "8086:4626",
+          "deviceAddress": "0000:00:02.0",
+          "stableId": "0000:00:02.0:8086:4626",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "command-output",
+            "command": "pci-sysfs",
+            "scope": "kubernetes-node/framework-02/sysfs/bus/pci/devices/0000:00:02.0"
+          }
         }
       },
       "hardwareRequirements": {
@@ -109,18 +177,52 @@
       "hardware": {
         "installDisk": {
           "status": "blocked",
-          "reason": "stable model/serial unavailable",
-          "collectionCommand": "lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS"
+          "reason": "model, serial, and capacity were observed, but /dev/disk/by-id was not exposed",
+          "collectionCommand": "ls -l /dev/disk/by-id; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS",
+          "partialObservation": {
+            "model": "Samsung SSD 980 1TB",
+            "serial": "S64ANL0T801753P",
+            "capacityBytes": 1000204886016,
+            "stableId": "framework-03:nvme0n1:S64ANL0T801753P",
+            "observedAt": "2026-10-02",
+            "evidence": {
+              "type": "command-output",
+              "command": "block-device-sysfs",
+              "scope": "kubernetes-node/framework-03/sysfs/block/nvme0n1"
+            }
+          }
         },
         "nic": {
-          "status": "blocked",
-          "reason": "bond member names are known but stable interface/MAC mapping is unavailable",
-          "collectionCommand": "for i in /sys/class/net/*; do printf '%s ' \"$(basename \"$i\")\"; cat \"$i/address\"; done; ip -d link show bond0; ip route"
+          "status": "observed",
+          "members": [
+            {
+              "interface": "enp0s13f0u3",
+              "macAddress": "9c:bf:0d:00:20:37"
+            },
+            {
+              "interface": "enp0s13f0u4",
+              "macAddress": "9c:bf:0d:00:20:37"
+            }
+          ],
+          "stableId": "9c:bf:0d:00:20:37",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "command-output",
+            "command": "network-sysfs",
+            "scope": "kubernetes-node/framework-03/sysfs/class/net"
+          }
         },
         "gpu": {
-          "status": "blocked",
-          "reason": "GPU PCI identity unavailable",
-          "collectionCommand": "lspci -Dnn | grep -Ei 'vga|3d|display'"
+          "status": "observed",
+          "pciId": "8086:9a49",
+          "deviceAddress": "0000:00:02.0",
+          "stableId": "0000:00:02.0:8086:9a49",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "command-output",
+            "command": "pci-sysfs",
+            "scope": "kubernetes-node/framework-03/sysfs/bus/pci/devices/0000:00:02.0"
+          }
         }
       },
       "hardwareRequirements": {
@@ -141,13 +243,37 @@
       "hardware": {
         "installDisk": {
           "status": "blocked",
-          "reason": "stable model/serial unavailable",
-          "collectionCommand": "lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS"
+          "reason": "MMC identity and capacity were observed, but stable installer identity requirements remain incomplete",
+          "collectionCommand": "ls -l /dev/disk/by-id; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS",
+          "partialObservation": {
+            "model": "GE4S5",
+            "serial": "0x3a0a638a",
+            "capacityBytes": 256355860480,
+            "deviceCid": "1b534d4745345335303a0a638aa16a00",
+            "stableId": "services-pi:mmcblk0:1b534d4745345335303a0a638aa16a00",
+            "observedAt": "2026-10-02",
+            "evidence": {
+              "type": "command-output",
+              "command": "block-device-sysfs",
+              "scope": "kubernetes-node/services-pi/sysfs/block/mmcblk0"
+            }
+          }
         },
         "nic": {
-          "status": "blocked",
-          "reason": "stable interface/MAC mapping unavailable",
-          "collectionCommand": "for i in /sys/class/net/*; do printf '%s ' \"$(basename \"$i\")\"; cat \"$i/address\"; done; ip -br link; ip route"
+          "status": "observed",
+          "members": [
+            {
+              "interface": "end0",
+              "macAddress": "2c:cf:67:ed:27:ed"
+            }
+          ],
+          "stableId": "2c:cf:67:ed:27:ed",
+          "observedAt": "2026-10-02",
+          "evidence": {
+            "type": "command-output",
+            "command": "network-sysfs",
+            "scope": "kubernetes-node/services-pi/sysfs/class/net"
+          }
         },
         "gpu": {
           "status": "not-applicable",
@@ -756,9 +882,17 @@
         },
         "databaseId": "comma-feed-database",
         "datasetId": "comma-feed-data",
-        "sourcePaths": [ "/commafeed/data" ],
-        "targetPaths": [ "/var/lib/comma-feed" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /commafeed/data; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/commafeed/data"
+        ],
+        "targetPaths": [
+          "/var/lib/comma-feed"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /commafeed/data; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "comma-feed-data"
@@ -825,9 +959,17 @@
         },
         "databaseId": "donetick-database",
         "datasetId": "donetick-data",
-        "sourcePaths": [ "/donetick_data" ],
-        "targetPaths": [ "/var/lib/donetick" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /donetick_data; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/donetick_data"
+        ],
+        "targetPaths": [
+          "/var/lib/donetick"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /donetick_data; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "donetick-data"
@@ -864,9 +1006,17 @@
         "engine": "PostgreSQL",
         "databaseId": "forgejo-database",
         "datasetId": "forgejo-data",
-        "sourcePaths": [ "/var/lib/postgresql/data" ],
-        "targetPaths": [ "/var/lib/postgresql" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
+        "sourcePaths": [
+          "/var/lib/postgresql/data"
+        ],
+        "targetPaths": [
+          "/var/lib/postgresql"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest"
+        },
         "versionFact": {
           "status": "observed",
           "value": "18.1",
@@ -942,9 +1092,17 @@
         },
         "databaseId": "homarr-database",
         "datasetId": "homarr-data",
-        "sourcePaths": [ "/appdata" ],
-        "targetPaths": [ "/var/lib/homarr" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /appdata; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/appdata"
+        ],
+        "targetPaths": [
+          "/var/lib/homarr"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /appdata; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "homarr-data"
@@ -976,9 +1134,17 @@
         "engine": "PostgreSQL/vectorchord",
         "databaseId": "immich-database",
         "datasetId": "immich-data",
-        "sourcePaths": [ "/var/lib/postgresql/data" ],
-        "targetPaths": [ "/var/lib/postgresql" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
+        "sourcePaths": [
+          "/var/lib/postgresql/data"
+        ],
+        "targetPaths": [
+          "/var/lib/postgresql"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest"
+        },
         "versionFact": {
           "status": "blocked",
           "reason": "CNPG image observation only established major version 16, not an observed numeric dotted database version",
@@ -1020,9 +1186,17 @@
         },
         "databaseId": "jellyfin-database",
         "datasetId": "jellyfin-config",
-        "sourcePaths": [ "/config" ],
-        "targetPaths": [ "/var/lib/jellyfin" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/config"
+        ],
+        "targetPaths": [
+          "/var/lib/jellyfin"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "jellyfin-config",
@@ -1060,9 +1234,17 @@
         },
         "databaseId": "kavita-database",
         "datasetId": "kavita-config",
-        "sourcePaths": [ "/config" ],
-        "targetPaths": [ "/var/lib/kavita" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/config"
+        ],
+        "targetPaths": [
+          "/var/lib/kavita"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "kavita-config",
@@ -1127,9 +1309,17 @@
         "engine": "PostgreSQL",
         "databaseId": "mealie-database",
         "datasetId": "mealie-data",
-        "sourcePaths": [ "/var/lib/postgresql/data" ],
-        "targetPaths": [ "/var/lib/postgresql" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
+        "sourcePaths": [
+          "/var/lib/postgresql/data"
+        ],
+        "targetPaths": [
+          "/var/lib/postgresql"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest"
+        },
         "versionFact": {
           "status": "observed",
           "value": "17.5",
@@ -1176,9 +1366,17 @@
         },
         "databaseId": "pocket-id-database",
         "datasetId": "pocket-id-data",
-        "sourcePaths": [ "/app/data" ],
-        "targetPaths": [ "/var/lib/pocket-id" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /app/data; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/app/data"
+        ],
+        "targetPaths": [
+          "/var/lib/pocket-id"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /app/data; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "pocket-id-data"
@@ -1218,9 +1416,17 @@
         },
         "databaseId": "prowlarr-database",
         "datasetId": "prowlarr-config",
-        "sourcePaths": [ "/config" ],
-        "targetPaths": [ "/var/lib/prowlarr" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/config"
+        ],
+        "targetPaths": [
+          "/var/lib/prowlarr"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "prowlarr-config"
@@ -1286,9 +1492,17 @@
         },
         "databaseId": "radarr-database",
         "datasetId": "radarr-config",
-        "sourcePaths": [ "/config" ],
-        "targetPaths": [ "/var/lib/radarr" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/config"
+        ],
+        "targetPaths": [
+          "/var/lib/radarr"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "radarr-config",
@@ -1355,9 +1569,17 @@
         },
         "databaseId": "sonarr-database",
         "datasetId": "sonarr-config",
-        "sourcePaths": [ "/config" ],
-        "targetPaths": [ "/var/lib/sonarr" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/config"
+        ],
+        "targetPaths": [
+          "/var/lib/sonarr"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "sonarr-config",
@@ -1419,9 +1641,17 @@
         "engine": "PostgreSQL",
         "databaseId": "tranquil-pds-database",
         "datasetId": "tranquil-pds-data",
-        "sourcePaths": [ "/var/lib/postgresql/data" ],
-        "targetPaths": [ "/var/lib/postgresql" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
+        "sourcePaths": [
+          "/var/lib/postgresql/data"
+        ],
+        "targetPaths": [
+          "/var/lib/postgresql"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest"
+        },
         "versionFact": {
           "status": "observed",
           "value": "18.1",
@@ -1470,9 +1700,17 @@
         },
         "databaseId": "tuwunel-database",
         "datasetId": "tuwunel-data",
-        "sourcePaths": [ "/var/lib/tuwunel" ],
-        "targetPaths": [ "/var/lib/tuwunel" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage and size are unobserved", "collectionCommand": "du -sb /var/lib/tuwunel; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/var/lib/tuwunel"
+        ],
+        "targetPaths": [
+          "/var/lib/tuwunel"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage and size are unobserved",
+          "collectionCommand": "du -sb /var/lib/tuwunel; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "tuwunel-data"
@@ -1507,9 +1745,17 @@
         "engine": "PostgreSQL",
         "databaseId": "vikunja-database",
         "datasetId": "vikunja-data",
-        "sourcePaths": [ "/var/lib/postgresql/data" ],
-        "targetPaths": [ "/var/lib/postgresql" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest" },
+        "sourcePaths": [
+          "/var/lib/postgresql/data"
+        ],
+        "targetPaths": [
+          "/var/lib/postgresql"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest"
+        },
         "versionFact": {
           "status": "observed",
           "value": "17.5",
@@ -1560,9 +1806,17 @@
         },
         "databaseId": "wallos-database",
         "datasetId": "wallos-data",
-        "sourcePaths": [ "/var/www/html/db" ],
-        "targetPaths": [ "/var/lib/wallos/db" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /var/www/html/db; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/var/www/html/db"
+        ],
+        "targetPaths": [
+          "/var/lib/wallos/db"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /var/www/html/db; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "wallos-data"
@@ -1599,9 +1853,17 @@
         },
         "databaseId": "whisparr-database",
         "datasetId": "whisparr-config",
-        "sourcePaths": [ "/config" ],
-        "targetPaths": [ "/var/lib/whisparr" ],
-        "datasetEvidence": { "status": "blocked", "reason": "database component coverage is not independently evidenced", "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest" }
+        "sourcePaths": [
+          "/config"
+        ],
+        "targetPaths": [
+          "/var/lib/whisparr"
+        ],
+        "datasetEvidence": {
+          "status": "blocked",
+          "reason": "database component coverage is not independently evidenced",
+          "collectionCommand": "du -sb /config; record database identity, owner, source path, target path, and output digest"
+        }
       },
       "datasetIds": [
         "whisparr-config",

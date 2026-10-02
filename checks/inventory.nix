@@ -28,7 +28,9 @@ let
               "database-version-query"
               "database-path-du-bytes"
               "backup-inspection"
+              "block-device-sysfs"
               "restore-test"
+              "pci-sysfs"
             ]
             && isNonEmptyString (value.scope or null)
           )
@@ -114,6 +116,25 @@ let
         && value.evidence.command == "lsblk-json"
       )
     );
+  partialInstallDiskReady =
+    value:
+    builtins.isAttrs value
+    && isNonEmptyString (value.model or null)
+    && isNonEmptyString (value.serial or null)
+    && builtins.isInt (value.capacityBytes or null)
+    && value.capacityBytes > 0
+    && observedMetadataValid value
+    && value.evidence.type == "command-output"
+    && value.evidence.command == "block-device-sysfs";
+  installDiskFactValid =
+    value:
+    installDiskReady value
+    || (
+      isBlocker value
+      && (
+        !(builtins.hasAttr "partialObservation" value) || partialInstallDiskReady value.partialObservation
+      )
+    );
   nicReady =
     value:
     builtins.isAttrs value
@@ -122,9 +143,17 @@ let
     && (
       fixtureEvidence value
       || (
-        builtins.match "[a-zA-Z0-9][a-zA-Z0-9_.-]*" (value.interface or "") != null
-        && builtins.match "[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}" (value.macAddress or "") != null
-        && value.stableId == value.macAddress
+        builtins.isList (value.members or null)
+        && value.members != [ ]
+        && lib.all (
+          member:
+          builtins.isAttrs member
+          && builtins.match "[a-zA-Z0-9][a-zA-Z0-9_.-]*" (member.interface or "") != null
+          && builtins.match "[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}" (member.macAddress or "") != null
+        ) value.members
+        &&
+          value.stableId
+          == lib.concatStringsSep "+" (lib.unique (map (member: member.macAddress) value.members))
         && value.evidence.type == "command-output"
         && value.evidence.command == "network-sysfs"
       )
@@ -143,7 +172,10 @@ let
           != null
         && value.stableId == "${value.deviceAddress}:${value.pciId}"
         && value.evidence.type == "command-output"
-        && value.evidence.command == "lspci-numeric"
+        && builtins.elem value.evidence.command [
+          "lspci-numeric"
+          "pci-sysfs"
+        ]
       )
     );
   notApplicable =
@@ -347,7 +379,7 @@ let
         "gpu"
       ];
       hardwareReady = {
-        installDisk = installDiskReady;
+        installDisk = installDiskFactValid;
         nic = nicReady;
         gpu = gpuReady;
       };

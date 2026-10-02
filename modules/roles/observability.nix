@@ -90,10 +90,6 @@ let
           }
         ];
       };
-      "filter/drop-links" = {
-        error_mode = "propagate";
-        traces.span = [ "Len(span.links) > 0" ];
-      };
       "transform/log-safety" = {
         error_mode = "ignore";
         log_statements = [
@@ -142,6 +138,7 @@ let
           {
             context = "span";
             statements = [
+              "set(span.links, span.links)"
               ''delete_matching_keys(attributes, "(?i)(^|[._-])(password|token|secret|authorization|cookie|api[._-]?key|trace[._-]?id|span[._-]?id|container[._-]?id|request[._-]?id|user[._-]?id|session[._-]?id|path|revision)([._-]|$)")''
             ];
           }
@@ -223,7 +220,6 @@ let
           receivers = [ "otlp" ];
           processors = [
             "memory_limiter"
-            "filter/drop-links"
             "transform/attribute-safety"
             "tail_sampling"
             "batch"
@@ -625,7 +621,7 @@ in
         test "$(${pkgs.sqlite}/bin/sqlite3 ${stateRoot}/grafana/grafana.db 'pragma integrity_check')" = ok
         password=$(cat ${stateRoot}/grafana/admin-password)
         for attempt in $(seq 1 30); do
-          if ${pkgs.curl}/bin/curl -fsS -u "admin:$password" http://127.0.0.1:3000/api/health | ${pkgs.jq}/bin/jq -e '.database == "ok"' >/dev/null; then
+          if ${pkgs.curl}/bin/curl --connect-timeout 1 --max-time 3 -fsS -u "admin:$password" http://127.0.0.1:3000/api/user | ${pkgs.jq}/bin/jq -e '.login == "admin"' >/dev/null; then
             exit 0
           fi
           sleep 1

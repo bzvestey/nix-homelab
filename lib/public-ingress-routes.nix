@@ -32,6 +32,5 @@
   {
     hostname = "*.minastas.social";
     origin = "http://10.15.4.5:8080";
-    hostHeader = "*.minastas.social";
   }
 ]

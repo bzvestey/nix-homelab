@@ -32,18 +32,23 @@ let
       };
     };
   };
-  mkSite = port: route: ''
-    http://${route.hostname}:${toString port} {
+  mkPublicSite = route: ''
+    http://${route.hostname}:${toString cfg.publicPort} {
+      reverse_proxy ${route.upstream}
+    }
+  '';
+  mkTailnetSite = route: ''
+    ${route.hostname} {
+      ${lib.optionalString cfg.testUseInternalTls "tls internal"}
       reverse_proxy ${route.upstream}
     }
   '';
   caddyfile = pkgs.writeText "fleet-caddyfile" ''
     {
-      auto_https off
       admin 127.0.0.1:2019
     }
-    ${lib.concatMapStringsSep "\n" (mkSite cfg.publicPort) publicRoutes}
-    ${lib.concatMapStringsSep "\n" (mkSite cfg.tailnetPort) tailnetRoutes}
+    ${lib.concatMapStringsSep "\n" mkPublicSite publicRoutes}
+    ${lib.concatMapStringsSep "\n" mkTailnetSite tailnetRoutes}
   '';
 in
 {
@@ -58,10 +63,10 @@ in
       default = 8080;
       description = "LAN origin port used only by the two tunnel connectors.";
     };
-    tailnetPort = lib.mkOption {
-      type = lib.types.port;
-      default = 8443;
-      description = "Private HTTP port admitted only on tailscale0.";
+    lanInterface = lib.mkOption {
+      type = lib.types.str;
+      default = "bond0";
+      description = "Authoritative LAN interface on which public origins accept connector traffic.";
     };
     enableTailscale = lib.mkOption {
       type = lib.types.bool;
@@ -73,43 +78,53 @@ in
       default = "/run/secrets/tailscale-auth-key";
       description = "Runtime-only Tailscale auth key path.";
     };
+    testUseInternalTls = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      internal = true;
+      description = "Use Caddy's internal CA only in isolated VM tests.";
+    };
   };
 
-  config = lib.mkIf (cfg.routes != [ ]) {
-    assertions = [
-      {
-        assertion = duplicates == [ ];
-        message = "fleet.ingress.routes contains duplicate hostnames: ${lib.concatStringsSep ", " duplicates}";
-      }
-      {
-        assertion = lib.all (route: wildcardValid route.hostname) cfg.routes;
-        message = "fleet.ingress.routes wildcard must be the complete first hostname label";
-      }
-    ];
-
-    services.caddy = {
-      enable = true;
-      configFile = caddyfile;
-    };
-    services.tailscale = lib.mkIf cfg.enableTailscale {
-      enable = true;
-      openFirewall = false;
-      authKeyFile = cfg.tailscaleAuthKeyFile;
-      authKeyParameters = {
-        ephemeral = false;
-        preauthorized = true;
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enableTailscale {
+      services.tailscale = {
+        enable = true;
+        openFirewall = false;
+        authKeyFile = cfg.tailscaleAuthKeyFile;
+        authKeyParameters = {
+          ephemeral = false;
+          preauthorized = true;
+        };
+        permitCertUid = "caddy";
       };
-    };
-    systemd.services.tailscaled-autoconnect.unitConfig.ConditionPathIsReadable =
-      lib.mkIf cfg.enableTailscale cfg.tailscaleAuthKeyFile;
+      systemd.services.tailscaled-autoconnect.unitConfig.ConditionPathIsReadable =
+        cfg.tailscaleAuthKeyFile;
+    })
+    (lib.mkIf (cfg.routes != [ ]) {
+      assertions = [
+        {
+          assertion = duplicates == [ ];
+          message = "fleet.ingress.routes contains duplicate hostnames: ${lib.concatStringsSep ", " duplicates}";
+        }
+        {
+          assertion = lib.all (route: wildcardValid route.hostname) cfg.routes;
+          message = "fleet.ingress.routes wildcard must be the complete first hostname label";
+        }
+      ];
 
-    networking.firewall.extraInputRules = ''
-      ${lib.optionalString (publicRoutes != [ ]) ''
-        ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport ${toString cfg.publicPort} accept comment "cloudflared origins"
-      ''}
-      ${lib.optionalString (tailnetRoutes != [ ]) ''
-        iifname "tailscale0" tcp dport ${toString cfg.tailnetPort} accept comment "tailnet Caddy"
-      ''}
-    '';
-  };
+      services.caddy = {
+        enable = true;
+        configFile = caddyfile;
+      };
+      networking.firewall.extraInputRules = ''
+        ${lib.optionalString (publicRoutes != [ ]) ''
+          iifname "${cfg.lanInterface}" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport ${toString cfg.publicPort} accept comment "cloudflared origins"
+        ''}
+        ${lib.optionalString (tailnetRoutes != [ ]) ''
+          iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"
+        ''}
+      '';
+    })
+  ];
 }

@@ -10,6 +10,7 @@ permissions:
 jobs:
   checks:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
@@ -34,7 +35,31 @@ jobs:
       - name: Run deadnix
         run: nix run .#deadnix -- --fail .
       - name: Check flake
-        run: nix flake check --show-trace
+        run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/flake-check.log"
+          set +e
+          nix flake check --show-trace 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if (( status != 0 )); then
+            {
+              echo "## ${{ matrix.host }} native flake check failure"
+              echo
+              echo 'Last 200 lines (bounded to 60,000 bytes):'
+              echo '```text'
+              tail -n 200 "$log" | tail -c 60000
+              echo
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            diagnostic=$(tail -n 80 "$log" | tail -c 12000)
+            diagnostic=${diagnostic//'%'/'%25'}
+            diagnostic=${diagnostic//$'\r'/'%0D'}
+            diagnostic=${diagnostic//$'\n'/'%0A'}
+            printf '::error title=%s native flake check failure::%s\n' \
+              '${{ matrix.host }}' "$diagnostic"
+            exit "$status"
+          fi
       - name: Build ${{ matrix.host }} closure
         run: |
           set -o pipefail
@@ -53,5 +78,11 @@ jobs:
               echo
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+            diagnostic=$(tail -n 80 "$log" | tail -c 12000)
+            diagnostic=${diagnostic//'%'/'%25'}
+            diagnostic=${diagnostic//$'\r'/'%0D'}
+            diagnostic=${diagnostic//$'\n'/'%0A'}
+            printf '::error title=%s native closure build failure::%s\n' \
+              '${{ matrix.host }}' "$diagnostic"
             exit "$status"
           fi

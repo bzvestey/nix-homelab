@@ -45,6 +45,12 @@ jobs:
               echo
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+            diagnostic=$(tail -n 80 "$log" | tail -c 12000)
+            diagnostic=${diagnostic//'%'/'%25'}
+            diagnostic=${diagnostic//$'\r'/'%0D'}
+            diagnostic=${diagnostic//$'\n'/'%0A'}
+            printf '::error title=%s native image build failure::%s\n' \
+              '${{ matrix.host }}' "$diagnostic"
             exit "$status"
           fi
       - name: Prepare observability image artifact

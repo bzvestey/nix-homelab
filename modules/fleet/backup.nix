@@ -14,7 +14,11 @@ let
       };
       paths = lib.mkOption {
         type = lib.types.nonEmptyListOf (lib.types.strMatching "^/.*");
-        description = "Restore destinations and expected durable payload paths.";
+        description = "Restore destinations whose ownership and modes are managed.";
+      };
+      requiredPaths = lib.mkOption {
+        type = lib.types.nonEmptyListOf (lib.types.strMatching "^[A-Za-z0-9][A-Za-z0-9._/-]*$");
+        description = "Relative regular files or non-empty directories required in the staged payload.";
       };
       createCommand = lib.mkOption {
         type = lib.types.lines;
@@ -69,6 +73,16 @@ let
         type = lib.types.ints.positive;
         default = 2;
         description = "Maximum failed staging generations retained locally.";
+      };
+      failedStagingBytes = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 1073741824;
+        description = "Maximum total bytes retained across failed staging generations per job.";
+      };
+      rehearsalCommand = lib.mkOption {
+        type = lib.types.lines;
+        default = "true";
+        description = "Non-destructive validation run with FLEET_RESTORE_SOURCE_DIR during --rehearsal.";
       };
     };
   };
@@ -130,10 +144,17 @@ in
             export RESTIC_REPOSITORY=$(cat ${lib.escapeShellArg cfg.repositoryFile})
             export RESTIC_PASSWORD_FILE=${lib.escapeShellArg cfg.passwordFile}
             subset="$(( $(date +%V) % 7 + 1 ))/7"
+            exec 9>/var/lib/fleet-backup/repository.lock
+            ${pkgs.util-linux}/bin/flock 9
             if ${pkgs.restic}/bin/restic check --read-data-subset="$subset"; then result=1; else result=0; fi
             install -d -m 0755 /var/lib/node_exporter/textfile_collector
             tmp=$(mktemp /var/lib/node_exporter/textfile_collector/.fleet-check.XXXXXX)
-            printf 'fleet_backup_check_result %s\n' "$result" >"$tmp"
+            old=$(grep fleet_backup_check_last_success_timestamp_seconds /var/lib/node_exporter/textfile_collector/fleet_backup_check.prom 2>/dev/null || true)
+            if [ "$result" -eq 1 ]; then
+              printf 'fleet_backup_check_result 1\nfleet_backup_check_last_success_timestamp_seconds %s\n' "$(date +%s)" >"$tmp"
+            else
+              printf 'fleet_backup_check_result 0\n%s\n' "$old" >"$tmp"
+            fi
             mv "$tmp" /var/lib/node_exporter/textfile_collector/fleet_backup_check.prom
             test "$result" -eq 1
           '';

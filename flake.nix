@@ -68,6 +68,10 @@
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
+      packages = forAllSystems (system: {
+        inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
+      });
+
       checks = forAllSystems (system: {
         evaluation = import ./checks/evaluation.nix {
           inherit nixosConfigurations;

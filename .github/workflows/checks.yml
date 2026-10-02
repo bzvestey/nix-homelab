@@ -21,11 +21,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@v19
       - name: Check formatting
-        run: nix run nixpkgs#nixfmt -- --check .
+        run: nix fmt -- --check .
       - name: Run statix
-        run: nix run nixpkgs#statix -- check .
+        run: nix run .#statix -- check .
       - name: Run deadnix
-        run: nix run nixpkgs#deadnix -- --fail .
+        run: nix run .#deadnix -- --fail .
       - name: Check flake
         run: nix flake check --show-trace
       - name: Build host closures

@@ -252,6 +252,12 @@
           inherit comin sops-nix;
           pkgs = nixpkgs.legacyPackages.${system};
           fleetEnroll = self.packages.${system}.fleet-enroll;
+          includeVm = false;
+        };
+        secrets-vm = import ./checks/secrets.nix {
+          inherit comin sops-nix;
+          pkgs = nixpkgs.legacyPackages.${system};
+          fleetEnroll = self.packages.${system}.fleet-enroll;
         };
         common-host = import ./checks/common-host.nix {
           inherit nixosConfigurations;

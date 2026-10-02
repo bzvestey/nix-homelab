@@ -3,6 +3,7 @@
   sops-nix,
   comin,
   fleetEnroll,
+  includeVm ? true,
 }:
 let
   enrollment = pkgs.runCommand "fleet-enroll-tests" { nativeBuildInputs = [ pkgs.openssh ]; } ''
@@ -192,6 +193,6 @@ in
 pkgs.runCommand "secrets-check" { } ''
   test -e ${enrollment}
   test -e ${policy}
-  test -e ${vm}
+  ${if includeVm then "test -e ${vm}" else ""}
   touch $out
 ''

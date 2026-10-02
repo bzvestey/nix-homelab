@@ -1,0 +1,23 @@
+name: images
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  framework:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - run: nix build .#checks.x86_64-linux.installers .#images.framework-01 .#images.framework-02 .#images.framework-03
+
+  raspberry-pi:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - run: nix build .#images.observability-pi .#images.services-pi

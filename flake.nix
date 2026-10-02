@@ -30,6 +30,8 @@
       self,
       nixpkgs,
       comin,
+      disko,
+      nixos-hardware,
       sops-nix,
       ...
     }:
@@ -41,6 +43,7 @@
         ./modules/fleet/podman.nix
         ./modules/fleet/storage.nix
       ];
+      frameworkModules = fleetModules ++ [ disko.nixosModules.disko ];
       nixosConfigurations = {
         observability-pi = mkHost {
           system = "aarch64-linux";
@@ -53,7 +56,7 @@
         framework-01 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-01";
-          modules = fleetModules ++ [
+          modules = frameworkModules ++ [
             comin.nixosModules.comin
             ./hosts/framework-01
           ];
@@ -61,7 +64,7 @@
         framework-02 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-02";
-          modules = fleetModules ++ [
+          modules = frameworkModules ++ [
             comin.nixosModules.comin
             ./hosts/framework-02
           ];
@@ -69,7 +72,7 @@
         framework-03 = mkHost {
           system = "x86_64-linux";
           hostname = "framework-03";
-          modules = fleetModules ++ [
+          modules = frameworkModules ++ [
             comin.nixosModules.comin
             ./hosts/framework-03
           ];
@@ -87,9 +90,89 @@
         "aarch64-linux"
         "x86_64-linux"
       ];
+      frameworkFacts = {
+        framework-01 = {
+          diskModel = "Samsung SSD 970 EVO Plus 2TB";
+          diskSerial = "S59CNM0W713317D";
+          diskCapacity = 2000398934016;
+          nicMembers = [
+            "enp0s13f0u1"
+            "enp0s13f0u2"
+          ];
+          nicMac = "9c:bf:0d:00:23:fe";
+          gpuPciId = "8086:9a49";
+          address = "10.15.4.5";
+        };
+        framework-02 = {
+          diskModel = "Samsung SSD 980 1TB";
+          diskSerial = "S64ANS0RB36721W";
+          diskCapacity = 1000204886016;
+          nicMembers = [
+            "enp0s13f0u3"
+            "enp0s13f0u4"
+          ];
+          nicMac = "9c:bf:0d:00:0d:3c";
+          gpuPciId = "8086:4626";
+          address = "10.15.4.7";
+        };
+        framework-03 = {
+          diskModel = "Samsung SSD 980 1TB";
+          diskSerial = "S64ANL0T801753P";
+          diskCapacity = 1000204886016;
+          nicMembers = [
+            "enp0s13f0u3"
+            "enp0s13f0u4"
+          ];
+          nicMac = "9c:bf:0d:00:20:37";
+          gpuPciId = "8086:9a49";
+          address = "10.15.4.9";
+        };
+      };
+      mkFrameworkImage =
+        targetHost:
+        (nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          specialArgs = frameworkFacts.${targetHost} // {
+            inherit disko targetHost;
+            targetSystem = nixosConfigurations.${targetHost}.config.system.build.toplevel;
+          };
+          modules = [
+            comin.nixosModules.comin
+            ./modules/fleet/base.nix
+            ./modules/fleet/networking.nix
+            ./modules/fleet/comin.nix
+            ./installers/framework-iso.nix
+          ];
+        }).config.system.build.isoImage;
+      mkPiImage =
+        targetHost:
+        (mkHost {
+          system = "aarch64-linux";
+          hostname = targetHost;
+          modules = fleetModules ++ [
+            comin.nixosModules.comin
+            nixos-hardware.nixosModules.raspberry-pi-5
+            (if targetHost == "observability-pi" then ./hosts/observability-pi else ./hosts/services-pi)
+            {
+              _module.args = {
+                inherit targetHost;
+                telemetryIdentity = null;
+              };
+              imports = [ ./installers/rpi-image.nix ];
+            }
+          ];
+        }).config.system.build.sdImage;
     in
     {
       inherit nixosConfigurations;
+
+      images = {
+        observability-pi = mkPiImage "observability-pi";
+        services-pi = mkPiImage "services-pi";
+        framework-01 = mkFrameworkImage "framework-01";
+        framework-02 = mkFrameworkImage "framework-02";
+        framework-03 = mkFrameworkImage "framework-03";
+      };
 
       lib.mkHost = mkHost;
 
@@ -122,6 +205,9 @@
       });
 
       checks = forAllSystems (system: {
+        installers = import ./checks/installers.nix {
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         storage = import ./checks/storage.nix {
           pkgs = nixpkgs.legacyPackages.${system};
         };

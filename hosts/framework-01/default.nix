@@ -1,10 +1,22 @@
 { ... }:
 {
   imports = [
+    ./disk-config.nix
     ../../modules/fleet/base.nix
     ../../modules/fleet/networking.nix
     ../../modules/fleet/comin.nix
   ];
+  boot = {
+    loader = {
+      grub.enable = false;
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
+    };
+    initrd.systemd = {
+      enable = true;
+      tpm2.enable = true;
+    };
+  };
   systemd.network = {
     netdevs."10-bond0".netdevConfig = {
       Kind = "bond";

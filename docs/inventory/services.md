@@ -14,7 +14,7 @@
       "hardware": {
         "installDisk": {
           "status": "blocked",
-          "reason": "stable telemetry SSD identity unavailable",
+          "reason": "no separate >=2 TB telemetry SSD is connected; controller /dev/sdb is a 128177930240-byte MicroSD boot-media candidate and is explicitly ineligible",
           "collectionCommand": "lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS"
         },
         "nic": {

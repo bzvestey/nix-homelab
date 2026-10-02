@@ -5,9 +5,10 @@
   disko,
   targetHost,
   targetSystem,
+  diskById,
   diskModel,
   diskSerial,
-  diskCapacity,
+  diskSectors,
   nicMembers,
   nicMac,
   address,
@@ -15,12 +16,46 @@
   ...
 }:
 let
-  guard = pkgs.writeShellScript "destructive-device-guard" (
-    builtins.readFile ./destructive-device-guard.sh
-  );
+  guard = pkgs.replaceVars ./destructive-device-guard.sh {
+    bash = "${pkgs.bash}/bin/bash";
+    devRoot = "/dev";
+    sysDevBlock = "/sys/dev/block";
+    readlink = "${pkgs.coreutils}/bin/readlink";
+    stat = "${pkgs.coreutils}/bin/stat";
+  };
   diskConfig = pkgs.writeText "${targetHost}-disk-config.nix" ''
-    import ${./framework-disk-layout.nix} { device = "/dev/installer-target"; }
+    import ${./framework-disk-layout.nix} { device = ${builtins.toJSON diskById}; }
   '';
+  postDisko = pkgs.writeShellScript "framework-post-disko" ''
+    install -d -m 0755 /mnt/etc/ssh
+    ${pkgs.openssh}/bin/ssh-keygen -A -f /mnt
+    ${pkgs.nixos-install-tools}/bin/nixos-install --no-root-passwd --system ${targetSystem}
+  '';
+  installerScript = pkgs.replaceVars ./framework-install.sh {
+    bash = "${pkgs.bash}/bin/bash";
+    requireRoot = ''[ "$(id -u)" -eq 0 ] || { echo "must run as root" >&2; exit 1; }'';
+    host = targetHost;
+    inherit guard diskConfig postDisko;
+    guardArgs = lib.escapeShellArgs [
+      targetHost
+      diskById
+      diskModel
+      diskSerial
+      (toString diskSectors)
+    ];
+    workDir = "/run/framework-installer";
+    shred = "${pkgs.coreutils}/bin/shred";
+    stat = "${pkgs.coreutils}/bin/stat";
+    udevadm = "${pkgs.systemd}/bin/udevadm";
+    cryptenroll = "${pkgs.systemd}/bin/systemd-cryptenroll";
+    flock = "${pkgs.util-linux}/bin/flock";
+    lsblk = "${pkgs.util-linux}/bin/lsblk";
+    disko = "${disko.packages.${pkgs.stdenv.hostPlatform.system}.disko}/bin/disko";
+    urandom = "/dev/urandom";
+    ttyOut = "/dev/tty";
+    ttyIn = "/dev/tty";
+    pcrPolicy = "7";
+  };
   installer = pkgs.writeShellApplication {
     name = "install-${targetHost}";
     runtimeInputs = [
@@ -32,18 +67,6 @@ let
       pkgs.util-linux
     ];
     text = ''
-      set -euo pipefail
-      if [ "$(id -u)" -ne 0 ]; then echo "must run as root" >&2; exit 1; fi
-      read -r -p "Type ${targetHost} to authorize erasing its matched disk: " typed_host
-      device=$(${guard} ${
-        lib.escapeShellArgs [
-          targetHost
-          diskModel
-          diskSerial
-          (toString diskCapacity)
-        ]
-      } "$typed_host")
-
       for member in ${lib.escapeShellArgs nicMembers}; do
         [ -r "/sys/class/net/$member/address" ] || { echo "missing NIC member $member" >&2; exit 1; }
         [ "$(cat "/sys/class/net/$member/address")" = "${nicMac}" ] || { echo "MAC mismatch on $member" >&2; exit 1; }
@@ -52,40 +75,7 @@ let
       vendor=''${gpu%:*}; product=''${gpu#*:}
       grep -Fqx "0x$vendor" /sys/bus/pci/devices/0000:00:02.0/vendor || { echo "GPU vendor mismatch" >&2; exit 1; }
       grep -Fqx "0x$product" /sys/bus/pci/devices/0000:00:02.0/device || { echo "GPU device mismatch" >&2; exit 1; }
-
-      work=/run/framework-installer
-      key="$work/recovery.key"
-      success=false
-      cleanup() {
-        status=$?
-        set +e
-        disko --mode umount ${diskConfig} >/dev/null 2>&1
-        rm -f /dev/installer-target
-        if [ -e "$key" ]; then shred -u "$key" 2>/dev/null || rm -f "$key"; fi
-        rmdir "$work" 2>/dev/null || true
-        if [ "$success" != true ]; then echo "INSTALLATION DID NOT COMPLETE; target was unmounted" >&2; fi
-        exit "$status"
-      }
-      trap cleanup EXIT INT TERM HUP
-      install -d -m 0700 "$work"
-      umask 077
-      head -c 48 /dev/urandom | base64 -w0 >"$key"
-      ln -s "$device" /dev/installer-target
-
-      disko --mode disko ${diskConfig}
-      install -d -m 0755 /mnt/etc/ssh
-      ssh-keygen -A -f /mnt
-      nixos-install --no-root-passwd --system ${targetSystem}
-
-      systemd-cryptenroll --unlock-key-file="$key" --tpm2-device=auto /dev/disk/by-partlabel/framework-root
-      systemd-cryptenroll --unlock-key-file="$key" --tpm2-device=auto /dev/disk/by-partlabel/framework-data
-      printf '\nOFFLINE RECOVERY KEY (record without photographing or logging):\n' >/dev/tty
-      cat "$key" >/dev/tty
-      printf '\nType RECOVERY KEY ESCROWED only after storing and independently reading it back: ' >/dev/tty
-      IFS= read -r escrowed </dev/tty
-      [ "$escrowed" = "RECOVERY KEY ESCROWED" ] || { echo "recovery-key escrow not confirmed" >&2; exit 1; }
-      success=true
-      echo "Installation complete; target unmounted. Reboot only after the acceptance checklist."
+      exec ${installerScript}
     '';
   };
 in

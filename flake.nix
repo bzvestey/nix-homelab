@@ -92,9 +92,10 @@
       ];
       frameworkFacts = {
         framework-01 = {
+          diskById = "UNRESOLVED";
           diskModel = "Samsung SSD 970 EVO Plus 2TB";
           diskSerial = "S59CNM0W713317D";
-          diskCapacity = 2000398934016;
+          diskSectors = 3907029168;
           nicMembers = [
             "enp0s13f0u1"
             "enp0s13f0u2"
@@ -104,9 +105,10 @@
           address = "10.15.4.5";
         };
         framework-02 = {
+          diskById = "UNRESOLVED";
           diskModel = "Samsung SSD 980 1TB";
           diskSerial = "S64ANS0RB36721W";
-          diskCapacity = 1000204886016;
+          diskSectors = 1953525168;
           nicMembers = [
             "enp0s13f0u3"
             "enp0s13f0u4"
@@ -116,9 +118,10 @@
           address = "10.15.4.7";
         };
         framework-03 = {
+          diskById = "UNRESOLVED";
           diskModel = "Samsung SSD 980 1TB";
           diskSerial = "S64ANL0T801753P";
-          diskCapacity = 1000204886016;
+          diskSectors = 1953525168;
           nicMembers = [
             "enp0s13f0u3"
             "enp0s13f0u4"

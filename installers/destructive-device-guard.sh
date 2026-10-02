@@ -1,53 +1,43 @@
-#!/usr/bin/env bash
+#!@bash@
 set -euo pipefail
 
-if [ "$#" -ne 5 ]; then
-  echo "usage: $0 EXPECTED_HOST MODEL SERIAL CAPACITY_BYTES TYPED_HOST" >&2
+if [ "$#" -ne 6 ]; then
+  echo "usage: $0 EXPECTED_HOST EXPECTED_BY_ID MODEL SERIAL SECTORS TYPED_HOST" >&2
   exit 64
 fi
 
 expected_host=$1
-expected_model=$2
-expected_serial=$3
-expected_bytes=$4
-typed_host=$5
-sys_block=${SYS_BLOCK:-/sys/class/block}
-dev_root=${DEV_ROOT:-/dev}
+stable_id=$2
+expected_model=$3
+expected_serial=$4
+expected_sectors=$5
+typed_host=$6
 
-if [ "$typed_host" != "$expected_host" ]; then
-  echo "refusing: typed hostname does not exactly match $expected_host" >&2
-  exit 2
-fi
-case "$expected_model:$expected_serial:$expected_bytes" in
-  *UNRESOLVED* | *UNKNOWN* | *:0)
-    echo "refusing: expected device identity is unresolved" >&2
-    exit 3
-    ;;
+refuse() { echo "refusing: $*" >&2; exit 1; }
+[ "$typed_host" = "$expected_host" ] || refuse "typed hostname does not exactly match $expected_host"
+case "$stable_id:$expected_model:$expected_serial:$expected_sectors" in
+  *UNRESOLVED* | *UNKNOWN*) refuse "expected device identity is unresolved" ;;
 esac
-case "$expected_bytes" in
-  '' | *[!0-9]*) echo "refusing: expected capacity is invalid" >&2; exit 3 ;;
-esac
-[ "$expected_bytes" -gt 0 ] || { echo "refusing: expected capacity must be positive" >&2; exit 3; }
+case "$stable_id" in @devRoot@/disk/by-id/*) ;; *) refuse "expected identity is not a stable by-id path" ;; esac
+case "$expected_sectors" in '' | *[!0-9]*) refuse "expected sector count is invalid" ;; esac
+[ "$expected_sectors" != 0 ] || refuse "expected sector count is zero"
+[ -e "$stable_id" ] || refuse "expected by-id does not resolve"
 
-matches=()
-for candidate in "$sys_block"/*; do
-  [ -e "$candidate" ] || continue
-  [ ! -e "$candidate/partition" ] || continue
-  [ -r "$candidate/device/model" ] || continue
-  [ -r "$candidate/device/serial" ] || continue
-  [ -r "$candidate/size" ] || continue
-  model=$(tr -d '\000' <"$candidate/device/model" | sed 's/[[:space:]]*$//')
-  serial=$(tr -d '\000' <"$candidate/device/serial" | sed 's/[[:space:]]*$//')
-  sectors=$(cat "$candidate/size")
-  case "$sectors" in '' | *[!0-9]*) continue ;; esac
-  bytes=$((sectors * 512))
-  if [ "$model" = "$expected_model" ] && [ "$serial" = "$expected_serial" ] && [ "$bytes" -eq "$expected_bytes" ]; then
-    matches+=("$dev_root/$(basename "$candidate")")
-  fi
-done
+canonical=$(@readlink@ -f -- "$stable_id") || refuse "cannot canonicalize expected by-id"
+[ -n "$canonical" ] || refuse "canonical device path is empty"
+major_minor=$(@stat@ -Lc '%t:%T' -- "$canonical") || refuse "resolved target is not a block device"
+sys_device=@sysDevBlock@/$major_minor
+[ -e "$sys_device" ] || refuse "resolved block device has no sysfs identity"
+[ ! -e "$sys_device/partition" ] || refuse "resolved target is not a whole block device"
 
-if [ "${#matches[@]}" -ne 1 ]; then
-  echo "refusing: expected exactly one device matching model+serial+capacity; found ${#matches[@]}" >&2
-  exit 4
-fi
-printf '%s\n' "${matches[0]}"
+read_fact() { tr -d '\000' <"$1" | sed 's/[[:space:]]*$//'; }
+[ -r "$sys_device/device/model" ] && [ -r "$sys_device/device/serial" ] && [ -r "$sys_device/size" ] || refuse "device facts are incomplete"
+model=$(read_fact "$sys_device/device/model")
+serial=$(read_fact "$sys_device/device/serial")
+sectors=$(read_fact "$sys_device/size")
+case "$sectors" in '' | *[!0-9]*) refuse "observed sector count is invalid" ;; esac
+[ "$model" = "$expected_model" ] || refuse "model mismatch"
+[ "$serial" = "$expected_serial" ] || refuse "serial mismatch"
+[ "$sectors" = "$expected_sectors" ] || refuse "sector-count mismatch"
+
+printf '%s|%s|%s|%s|%s|%s\n' "$stable_id" "$canonical" "$major_minor" "$model" "$serial" "$sectors"

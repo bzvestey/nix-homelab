@@ -172,12 +172,26 @@ let
     stat = "${pkgs.coreutils}/bin/stat";
     logGuard = ":";
   };
+  telemetryInitializer = import ../installers/telemetry-initializer.nix {
+    inherit lib pkgs;
+    targetHost = "observability-pi";
+    telemetryIdentity = null;
+  };
 in
 assert allHostsValid;
 assert cominPackage.system == pkgs.stdenv.hostPlatform.system;
 pkgs.runCommand "common-host" { } ''
   test -e ${cominExecutableTests}
-  test "$(grep -Ec '(token|boundary_token)=.*pkgs.bash}/bin/bash' ${../installers/rpi-image.nix})" -eq 2
+
+  if printf 'observability-pi\n' | ${telemetryInitializer}/bin/initialize-telemetry-ssd >initializer-output 2>&1; then
+    echo "initializer accepted unresolved telemetry identity" >&2
+    exit 1
+  fi
+  grep -Fx 'refusing: expected device identity is unresolved' initializer-output
+  ! grep -F 'Permission denied' initializer-output
+  ! grep -F 'Type INITIALIZE TELEMETRY SSD' initializer-output
+  ! grep -F 'About to create an ext4 filesystem' initializer-output
+  ! grep -F 'mkfs' initializer-output
 
   if ${pkgs.bash}/bin/bash ${piGuard} observability-pi UNRESOLVED UNRESOLVED UNRESOLVED 0 observability-pi 2>guard-error; then
     echo "unresolved telemetry identity was accepted" >&2

@@ -162,11 +162,14 @@ let
     if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "services-pi" else "framework-01";
   cominPackage = nixosConfigurations.${cominHost}.config.services.comin.package;
   cominExecutableTests = cominPackage.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [ ./comin-prior-generation.patch ];
+    patches = (old.patches or [ ]) ++ [
+      ./comin-jj-change-id.patch
+      ./comin-prior-generation.patch
+    ];
     doCheck = true;
     checkPhase = ''
       runHook preCheck
-      go test ./internal/repository -run 'Test(HeadSignedBy|UpdateGpg|UpdateSSHSigning)$'
+      go test ./internal/repository -run 'Test(HeadSignedBy|JujutsuChangeIDCommitSignedBySSH|UpdateGpg|UpdateSSHSigning)$'
       go test ./internal/manager -run 'Test(Build|RejectUnverifiedSSHCommits)$'
       runHook postCheck
     '';

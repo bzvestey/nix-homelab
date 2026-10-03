@@ -15,9 +15,9 @@ local machine with readable and writable KVM: `nix flake check --show-trace
 --option max-jobs 1`. A hosted non-KVM evaluation and native-check run does not
 replace this full VM-backed suite.
 
-The reviewed image is from revision
-`c8b189cab8de07e527c1e38acad5059c2b63eb2d`, workflow run `37077076916`, and
-artifact `11260351642`. Later documentation-only revisions do not change that
+The reviewed, successfully booted image is from revision
+`f2136979cfa49aee795857b0c536e15711907272`, workflow run `37098600729`, and
+artifact `11267220813`. Later documentation-only revisions do not change that
 image identity and must not be substituted for it. Download and verify it with
 the executable block below. The block binds the archive digest from GitHub
 metadata to the expected digest, workflow run, artifact name, and image
@@ -30,12 +30,12 @@ is a hard stop.
 ```bash
 set -euo pipefail
 repo=bzvestey/nix-homelab
-workflow_run=37077076916
-artifact_id=11260351642
-image_revision=c8b189cab8de07e527c1e38acad5059c2b63eb2d
+workflow_run=37098600729
+artifact_id=11267220813
+image_revision=f2136979cfa49aee795857b0c536e15711907272
 artifact_name="observability-pi-$image_revision"
 archive=./observability-pi-artifact.zip
-archive_sha256=ce265d478c67ad1d95279334e5e94eb72d7682a4c3e6829edfc273b0d9e0aa04
+archive_sha256=faae280f4ace27c640bc5bf89528ba93fa0089a3c1adc3628f2d2774dcade7fa
 artifact_dir=./observability-pi-artifact
 image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
 
@@ -158,10 +158,10 @@ stable_device=/dev/disk/by-id/usb-FRMW_MicroSD_2nd_Gen__FRACCVBZ91544401B2-0:0
 expected_device=/dev/sdb
 artifact_dir=./observability-pi-artifact
 archive=./observability-pi-artifact.zip
-archive_sha256=ce265d478c67ad1d95279334e5e94eb72d7682a4c3e6829edfc273b0d9e0aa04
+archive_sha256=faae280f4ace27c640bc5bf89528ba93fa0089a3c1adc3628f2d2774dcade7fa
 image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
 image="$artifact_dir/$image_filename"
-image_sha256=1ad64a8717f8a988d67ec80aaaa3b461b4a00484f12603ba3ccb6284f81b8359
+image_sha256=c3ccf4a1b057a8c80cb86da16896a52b3cbe7bd985ef1f144266d5da1ef0bf52
 checksum="$artifact_dir/observability-pi.sha256"
 
 guard_flash_target() {
@@ -222,7 +222,7 @@ checking.
 
 ```bash
 set -euo pipefail
-expected_fingerprint='SHA256:REPLACE_WITH_FINGERPRINT_OBSERVED_AT_LOCAL_CONSOLE'
+expected_fingerprint='SHA256:AbBRaZDEZOslLc9vS5xIvQjshiizOBBVtFQKhUxuAug'
 known_hosts=$(mktemp)
 trap 'rm -f -- "$known_hosts" "$known_hosts.pub"' EXIT
 ssh-keyscan -t ed25519 10.15.4.6 > "$known_hosts"
@@ -236,13 +236,19 @@ ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes \
   root@10.15.4.6 'for i in /sys/class/net/*; do printf "%s " "$(basename "$i")"; cat "$i/address"; done'
 ```
 
-Record the Ethernet interface/MAC as observed evidence in both inventories,
-replace the bootstrap any-Ethernet match with that exact MAC, and rebuild.
-Only then remove the forced comin disable from the host configuration.
+The observed wired identity is `end0` at `2c:cf:67:72:a7:20`; `wld0` at
+`2c:cf:67:72:a7:21` was down. The normal configuration matches the exact wired
+interface/MAC, removes the one-interface bootstrap service, and enables comin.
+This network is intended as VLAN 4 on an untagged access port. Do not add an
+802.1Q interface or claim LLDP advertises VLAN membership. Host tagging remains
+deferred until the switch port is confirmed and coordinated as a trunk.
 
 ## 4. Telemetry SSD refusal, identity, and initialization
 
-`/dev/sdb` is 128,177,930,240 bytes and must be refused. Connect a separate
+The boot card is `/dev/mmcblk0`, exactly 128,177,930,240 bytes, at stable ID
+`/dev/disk/by-id/mmc-ED2S5_0xb13669d3`; partition 1 is mounted at
+`/boot/firmware`, and partition 2 backs `/` and `/nix/store`. It is not telemetry
+storage. No separate telemetry SSD is attached. Connect a separate
 SSD of at least 2,000,000,000,000 bytes and collect its stable identity:
 
 ```sh

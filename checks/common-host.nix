@@ -30,7 +30,10 @@ let
   expected = {
     observability-pi = {
       address = "10.15.4.6/24";
-      networks."20-bootstrap-lan" = (import ../lib/wired-link.nix).matchConfig;
+      networks."20-lan" = {
+        Name = "end0";
+        MACAddress = "2c:cf:67:72:a7:20";
+      };
     };
     framework-01 = {
       address = "10.15.4.5/24";
@@ -94,37 +97,34 @@ let
         name: config.systemd.network.networks.${name}.matchConfig == facts.networks.${name}
       ) (builtins.attrNames facts.networks);
       cominPolicyValid =
-        if hostname == "observability-pi" then
-          !comin.enable
-        else
-          comin.enable
-          && comin.debug == false
-          && comin.sshAllowedSignersPath == "/etc/comin/allowed_signers"
-          && map remoteIdentity comin.remotes == expectedRemotes
-          && lib.all (remote: remote.poller.period == 60) comin.remotes
-          && lib.all (
-            remote:
-            remote.branches.main == {
-              name = "main";
-              operation = "switch";
-            }
-          ) comin.remotes
-          && lib.all (
-            remote:
-            remote.branches.testing == {
-              name = "testing-${hostname}";
-              operation = "test";
-            }
-          ) comin.remotes
-          && lib.all (
-            remote: remote.auth.access_token_path == "" && remote.auth.ssh_deploy_key_path == ""
-          ) comin.remotes
-          &&
-            comin.retention == {
-              deployment_boot_entry_capacity = 3;
-              deployment_successful_capacity = 3;
-              deployment_any_capacity = 5;
-            };
+        comin.enable
+        && comin.debug == false
+        && comin.sshAllowedSignersPath == "/etc/comin/allowed_signers"
+        && map remoteIdentity comin.remotes == expectedRemotes
+        && lib.all (remote: remote.poller.period == 60) comin.remotes
+        && lib.all (
+          remote:
+          remote.branches.main == {
+            name = "main";
+            operation = "switch";
+          }
+        ) comin.remotes
+        && lib.all (
+          remote:
+          remote.branches.testing == {
+            name = "testing-${hostname}";
+            operation = "test";
+          }
+        ) comin.remotes
+        && lib.all (
+          remote: remote.auth.access_token_path == "" && remote.auth.ssh_deploy_key_path == ""
+        ) comin.remotes
+        &&
+          comin.retention == {
+            deployment_boot_entry_capacity = 3;
+            deployment_successful_capacity = 3;
+            deployment_any_capacity = 5;
+          };
     in
     assert config.networking.hostName == hostname;
     assert networkAddresses == [ facts.address ];
@@ -135,6 +135,7 @@ let
     assert config.services.openssh.settings.PermitRootLogin == "prohibit-password";
     assert config.users.users.root.openssh.authorizedKeys.keys == [ adminKey ];
     assert config.services.journald.settings.Journal.Storage == "persistent";
+    assert !(config.systemd.services ? observability-bootstrap-single-ethernet);
     assert config.networking.firewall.enable;
     assert config.networking.nftables.enable;
     assert !(builtins.elem 4243 config.networking.firewall.allowedTCPPorts);
@@ -163,11 +164,27 @@ let
     '';
   });
   wiredLink = import ../lib/wired-link.nix;
+  piGuard = pkgs.replaceVars ../installers/destructive-device-guard.sh {
+    bash = "${pkgs.bash}/bin/bash";
+    devRoot = "/dev";
+    sysDevBlock = "/sys/dev/block";
+    readlink = "${pkgs.coreutils}/bin/readlink";
+    stat = "${pkgs.coreutils}/bin/stat";
+    logGuard = ":";
+  };
 in
 assert allHostsValid;
 assert cominPackage.system == pkgs.stdenv.hostPlatform.system;
 pkgs.runCommand "common-host" { } ''
   test -e ${cominExecutableTests}
+  test "$(grep -Ec '(token|boundary_token)=.*pkgs.bash}/bin/bash' ${../installers/rpi-image.nix})" -eq 2
+
+  if ${pkgs.bash}/bin/bash ${piGuard} observability-pi UNRESOLVED UNRESOLVED UNRESOLVED 0 observability-pi 2>guard-error; then
+    echo "unresolved telemetry identity was accepted" >&2
+    exit 1
+  fi
+  grep -Fx 'refusing: expected device identity is unresolved' guard-error
+  ! grep -F 'Permission denied' guard-error
 
   test_selector() {
     expected="$1"

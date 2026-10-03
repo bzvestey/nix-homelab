@@ -54,7 +54,7 @@ let
       ''
         set -euo pipefail
         read -r -p "Type ${targetHost} to authorize telemetry SSD initialization: " typed_host
-        token=$(${guard} ${
+        token=$(${pkgs.bash}/bin/bash ${guard} ${
           lib.escapeShellArgs [
             targetHost
             identity.byId
@@ -71,7 +71,7 @@ let
         udevadm settle
         exec {device_fd}<"$device"
         flock -x "$device_fd"
-        boundary_token=$(${guard} ${
+        boundary_token=$(${pkgs.bash}/bin/bash ${guard} ${
           lib.escapeShellArgs [
             targetHost
             identity.byId

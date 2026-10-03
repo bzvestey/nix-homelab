@@ -1,14 +1,19 @@
 {
   "schemaVersion": 2,
-  "observedAt": "2026-10-02",
+  "observedAt": "2026-10-03",
   "targets": [
     {
       "name": "observability-pi",
       "address": "10.15.4.6",
       "architecture": "aarch64-linux",
+      "networkSegment": {
+        "vlanId": 4,
+        "mode": "untagged-access-port",
+        "taggingStatus": "deferred-pending-confirmed-switch-trunk"
+      },
       "measuredFreeBytes": {
         "status": "blocked",
-        "reason": "host is not online; current filesystem free bytes are unavailable",
+        "reason": "no separate telemetry SSD is attached, so telemetry filesystem free bytes are unavailable",
         "collectionCommand": "findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib/telemetry 2>/dev/null || df -B1 --output=source,target,avail / /var/lib/telemetry"
       },
       "hardware": {
@@ -18,9 +23,20 @@
           "collectionCommand": "lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS"
         },
         "nic": {
-          "status": "blocked",
-          "reason": "stable interface identity unavailable",
-          "collectionCommand": "for i in /sys/class/net/*; do printf '%s ' \"$(basename \"$i\")\"; cat \"$i/address\"; done; ip -br link; ip route"
+          "status": "observed",
+          "members": [
+            {
+              "interface": "end0",
+              "macAddress": "2c:cf:67:72:a7:20"
+            }
+          ],
+          "stableId": "2c:cf:67:72:a7:20",
+          "observedAt": "2026-10-03",
+          "evidence": {
+            "type": "command-output",
+            "command": "network-sysfs",
+            "scope": "observability-pi/sysfs/class/net-and-ip-route"
+          }
         },
         "gpu": {
           "status": "not-applicable",

@@ -115,15 +115,16 @@ let
     unit_membership() {
       control_group=$1
       [ -n "$control_group" ] || { printf unavailable; return; }
-      procs_file=${lib.escapeShellArg cgroupRoot}"$control_group/cgroup.procs"
-      [ -e "$procs_file" ] || { printf removed; return; }
-      [ -r "$procs_file" ] || { printf unavailable; return; }
+      group_path=${lib.escapeShellArg cgroupRoot}"$control_group"
       set +e
-      members=$(cat "$procs_file" 2>/dev/null)
+      populated=$(sed -n 's/^populated //p' "$group_path/cgroup.events" 2>/dev/null)
       membership_rc=$?
       set -e
-      [ "$membership_rc" -eq 0 ] || { printf unavailable; return; }
-      if [ -n "$members" ]; then printf populated; else printf empty; fi
+      if [ "$membership_rc" -ne 0 ]; then
+        [ -e "$group_path" ] && printf unavailable || printf removed
+        return
+      fi
+      case "$populated" in 0) printf empty;; 1) printf populated;; *) printf unavailable;; esac
     }
     unit_is_inactive_and_empty_or_removed() {
       target_unit=$1
@@ -204,11 +205,27 @@ let
       violation=
       command_rc=
       exited_ticks=0
+      control_failures=0
       while [ -z "$command_rc" ]; do
-        if ! state=$(unit_state "$unit" 2>/dev/null); then
-          violation=control
+        if ! tree_bytes "$watched" >/dev/null; then
+          violation=bound
           break
         fi
+        if ! state=$(unit_state "$unit" 2>/dev/null); then
+          membership=$(unit_membership "$cgroup")
+          if [ "$membership" = unavailable ]; then
+            violation=control
+            break
+          fi
+          control_failures=$(( control_failures + 1 ))
+          if [ "$control_failures" -ge 5 ]; then
+            violation=control
+            break
+          fi
+          sleep 0.05
+          continue
+        fi
+        control_failures=0
         observed_cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
         [ -z "$observed_cgroup" ] || cgroup=$observed_cgroup
         exec_code=$(printf '%s\n' "$state" | sed -n 's/^ExecMainCode=//p')
@@ -216,10 +233,6 @@ let
         membership=$(unit_membership "$cgroup")
         if [ "$membership" = unavailable ]; then
           violation=control
-          break
-        fi
-        if ! tree_bytes "$watched" >/dev/null; then
-          violation=bound
           break
         fi
         case "$exec_code" in

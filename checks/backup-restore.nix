@@ -57,6 +57,7 @@ let
     mkdir -p ${root}/transient ${root}/cgroup/fake/$unit
     printf 0 >${root}/transient/$unit.code
     printf 0 >${root}/transient/$unit.status
+    printf 'populated 1\n' >${root}/cgroup/fake/$unit/cgroup.events
     (
     "$@" & pid=$!
     printf '%s\n' "$pid" >${root}/transient/$unit.pid
@@ -64,6 +65,7 @@ let
     printf active >${root}/transient/$unit.state
     set +e; wait "$pid"; rc=$?; set -e
     : >${root}/cgroup/fake/$unit/cgroup.procs
+    printf 'populated 0\n' >${root}/cgroup/fake/$unit/cgroup.events
     printf exited >${root}/transient/$unit.code
     printf '%s' "$rc" >${root}/transient/$unit.status
     ) &
@@ -76,6 +78,26 @@ let
       [ ! -e ${root}/fail-transient-control ] || exit 1
       unit=$2
       [ -e ${root}/transient/$unit.state ] || exit 1
+      if [ -e ${root}/fail-transient-control-once ]; then
+        count=$(cat ${root}/transient/$unit.show-count 2>/dev/null || printf 0)
+        count=$((count + 1))
+        printf '%s' "$count" >${root}/transient/$unit.show-count
+        if [ "$count" -eq 2 ]; then
+          rm ${root}/fail-transient-control-once
+          exit 1
+        fi
+      fi
+      if [ -e ${root}/fail-transient-control-with-unavailable-membership ]; then
+        count=$(cat ${root}/transient/$unit.unavailable-count 2>/dev/null || printf 0)
+        count=$((count + 1))
+        printf '%s' "$count" >${root}/transient/$unit.unavailable-count
+        if [ "$count" -eq 2 ]; then
+          rm ${root}/fail-transient-control-with-unavailable-membership
+          rm ${root}/cgroup/fake/$unit/cgroup.events
+          touch ${root}/transient-control-outage-triggered
+          exit 1
+        fi
+      fi
       printf 'LoadState=loaded\nActiveState=%s\nMainPID=%s\nControlGroup=/fake/%s\nExecMainCode=%s\nExecMainStatus=%s\n' \
         "$(cat ${root}/transient/$unit.state)" "$(cat ${root}/transient/$unit.pid)" "$unit" \
         "$(cat ${root}/transient/$unit.code)" "$(cat ${root}/transient/$unit.status)"
@@ -87,6 +109,7 @@ let
       unit=''${!#}
       kill -KILL "$(cat ${root}/transient/$unit.pid)" 2>/dev/null || true
       : >${root}/cgroup/fake/$unit/cgroup.procs
+      printf 'populated 0\n' >${root}/cgroup/fake/$unit/cgroup.events
       printf inactive >${root}/transient/$unit.state
     elif [ "$1" = reset-failed ]; then
       exit 0
@@ -104,6 +127,12 @@ let
       paths = [ "${root}/target" ];
       createCommand = ''
         [ ! -e ${root}/hold-create ] || { touch ${root}/create-entered; sleep 30; }
+        [ ! -e ${root}/hold-transient-control-test ] || {
+          while [ ! -e ${root}/transient-control-outage-triggered ]; do sleep 0.001; done
+          sleep 0.03
+          touch ${root}/transient-control-outage-side-effect
+          sleep 0.2
+        }
         [ ! -e ${root}/growing-export ] || { while :; do dd if=/dev/zero bs=8192 count=1 >>"$FLEET_BACKUP_STAGING_DIR/growing"; sleep 0.05; done; }
         [ ! -e ${root}/missing-required ] || { printf unrelated >"$FLEET_BACKUP_STAGING_DIR/unrelated"; exit 0; }
         [ ! -e ${root}/oversized ] || { dd if=/dev/zero of="$FLEET_BACKUP_STAGING_DIR/large" bs=2048 count=1; exit 9; }
@@ -264,6 +293,13 @@ pkgs.runCommand "backup-restore-tests"
           ! grep -F 'restic:backup' ${root}/log
           rm ${root}/$failure
         done
+        touch ${root}/fail-transient-control-once
+        timeout 5 ${tools}/bin/fleet-backup-run files
+        touch ${root}/fail-transient-control-with-unavailable-membership ${root}/hold-transient-control-test; : >${root}/log
+        timeout 5 ${tools}/bin/fleet-backup-run files && exit 1 || true
+        ! grep -F 'restic:backup' ${root}/log
+        test ! -e ${root}/transient-control-outage-side-effect
+        rm ${root}/hold-transient-control-test ${root}/transient-control-outage-triggered
         timeout 5 ${tools}/bin/fleet-backup-run files
 
         touch ${root}/hold-create; : >${root}/log

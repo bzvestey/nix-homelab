@@ -49,11 +49,15 @@
         ./modules/fleet/cloudflared.nix
       ];
       frameworkModules = fleetModules ++ [ disko.nixosModules.disko ];
+      piModules = fleetModules ++ [
+        nixos-hardware.nixosModules.raspberry-pi-5
+        ./modules/hardware/raspberry-pi-5.nix
+      ];
       nixosConfigurations = {
         observability-pi = mkHost {
           system = "aarch64-linux";
           hostname = "observability-pi";
-          modules = fleetModules ++ [
+          modules = piModules ++ [
             comin.nixosModules.comin
             ./hosts/observability-pi
           ];
@@ -85,7 +89,7 @@
         services-pi = mkHost {
           system = "aarch64-linux";
           hostname = "services-pi";
-          modules = fleetModules ++ [
+          modules = piModules ++ [
             comin.nixosModules.comin
             ./hosts/services-pi
           ];
@@ -157,9 +161,8 @@
         (mkHost {
           system = "aarch64-linux";
           hostname = targetHost;
-          modules = fleetModules ++ [
+          modules = piModules ++ [
             comin.nixosModules.comin
-            nixos-hardware.nixosModules.raspberry-pi-5
             (if targetHost == "observability-pi" then ./hosts/observability-pi else ./hosts/services-pi)
             {
               _module.args = {

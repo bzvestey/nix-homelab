@@ -125,9 +125,5 @@ in
     pcie-rockchip-host = lib.mkForce false;
     tpm-crb = lib.mkForce false;
   };
-  boot.loader = {
-    grub.enable = lib.mkForce false;
-    generic-extlinux-compatible.enable = true;
-  };
   environment.systemPackages = lib.optional (targetHost == "observability-pi") telemetryInitializer;
 }

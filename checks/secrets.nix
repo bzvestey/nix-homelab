@@ -6,6 +6,7 @@
   includeVm ? true,
 }:
 let
+  connectorCredentialFile = ../secrets/pi-connectors/cloudflared.yaml;
   enrollment = pkgs.runCommand "fleet-enroll-tests" { nativeBuildInputs = [ pkgs.openssh ]; } ''
     mkdir -p etc/ssh
     ssh-keygen -q -t ed25519 -N "" -C vm-test -f etc/ssh/ssh_host_ed25519_key
@@ -93,6 +94,19 @@ let
             }
           ]
         ' <<<"$policy_json"
+
+        credential_json=$(yq --output-format=json '.' ${connectorCredentialFile})
+        jq -e '
+          (keys | sort) == ["cloudflared-tunnel.json", "sops"]
+          and (.["cloudflared-tunnel.json"] | startswith("ENC[AES256_GCM,"))
+        ' <<<"$credential_json"
+        jq -e '
+          [.sops.age[].recipient] == [
+            "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+            "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
+          ]
+        ' <<<"$credential_json"
+        ! grep -Eq 'AccountTag|TunnelSecret|TunnelID|(^|[[:space:]])[ast]:' ${connectorCredentialFile}
         touch $out
       '';
 

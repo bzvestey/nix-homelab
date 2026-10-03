@@ -15,6 +15,7 @@
       routes = import ../../lib/public-ingress-routes.nix;
     };
   };
+  sops.secrets."cloudflared-tunnel.json".sopsFile = ../../secrets/pi-connectors/cloudflared.yaml;
   systemd.network.networks."20-lan" = {
     matchConfig = {
       Name = "end0";

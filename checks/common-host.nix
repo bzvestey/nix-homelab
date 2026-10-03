@@ -136,6 +136,14 @@ let
     assert config.users.users.root.openssh.authorizedKeys.keys == [ adminKey ];
     assert config.services.journald.settings.Journal.Storage == "persistent";
     assert !(config.systemd.services ? observability-bootstrap-single-ethernet);
+    assert
+      hostname != "observability-pi"
+      || config.sops.secrets."cloudflared-tunnel.json".path == "/run/secrets/cloudflared-tunnel.json";
+    assert
+      hostname != "observability-pi"
+      ||
+        config.sops.secrets."cloudflared-tunnel.json".sopsFile == ../secrets/pi-connectors/cloudflared.yaml;
+    assert hostname != "services-pi" || !(config.sops.secrets ? "cloudflared-tunnel.json");
     assert config.networking.firewall.enable;
     assert config.networking.nftables.enable;
     assert !(builtins.elem 4243 config.networking.firewall.allowedTCPPorts);

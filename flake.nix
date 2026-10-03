@@ -38,8 +38,19 @@
     let
       revision = self.rev or self.dirtyRev or "dirty-local";
       mkHost = import ./lib/mk-host.nix { inherit nixpkgs revision; };
+      cominPackage =
+        system:
+        nixpkgs.legacyPackages.${system}.callPackage ./packages/comin.nix {
+          inherit (comin.packages.${system}) comin;
+        };
+      correctedCominModule =
+        { pkgs, ... }:
+        {
+          services.comin.package = cominPackage pkgs.stdenv.hostPlatform.system;
+        };
       fleetModules = [
         sops-nix.nixosModules.sops
+        correctedCominModule
         ./modules/fleet/secrets.nix
         ./modules/fleet/podman.nix
         ./modules/fleet/storage.nix
@@ -150,6 +161,7 @@
           };
           modules = [
             comin.nixosModules.comin
+            correctedCominModule
             ./modules/fleet/base.nix
             ./modules/fleet/networking.nix
             ./modules/fleet/comin.nix
@@ -195,6 +207,7 @@
 
       packages = forAllSystems (system: {
         inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
+        comin = cominPackage system;
         fleet-enroll = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-enroll.nix { };
         fleet-restore = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-restore.nix {
           jobs = { };
@@ -272,8 +285,9 @@
           fleetEnroll = self.packages.${system}.fleet-enroll;
         };
         common-host = import ./checks/common-host.nix {
-          inherit nixosConfigurations;
+          inherit nixosConfigurations piImageConfigurations;
           inherit (nixpkgs) lib;
+          cominPackageFor = cominPackage;
           pkgs = nixpkgs.legacyPackages.${system};
         };
         evaluation = import ./checks/evaluation.nix {

@@ -25,3 +25,13 @@ then revoke the old credential at its issuer. Recipient rotation is separate:
 add and prove the new recipient before removing the old one. Never place
 plaintext, source kubeconfigs or Talos configs/state, private keys, generated
 credentials, or decrypted sops output in Git or the Nix store.
+
+## Comin and Jujutsu signatures
+
+Normal Jujutsu commits must retain their default `change-id` commit header.
+The fleet pins a package-level go-git 5.16.3 compatibility correction because
+Comin 0.14's go-git 5.11.0 drops that header while reconstructing the SSH-signed
+payload and consequently rejects a valid signature. Do not disable Jujutsu
+change IDs or weaken Comin's signature policy. Remove the override only after
+upstream Comin adopts an adequate go-git release and the Jujutsu `change-id`
+SSH-signature regression remains green without it.

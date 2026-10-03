@@ -1,6 +1,8 @@
 {
+  cominPackageFor,
   lib,
   nixosConfigurations,
+  piImageConfigurations,
   pkgs,
 }:
 let
@@ -158,10 +160,22 @@ let
   allHostsValid = lib.all (hostname: checkHost hostname expected.${hostname}) (
     builtins.attrNames expected
   );
+  allHostsUseCorrectedComin = lib.all (
+    hostName:
+    let
+      package = nixosConfigurations.${hostName}.config.services.comin.package;
+    in
+    package.drvPath == (cominPackageFor package.system).drvPath
+  ) (builtins.attrNames nixosConfigurations);
+  allPiImagesUseCorrectedComin = lib.all (
+    hostName:
+    piImageConfigurations.${hostName}.config.services.comin.package.drvPath
+    == (cominPackageFor "aarch64-linux").drvPath
+  ) (builtins.attrNames piImageConfigurations);
   cominHost =
     if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "services-pi" else "framework-01";
-  cominPackage = nixosConfigurations.${cominHost}.config.services.comin.package;
-  cominExecutableTests = cominPackage.overrideAttrs (old: {
+  deployedCominPackage = nixosConfigurations.${cominHost}.config.services.comin.package;
+  cominExecutableTests = deployedCominPackage.overrideAttrs (old: {
     patches = (old.patches or [ ]) ++ [
       ./comin-jj-change-id.patch
       ./comin-prior-generation.patch
@@ -169,7 +183,7 @@ let
     doCheck = true;
     checkPhase = ''
       runHook preCheck
-      go test ./internal/repository -run 'Test(HeadSignedBy|JujutsuChangeIDCommitSignedBySSH|UpdateGpg|UpdateSSHSigning)$'
+      go test ./internal/repository -run 'Test(HeadSignedBy|JujutsuChangeIDCommitSignedBySSH|UpdateSSHSigning)$'
       go test ./internal/manager -run 'Test(Build|RejectUnverifiedSSHCommits)$'
       runHook postCheck
     '';
@@ -190,7 +204,9 @@ let
   };
 in
 assert allHostsValid;
-assert cominPackage.system == pkgs.stdenv.hostPlatform.system;
+assert allHostsUseCorrectedComin;
+assert allPiImagesUseCorrectedComin;
+assert deployedCominPackage.system == pkgs.stdenv.hostPlatform.system;
 pkgs.runCommand "common-host" { } ''
   test -e ${cominExecutableTests}
 

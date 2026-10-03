@@ -183,7 +183,7 @@ let
     doCheck = true;
     checkPhase = ''
       runHook preCheck
-      go test ./internal/repository -run 'Test(HeadSignedBy|JujutsuChangeIDCommitSignedBySSH|UpdateSSHSigning)$'
+      go test ./internal/repository -run 'Test(HeadSignedBy|JujutsuChangeIDCommitSignedBySSH|UpdateGpg|UpdateSSHSigning)$'
       go test ./internal/manager -run 'Test(Build|RejectUnverifiedSSHCommits)$'
       runHook postCheck
     '';

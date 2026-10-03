@@ -1,4 +1,17 @@
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  pi5Firmware = pkgs.runCommand "raspberrypi-firmware-pi5" { } ''
+    mkdir -p "$out"
+    cp -a ${pkgs.raspberrypifw}/share "$out/"
+    chmod -R u+w "$out/share/raspberrypi/boot"
+    rm -f -- "$out"/share/raspberrypi/boot/start*.elf "$out"/share/raspberrypi/boot/fixup*.dat
+  '';
+in
 {
   assertions = [
     {
@@ -38,7 +51,21 @@
   };
   hardware.raspberry-pi.firmware = {
     enable = true;
+    package = pi5Firmware;
     uboot.enable = true;
+  };
+  system.activationScripts = {
+    raspberry-pi-firmware-cleanup = {
+      deps = [ "specialfs" ];
+      text = ''
+        if mountpoint -q /boot/firmware; then
+          rm -f -- /boot/firmware/start*.elf /boot/firmware/start*.elf.tmp /boot/firmware/fixup*.dat /boot/firmware/fixup*.dat.tmp
+        else
+          echo "rpi-firmware-cleanup: /boot/firmware is not a mounted partition, skipping stale firmware cleanup" >&2
+        fi
+      '';
+    };
+    raspberry-pi-firmware.deps = lib.mkAfter [ "raspberry-pi-firmware-cleanup" ];
   };
   fileSystems."/boot/firmware" = {
     device = "/dev/disk/by-label/FIRMWARE";

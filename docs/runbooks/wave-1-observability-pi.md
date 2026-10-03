@@ -15,6 +15,14 @@ local machine with readable and writable KVM: `nix flake check --show-trace
 --option max-jobs 1`. A hosted non-KVM evaluation and native-check run does not
 replace this full VM-backed suite.
 
+Pi 5 firmware is embedded in EEPROM, so the managed firmware package excludes
+the unused external `start*.elf` and `fixup*.dat` variants while retaining
+device trees, overlays, and `bootcode.bin`. Future bootstrap images use a 128
+MiB firmware partition. Existing 30 MiB installations are not resized: managed
+activation removes only stale external Pi firmware files before installing the
+managed set. After an interrupted firmware update, do not reboot until that
+activation succeeds.
+
 The reviewed, successfully booted image is from revision
 `f2136979cfa49aee795857b0c536e15711907272`, workflow run `37098600729`, and
 artifact `11267220813`. Later documentation-only revisions do not change that

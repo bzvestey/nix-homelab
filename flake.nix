@@ -156,9 +156,9 @@
             ./installers/framework-iso.nix
           ];
         }).config.system.build.isoImage;
-      mkPiImage =
+      mkPiImageConfiguration =
         targetHost:
-        (mkHost {
+        mkHost {
           system = "aarch64-linux";
           hostname = targetHost;
           modules = piModules ++ [
@@ -172,14 +172,18 @@
               imports = [ ./installers/rpi-image.nix ];
             }
           ];
-        }).config.system.build.sdImage;
+        };
+      piImageConfigurations = {
+        observability-pi = mkPiImageConfiguration "observability-pi";
+        services-pi = mkPiImageConfiguration "services-pi";
+      };
     in
     {
       inherit nixosConfigurations;
 
       images = {
-        observability-pi = mkPiImage "observability-pi";
-        services-pi = mkPiImage "services-pi";
+        observability-pi = piImageConfigurations.observability-pi.config.system.build.sdImage;
+        services-pi = piImageConfigurations.services-pi.config.system.build.sdImage;
         framework-01 = mkFrameworkImage "framework-01";
         framework-02 = mkFrameworkImage "framework-02";
         framework-03 = mkFrameworkImage "framework-03";
@@ -221,6 +225,11 @@
       });
 
       checks = forAllSystems (system: {
+        pi-firmware = import ./checks/pi-firmware.nix {
+          inherit nixosConfigurations piImageConfigurations;
+          inherit (nixpkgs) lib;
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         ingress = import ./checks/ingress.nix {
           pkgs = nixpkgs.legacyPackages.${system};
         };

@@ -47,7 +47,10 @@ in
     }
   ];
   image.fileName = lib.mkForce "${targetHost}-bootstrap.img.zst";
-  sdImage.compressImage = true;
+  sdImage = {
+    compressImage = true;
+    firmwareSize = 128;
+  };
   # The generic image profile enables all hardware. These contiguous Allwinner-only and
   # Rockchip-only groups are absent from linux-rpi; keep Broadcom and Pi-specific modules enabled.
   boot.initrd.availableKernelModules = {

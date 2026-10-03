@@ -7,6 +7,15 @@ nix build .#images.observability-pi
 nix build .#images.services-pi
 ```
 
+Pi 5 stores its firmware in EEPROM and does not use the external `start*.elf`
+or `fixup*.dat` variants required by older models. The shared Pi 5 module omits
+only those files while retaining device trees, overlays, and `bootcode.bin`.
+New bootstrap images allocate 128 MiB to the firmware partition. This does not
+resize an already-flashed installation; the managed activation can remediate
+an existing 30 MiB partition by removing stale Pi firmware immediately before
+installing the managed files. If an update was interrupted, do not reboot until
+activation succeeds.
+
 The observability Pi first boot established `end0` at `2c:cf:67:72:a7:20`, so its normal configuration now matches that exact interface/MAC and enables comin. `services-pi` uses its recorded `end0` MAC and has **no data-disk formatter**. Both addresses are on the intended VLAN 4 untagged access-port segment; do not add an 802.1Q interface or describe LLDP as advertising VLAN membership until switch ports are confirmed and coordinated as trunks.
 
 ## Observability telemetry SSD

@@ -37,6 +37,7 @@ artifact_name="observability-pi-$image_revision"
 archive=./observability-pi-artifact.zip
 archive_sha256=ce265d478c67ad1d95279334e5e94eb72d7682a4c3e6829edfc273b0d9e0aa04
 artifact_dir=./observability-pi-artifact
+image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
 
 metadata=$(gh api "repos/$repo/actions/artifacts/$artifact_id")
 test "$(jq -r '.id' <<<"$metadata")" = "$artifact_id"
@@ -59,7 +60,7 @@ rm -rf -- "$artifact_dir"
 mkdir -- "$artifact_dir"
 mapfile -t members < <(unzip -Z1 "$archive" | LC_ALL=C sort)
 expected_members=(
-  observability-pi-bootstrap.img.zst
+  "$image_filename"
   observability-pi.manifest
   observability-pi.sha256
 )
@@ -88,7 +89,7 @@ test "$(manifest_value git_commit)" = "$image_revision"
 nix_output=$(manifest_value nix_output)
 image_store_path=$(manifest_value image_store_path)
 [[ "$nix_output" = /nix/store/* ]]
-[[ "$image_store_path" = "$nix_output"/*/observability-pi-bootstrap.img.zst ]]
+[[ "$image_store_path" = "$nix_output/sd-image/$image_filename" ]]
 (cd "$artifact_dir" && sha256sum -c observability-pi.sha256)
 ```
 
@@ -110,9 +111,10 @@ test "$(jj log -r main -T 'commit_id' --no-graph)" = "$reviewed_revision"
 test -z "$(jj diff --from "$reviewed_revision" --to @ --summary)"
 nix build ".#images.observability-pi"
 nix build ".#nixosConfigurations.observability-pi.config.system.build.toplevel"
-image=$(find -L result/sd-image -maxdepth 1 -type f -name 'observability-pi-bootstrap.img.zst' -print -quit)
-test -n "$image" && test -f "$image"
-sha256sum "$image" | tee observability-pi-bootstrap.img.zst.sha256
+mapfile -t images < <(find -L result/sd-image -maxdepth 1 -type f -name '*.img.zst' -print)
+test "${#images[@]}" -eq 1
+image=${images[0]}
+sha256sum "$image" | tee "$(basename "$image").sha256"
 nix path-info -S ".#images.observability-pi" ".#nixosConfigurations.observability-pi.config.system.build.toplevel"
 ```
 
@@ -157,7 +159,9 @@ expected_device=/dev/sdb
 artifact_dir=./observability-pi-artifact
 archive=./observability-pi-artifact.zip
 archive_sha256=ce265d478c67ad1d95279334e5e94eb72d7682a4c3e6829edfc273b0d9e0aa04
-image="$artifact_dir/observability-pi-bootstrap.img.zst"
+image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
+image="$artifact_dir/$image_filename"
+image_sha256=1ad64a8717f8a988d67ec80aaaa3b461b4a00484f12603ba3ccb6284f81b8359
 checksum="$artifact_dir/observability-pi.sha256"
 
 guard_flash_target() {
@@ -179,6 +183,7 @@ guard_flash_target() {
     ! grep -Fxq "$device" <<<"$system_ancestry"
   done
   printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum -c -
+  printf '%s  %s\n' "$image_sha256" "$image" | sha256sum -c -
   (cd "$artifact_dir" && sha256sum -c "$(basename "$checksum")")
 }
 

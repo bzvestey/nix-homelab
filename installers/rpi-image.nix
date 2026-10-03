@@ -21,7 +21,6 @@ let
     "phy-rockchip-pcie"
     "pcie-rockchip-host"
   ];
-  irrelevantTpmModules = [ "tpm-crb" ];
   guard = pkgs.replaceVars ./destructive-device-guard.sh {
     bash = "${pkgs.bash}/bin/bash";
     devRoot = "/dev";
@@ -101,18 +100,11 @@ in
       ) irrelevantRockchipModules;
       message = "Pi images must exclude Rockchip-only modules from the Raspberry Pi kernel initrd";
     }
-    {
-      assertion = lib.all (
-        module: !(builtins.elem module config.boot.initrd.availableKernelModules)
-      ) irrelevantTpmModules;
-      message = "Pi images must exclude the x86 TPM CRB driver from the Raspberry Pi kernel initrd";
-    }
   ];
   image.fileName = lib.mkForce "${targetHost}-bootstrap.img.zst";
   sdImage.compressImage = true;
   # The generic image profile enables all hardware. These contiguous Allwinner-only and
-  # Rockchip-only groups plus the x86-only TPM CRB driver are absent from linux-rpi;
-  # keep Broadcom and Pi-specific modules enabled.
+  # Rockchip-only groups are absent from linux-rpi; keep Broadcom and Pi-specific modules enabled.
   boot.initrd.availableKernelModules = {
     sun4i-drm = lib.mkForce false;
     sun8i-mixer = lib.mkForce false;
@@ -123,7 +115,6 @@ in
     rockchip-rga = lib.mkForce false;
     phy-rockchip-pcie = lib.mkForce false;
     pcie-rockchip-host = lib.mkForce false;
-    tpm-crb = lib.mkForce false;
   };
   environment.systemPackages = lib.optional (targetHost == "observability-pi") telemetryInitializer;
 }

@@ -25,8 +25,13 @@
         && !(builtins.elem "noauto" config.fileSystems."/boot/firmware".options);
       message = "Raspberry Pi 5 hosts must mount the FIRMWARE partition for boot updates";
     }
+    {
+      assertion = !(builtins.elem "tpm-crb" config.boot.initrd.availableKernelModules);
+      message = "Raspberry Pi 5 hosts must exclude the x86 TPM CRB driver from the initrd";
+    }
   ];
 
+  boot.initrd.availableKernelModules.tpm-crb = lib.mkForce false;
   boot.loader = {
     grub.enable = lib.mkForce false;
     generic-extlinux-compatible.enable = true;

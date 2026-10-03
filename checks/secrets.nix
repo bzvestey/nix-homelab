@@ -50,16 +50,51 @@ let
     touch $out
   '';
 
-  policy = pkgs.runCommand "sops-policy-tests" { } ''
-    grep -F 'path_regex: secrets/hosts/framework-01/.*\.yaml$' ${../.sops.yaml}
-    grep -F 'path_regex: secrets/pi-connectors/.*\.yaml$' ${../.sops.yaml}
-    grep -F 'path_regex: secrets/framework-runners/.*\.yaml$' ${../.sops.yaml}
-    if grep -F '.*\\.yaml$' ${../.sops.yaml}; then
-      echo "sops policy contains a doubled regex backslash" >&2
-      exit 1
-    fi
-    touch $out
-  '';
+  policy =
+    pkgs.runCommand "sops-policy-tests"
+      {
+        nativeBuildInputs = [
+          pkgs.jq
+          pkgs.yq-go
+        ];
+      }
+      ''
+        policy_json=$(yq --output-format=json '.' ${../.sops.yaml})
+
+        jq -e '
+          .keys == [
+            "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+            "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
+          ]
+          and .creation_rules == [
+            {
+              "path_regex": "secrets/hosts/observability-pi/.*\\.yaml$",
+              "key_groups": [{
+                "age": [
+                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+                  "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
+                ]
+              }]
+            },
+            {
+              "path_regex": "secrets/pi-connectors/.*\\.yaml$",
+              "key_groups": [{
+                "age": [
+                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+                  "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
+                ]
+              }]
+            },
+            {
+              "path_regex": "secrets/framework-runners/.*\\.yaml$",
+              "key_groups": [{
+                "age": ["age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz"]
+              }]
+            }
+          ]
+        ' <<<"$policy_json"
+        touch $out
+      '';
 
   vm = pkgs.testers.runNixOSTest {
     name = "secrets";

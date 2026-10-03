@@ -40,6 +40,10 @@ jobs:
             else
               {
                 nix flake check --no-build --show-trace
+                # This is exactly the non-KVM check set. ingress, storage,
+                # observability, and telemetry-agent each require both kvm and
+                # nixos-test; secrets-vm remains separately KVM-backed. Those
+                # checks are still mandatory on a KVM-capable/local runner.
                 nix build \
                   ".#checks.${{ matrix.architecture }}.installers" \
                   ".#checks.${{ matrix.architecture }}.secrets" \
@@ -59,6 +63,9 @@ jobs:
           else
             {
               nix flake check --no-build --show-trace
+              # Keep this list identical to the x86 non-KVM fallback above.
+              # The omitted VM checks remain required on a KVM-capable/local
+              # runner; hosted ARM does not satisfy requiredSystemFeatures.
               nix build \
                 .#checks.aarch64-linux.installers \
                 .#checks.aarch64-linux.secrets \

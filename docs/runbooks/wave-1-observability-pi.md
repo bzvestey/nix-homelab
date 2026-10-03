@@ -15,23 +15,99 @@ local machine with readable and writable KVM: `nix flake check --show-trace
 --option max-jobs 1`. A hosted non-KVM evaluation and native-check run does not
 replace this full VM-backed suite.
 
-The `images` GitHub Actions workflow also builds this image on a native
-`ubuntu-24.04-arm` runner. For a successful `main` run, download the
-revision-specific `observability-pi-<git-commit>` artifact. It contains only
-the compressed image, `observability-pi.sha256`, and
-`observability-pi.manifest`; the manifest binds the image to the Git commit and
-Nix output/store path. Artifacts expire after seven days. Verify the workflow
-commit equals the reviewed revision, the manifest commit matches it, and run
-`sha256sum -c observability-pi.sha256` before proceeding. A failed build posts
-a bounded Nix error tail to the public job summary; never use a failed or
-missing artifact.
+The reviewed image is from revision
+`c8b189cab8de07e527c1e38acad5059c2b63eb2d`, workflow run `37077076916`, and
+artifact `11260351642`. Later documentation-only revisions do not change that
+image identity and must not be substituted for it. Download and verify it with
+the executable block below. The block binds the archive digest from GitHub
+metadata to the expected digest, workflow run, artifact name, and image
+revision before extraction. It then requires exactly the three expected files,
+exactly one of each manifest field, the exact image revision, and the image
+SHA-256. Do not proceed with a merely self-consistent image/checksum pair from
+another artifact. Artifacts expire after seven days; a failed or missing check
+is a hard stop.
 
-```sh
-set -eu
+```bash
+set -euo pipefail
+repo=bzvestey/nix-homelab
+workflow_run=37077076916
+artifact_id=11260351642
+image_revision=c8b189cab8de07e527c1e38acad5059c2b63eb2d
+artifact_name="observability-pi-$image_revision"
+archive=./observability-pi-artifact.zip
+archive_sha256=ce265d478c67ad1d95279334e5e94eb72d7682a4c3e6829edfc273b0d9e0aa04
+artifact_dir=./observability-pi-artifact
+
+metadata=$(gh api "repos/$repo/actions/artifacts/$artifact_id")
+test "$(jq -r '.id' <<<"$metadata")" = "$artifact_id"
+test "$(jq -r '.name' <<<"$metadata")" = "$artifact_name"
+test "$(jq -r '.expired' <<<"$metadata")" = false
+test "$(jq -r '.workflow_run.id' <<<"$metadata")" = "$workflow_run"
+test "$(jq -r '.workflow_run.head_sha' <<<"$metadata")" = "$image_revision"
+test "$(jq -r '.digest' <<<"$metadata")" = "sha256:$archive_sha256"
+
+run_metadata=$(gh api "repos/$repo/actions/runs/$workflow_run")
+test "$(jq -r '.id' <<<"$run_metadata")" = "$workflow_run"
+test "$(jq -r '.path' <<<"$run_metadata")" = .github/workflows/images.yml
+test "$(jq -r '.head_sha' <<<"$run_metadata")" = "$image_revision"
+test "$(jq -r '.head_branch' <<<"$run_metadata")" = main
+test "$(jq -r '.conclusion' <<<"$run_metadata")" = success
+
+gh api "repos/$repo/actions/artifacts/$artifact_id/zip" > "$archive"
+printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum -c -
+rm -rf -- "$artifact_dir"
+mkdir -- "$artifact_dir"
+mapfile -t members < <(unzip -Z1 "$archive" | LC_ALL=C sort)
+expected_members=(
+  observability-pi-bootstrap.img.zst
+  observability-pi.manifest
+  observability-pi.sha256
+)
+test "${#members[@]}" -eq "${#expected_members[@]}"
+for i in "${!expected_members[@]}"; do
+  test "${members[$i]}" = "${expected_members[$i]}"
+done
+unzip -q "$archive" -d "$artifact_dir"
+
+manifest="$artifact_dir/observability-pi.manifest"
+mapfile -t manifest_keys < <(cut -d= -f1 "$manifest" | LC_ALL=C sort)
+expected_keys=(git_commit image_store_path nix_output)
+test "${#manifest_keys[@]}" -eq "${#expected_keys[@]}"
+for i in "${!expected_keys[@]}"; do
+  test "${manifest_keys[$i]}" = "${expected_keys[$i]}"
+done
+manifest_value() {
+  local key=$1
+  local -a matches
+  mapfile -t matches < <(sed -n "s/^${key}=//p" "$manifest")
+  test "${#matches[@]}" -eq 1
+  test -n "${matches[0]}"
+  printf '%s\n' "${matches[0]}"
+}
+test "$(manifest_value git_commit)" = "$image_revision"
+nix_output=$(manifest_value nix_output)
+image_store_path=$(manifest_value image_store_path)
+[[ "$nix_output" = /nix/store/* ]]
+[[ "$image_store_path" = "$nix_output"/*/observability-pi-bootstrap.img.zst ]]
+(cd "$artifact_dir" && sha256sum -c observability-pi.sha256)
+```
+
+The run ID and workflow definition are separate GitHub fields; the exact run
+ID and workflow path checks above bind both for this already-reviewed run.
+Retain the verified archive through the flash so its digest can be rechecked
+at the write boundary.
+
+For a local rebuild instead, use the reviewed `main` tree. Jujutsu normally
+places an empty working-copy commit above `main`, so compare trees rather than
+requiring `@` and `main` to have the same commit ID.
+
+```bash
+set -euo pipefail
 test "$(uname -m)" = aarch64
-test -z "$(jj --no-pager status | sed -n '/Working copy changes:/,$p')"
-revision=$(jj log -r main -T 'commit_id' --no-graph)
-test -n "$revision"
+reviewed_revision=REPLACE_WITH_REVIEWED_MAIN_COMMIT
+[[ "$reviewed_revision" =~ ^[0-9a-f]{40}$ ]]
+test "$(jj log -r main -T 'commit_id' --no-graph)" = "$reviewed_revision"
+test -z "$(jj diff --from "$reviewed_revision" --to @ --summary)"
 nix build ".#images.observability-pi"
 nix build ".#nixosConfigurations.observability-pi.config.system.build.toplevel"
 image=$(find -L result/sd-image -maxdepth 1 -type f -name 'observability-pi-bootstrap.img.zst' -print -quit)
@@ -44,8 +120,8 @@ Inspect both closures before transfer. Replace `SECRET_SENTINEL` only with a
 non-secret test marker that is known to be absent; never put a real secret in
 an argument, environment variable, store path, or log.
 
-```sh
-set -eu
+```bash
+set -euo pipefail
 for output in \
   "$(nix path-info .#images.observability-pi)" \
   "$(nix path-info .#nixosConfigurations.observability-pi.config.system.build.toplevel)"
@@ -57,55 +133,102 @@ done | sort -u > /tmp/observability-pi-closure
   \( -name 'ssh_host_*_key' -o -name '*.agekey' -o -name 'id_ed25519' \) -print -quit | grep -q .
 ```
 
-Transfer the image and checksum over an authenticated channel. On the flashing
-controller, require `sha256sum -c observability-pi-bootstrap.img.zst.sha256`.
+Transfer the image and checksum over an authenticated channel. The reviewed
+artifact procedure above is preferred for this wave; a local rebuild is a new
+image and requires its own review and binding evidence.
 
 ## 2. Guarded boot-media flash
 
-The owner confirms `/dev/sdb` is intentionally the Pi boot MicroSD, not a
-telemetry SSD. Its currently observed identity is: model
+The stable boot-media path is
+`/dev/disk/by-id/usb-FRMW_MicroSD_2nd_Gen__FRACCVBZ91544401B2-0:0`; it must
+resolve to the observed whole disk `/dev/sdb`, but `/dev/sdb` alone must never
+be used to select the target. Its currently observed identity is: model
 `MicroSD(2nd Gen)`, serial `FRACCVBZ91544401B2`, exactly `128177930240`
 bytes. Do not write it until the native artifact and hash have been verified.
 Immediately before writing, run this whole block as root. It refuses identity
 drift, mounted children, the system disk, non-removable media, and an
 unverified image hash.
 
-```sh
-set -eu
+```bash
+set -euo pipefail
 test "$(id -u)" -eq 0
-device=/dev/sdb
-image=./observability-pi-bootstrap.img.zst
-checksum=./observability-pi-bootstrap.img.zst.sha256
-test -b "$device"
-test "$(lsblk -bdno SIZE "$device")" = 128177930240
-test "$(lsblk -dno MODEL "$device" | xargs)" = 'MicroSD(2nd Gen)'
-test "$(lsblk -dno SERIAL "$device" | xargs)" = FRACCVBZ91544401B2
-test "$(lsblk -bdno RM "$device")" = 1
-test -z "$(lsblk -nrpo MOUNTPOINTS "$device" | sed '/^$/d')"
-root_source=$(findmnt -nro SOURCE /)
-test "$device" != "$root_source"
-! lsblk -srno PATH "$root_source" | grep -Fxq "$device"
-sha256sum -c "$checksum"
+stable_device=/dev/disk/by-id/usb-FRMW_MicroSD_2nd_Gen__FRACCVBZ91544401B2-0:0
+expected_device=/dev/sdb
+artifact_dir=./observability-pi-artifact
+archive=./observability-pi-artifact.zip
+archive_sha256=ce265d478c67ad1d95279334e5e94eb72d7682a4c3e6829edfc273b0d9e0aa04
+image="$artifact_dir/observability-pi-bootstrap.img.zst"
+checksum="$artifact_dir/observability-pi.sha256"
+
+guard_flash_target() {
+  test -L "$stable_device"
+  device=$(readlink -f -- "$stable_device")
+  test "$device" = "$expected_device"
+  test -b "$device"
+  test "$(lsblk -dnro TYPE "$device")" = disk
+  test "$(lsblk -bdno SIZE "$device")" = 128177930240
+  test "$(lsblk -dno MODEL "$device" | xargs)" = 'MicroSD(2nd Gen)'
+  test "$(lsblk -dno SERIAL "$device" | xargs)" = FRACCVBZ91544401B2
+  test "$(lsblk -bdno RM "$device")" = 1
+  test -z "$(lsblk -nrpo MOUNTPOINTS "$device" | sed '/^$/d')"
+  for target in / /boot /nix; do
+    findmnt -rnT "$target" >/dev/null || continue
+    system_source=$(findmnt -nro SOURCE -T "$target")
+    system_source=${system_source%%\[*}
+    system_ancestry=$(lsblk -srno PATH "$system_source")
+    ! grep -Fxq "$device" <<<"$system_ancestry"
+  done
+  printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum -c -
+  (cd "$artifact_dir" && sha256sum -c "$(basename "$checksum")")
+}
+
+guard_flash_target
 read -r -p "Type FLASH observability-pi TO MicroSD(2nd Gen) FRACCVBZ91544401B2: " answer
 test "$answer" = 'FLASH observability-pi TO MicroSD(2nd Gen) FRACCVBZ91544401B2'
-# Revalidate at the write boundary.
-test "$(lsblk -bdno SIZE "$device")|$(lsblk -dno MODEL "$device" | xargs)|$(lsblk -dno SERIAL "$device" | xargs)|$(lsblk -bdno RM "$device")" = \
-  '128177930240|MicroSD(2nd Gen)|FRACCVBZ91544401B2|1'
-test -z "$(lsblk -nrpo MOUNTPOINTS "$device" | sed '/^$/d')"
+# Repeat every destructive guard after confirmation, directly at the write boundary.
+guard_flash_target
 zstdcat -- "$image" | dd of="$device" bs=16M iflag=fullblock oflag=direct conv=fsync status=progress
 sync
 ```
 
-Power off the Pi, insert the medium, connect exactly one Ethernet cable and
-boot. Do not connect or initialize a telemetry disk yet.
+Keep the Pi powered off, insert the medium, and connect exactly one Ethernet
+cable. Before boot, prove `10.15.4.6` is unused from the controller's intended
+interface. Any ICMP or ARP response is a conflict and a hard stop. Do not
+connect or initialize a telemetry disk yet.
+
+```bash
+set -euo pipefail
+address=10.15.4.6
+interface=$(ip -json route get "$address" | jq -er '.[0].dev')
+if ping -c 3 -W 1 "$address"; then
+  echo "address conflict: $address responds to ICMP" >&2
+  exit 1
+fi
+arping -D -I "$interface" -c 3 "$address"
+```
+
+Boot only after that check passes. At the local Pi console, independently
+record `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`. On the controller,
+scan the key into a dedicated file and compare its fingerprint exactly with
+the console value before making any SSH connection. Never disable host-key
+checking.
 
 ## 3. First boot and NIC identity
 
-```sh
-set -eu
+```bash
+set -euo pipefail
+expected_fingerprint='SHA256:REPLACE_WITH_FINGERPRINT_OBSERVED_AT_LOCAL_CONSOLE'
+known_hosts=$(mktemp)
+trap 'rm -f -- "$known_hosts" "$known_hosts.pub"' EXIT
+ssh-keyscan -t ed25519 10.15.4.6 > "$known_hosts"
+ssh-keygen -lf "$known_hosts" > "$known_hosts.pub"
+test "$(wc -l < "$known_hosts.pub")" -eq 1
+test "$(awk 'NR == 1 { print $2 }' "$known_hosts.pub")" = "$expected_fingerprint"
 ping -c 3 10.15.4.6
-ssh root@10.15.4.6 'hostnamectl --static; ip -br link; ip route'
-ssh root@10.15.4.6 'for i in /sys/class/net/*; do printf "%s " "$(basename "$i")"; cat "$i/address"; done'
+ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes \
+  root@10.15.4.6 'hostnamectl --static; ip -br link; ip route'
+ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes \
+  root@10.15.4.6 'for i in /sys/class/net/*; do printf "%s " "$(basename "$i")"; cat "$i/address"; done'
 ```
 
 Record the Ethernet interface/MAC as observed evidence in both inventories,

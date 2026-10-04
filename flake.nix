@@ -38,6 +38,8 @@
     let
       revision = self.rev or self.dirtyRev or "dirty-local";
       mkHost = import ./lib/mk-host.nix { inherit nixpkgs revision; };
+      fleetTopologyLib = import ./lib/fleet-topology.nix { inherit (nixpkgs) lib; };
+      inherit (fleetTopologyLib) fleetTopology mkFleetTopology;
       cominPackage =
         system:
         nixpkgs.legacyPackages.${system}.callPackage ./packages/comin.nix {
@@ -201,7 +203,9 @@
         framework-03 = mkFrameworkImage "framework-03";
       };
 
-      lib.mkHost = mkHost;
+      lib = {
+        inherit fleetTopology mkFleetTopology mkHost;
+      };
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
@@ -238,6 +242,11 @@
       });
 
       checks = forAllSystems (system: {
+        fleet-topology = import ./checks/fleet-topology.nix {
+          inherit fleetTopology mkFleetTopology;
+          inherit (nixpkgs) lib;
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
         pi-firmware = import ./checks/pi-firmware.nix {
           inherit nixosConfigurations piImageConfigurations;
           inherit (nixpkgs) lib;

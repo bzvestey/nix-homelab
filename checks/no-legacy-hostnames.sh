@@ -53,7 +53,7 @@ scan_files 'operational inventory fixtures' "${inventory_fixtures[@]}"
 
 while IFS= read -r runbook; do
   matches=$(awk '
-    /^```(bash|sh|shell)$/ { in_command = 1; next }
+    /^```(bash|sh|shell|console)$/ { in_command = 1; next }
     /^```$/ { in_command = 0; next }
     in_command { print FNR ":" $0 }
   ' "$runbook" | grep -E "$legacy" || true)

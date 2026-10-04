@@ -20,9 +20,9 @@ setup_host() {
   printf '24 1 0:20 / / rw,relatime shared:1 - ext4 /dev/root rw\n25 24 0:5 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw\n' >"$state/proc/self/mountinfo"
   rm -rf "$state/sys/class/net"; mkdir -p "$state/sys/class/net"
   case "$host" in
-    framework-01) model='Samsung SSD 970 EVO Plus 2TB'; serial=S59CNM0W713317D; sectors=3907029168; members='enp0s13f0u1 enp0s13f0u2'; mac=9c:bf:0d:00:23:fe; gpu=9a49 ;;
-    framework-02) model='Samsung SSD 980 1TB'; serial=S64ANS0RB36721W; sectors=1953525168; members='enp0s13f0u3 enp0s13f0u4'; mac=9c:bf:0d:00:0d:3c; gpu=4626 ;;
-    framework-03) model='Samsung SSD 980 1TB'; serial=S64ANL0T801753P; sectors=1953525168; members='enp0s13f0u3 enp0s13f0u4'; mac=9c:bf:0d:00:20:37; gpu=9a49 ;;
+    hl-node-02) model='Samsung SSD 970 EVO Plus 2TB'; serial=S59CNM0W713317D; sectors=3907029168; members='enp0s13f0u1 enp0s13f0u2'; mac=9c:bf:0d:00:23:fe; gpu=9a49 ;;
+    hl-node-03) model='Samsung SSD 980 1TB'; serial=S64ANS0RB36721W; sectors=1953525168; members='enp0s13f0u3 enp0s13f0u4'; mac=9c:bf:0d:00:0d:3c; gpu=4626 ;;
+    hl-node-04) model='Samsung SSD 980 1TB'; serial=S64ANL0T801753P; sectors=1953525168; members='enp0s13f0u3 enp0s13f0u4'; mac=9c:bf:0d:00:20:37; gpu=9a49 ;;
   esac
   mkdir -p "$state/sys/dev/block/259:0/device"
   printf '%s\n' "$model" >"$state/sys/dev/block/259:0/device/model"
@@ -36,7 +36,7 @@ setup_host() {
 }
 
 assert_no_destruction() { ! grep -Eq 'disko:|systemd-cryptenroll:' "$state/log"; }
-for spec in framework-01:$INSTALL_01 framework-02:$INSTALL_02 framework-03:$INSTALL_03; do
+for spec in hl-node-02:$INSTALL_01 hl-node-03:$INSTALL_02 hl-node-04:$INSTALL_03; do
   host=${spec%%:*}; entry=${spec#*:}; setup_host "$host"; : >"$state/log"
   printf '%s\n' "$host" | "$entry"
   grep -Eq '^id:' "$state/log"
@@ -51,38 +51,38 @@ for spec in framework-01:$INSTALL_01 framework-02:$INSTALL_02 framework-03:$INST
   test "$(grep -c 'systemd-cryptenroll:.* /proc/[0-9]*/fd/' "$state/log")" -eq 2
 done
 
-setup_host framework-01; touch "$state/unsupported-canonical"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; touch "$state/unsupported-canonical"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction; ! grep -q '^mount:' "$state/log"; rm "$state/unsupported-canonical"
-setup_host framework-01; touch "$state/bind-fails"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; touch "$state/bind-fails"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction; rm "$state/bind-fails"
-setup_host framework-01; touch "$state/bound-mismatch"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; touch "$state/bound-mismatch"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction; grep -q '^umount:' "$state/log"; rm "$state/bound-mismatch"
-setup_host framework-01; touch "$state/propagation-fails"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; touch "$state/propagation-fails"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 grep -Eq '^unshare:--mount --propagation private -- ' "$state/log"
 assert_no_destruction; ! grep -q '^mount:' "$state/log"; rm "$state/propagation-fails"
 
-setup_host framework-01; : >"$state/log"; export FIXTURE_UID=1000
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; : >"$state/log"; export FIXTURE_UID=1000
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction; unset FIXTURE_UID
-setup_host framework-01; rm "$state/sys/class/net/enp0s13f0u1/address"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; rm "$state/sys/class/net/enp0s13f0u1/address"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction
-setup_host framework-01; printf '0xffff\n' >"$state/sys/bus/pci/devices/0000:00:02.0/device"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; printf '0xffff\n' >"$state/sys/bus/pci/devices/0000:00:02.0/device"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction
 
-setup_host framework-01; touch "$state/child-swap"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; touch "$state/child-swap"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 ! grep -q '^systemd-cryptenroll:' "$state/log"; rm "$state/child-swap"
-setup_host framework-01; printf '8:0\n' >"$state/sys/devices/nvme0n1/dev"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01"; then exit 1; fi
+setup_host hl-node-02; printf '8:0\n' >"$state/sys/devices/nvme0n1/dev"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 ! grep -q '^systemd-cryptenroll:' "$state/log"; printf '259:0\n' >"$state/sys/devices/nvme0n1/dev"
-setup_host framework-01; touch "$state/unmount-fails"; : >"$state/log"
-if printf 'framework-01\n' | "$INSTALL_01" >"$state/cleanup-out" 2>&1; then exit 1; fi
+setup_host hl-node-02; touch "$state/unmount-fails"; : >"$state/log"
+if printf 'hl-node-02\n' | "$INSTALL_01" >"$state/cleanup-out" 2>&1; then exit 1; fi
 grep -q 'TARGET UNMOUNT FAILED' "$state/cleanup-out"
 ! grep -q 'target unmounted' "$state/cleanup-out"
 rm "$state/unmount-fails"

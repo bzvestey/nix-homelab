@@ -66,93 +66,52 @@
         nixos-hardware.nixosModules.raspberry-pi-5
         ./modules/hardware/raspberry-pi-5.nix
       ];
-      nixosConfigurations = {
-        observability-pi = mkHost {
-          system = "aarch64-linux";
-          hostname = "observability-pi";
-          modules = piModules ++ [
-            comin.nixosModules.comin
-            ./hosts/observability-pi
-          ];
-        };
-        framework-01 = mkHost {
-          system = "x86_64-linux";
-          hostname = "framework-01";
-          modules = frameworkModules ++ [
-            comin.nixosModules.comin
-            ./hosts/framework-01
-          ];
-        };
-        framework-02 = mkHost {
-          system = "x86_64-linux";
-          hostname = "framework-02";
-          modules = frameworkModules ++ [
-            comin.nixosModules.comin
-            ./hosts/framework-02
-          ];
-        };
-        framework-03 = mkHost {
-          system = "x86_64-linux";
-          hostname = "framework-03";
-          modules = frameworkModules ++ [
-            comin.nixosModules.comin
-            ./hosts/framework-03
-          ];
-        };
-        services-pi = mkHost {
-          system = "aarch64-linux";
-          hostname = "services-pi";
-          modules = piModules ++ [
-            comin.nixosModules.comin
-            ./hosts/services-pi
-          ];
-        };
+      hardwareModules = {
+        framework = frameworkModules;
+        raspberry-pi-5 = piModules;
       };
+      roleModules = {
+        observability = ./modules/roles/observability-node.nix;
+        lightweight-services = ./modules/roles/lightweight-services.nix;
+        storage-services = ./modules/roles/storage-services.nix;
+        developer-media-services = ./modules/roles/developer-media-services.nix;
+      };
+      modulesForNode =
+        nodeId: node:
+        hardwareModules.${node.hardwareClass}
+        ++ [
+          comin.nixosModules.comin
+          ./modules/fleet/base.nix
+          ./modules/fleet/networking.nix
+          ./modules/fleet/comin.nix
+          ./modules/fleet/telemetry-agent.nix
+          { fleet.telemetry.enable = true; }
+          (./hosts + "/${nodeId}")
+        ]
+        ++ map (role: roleModules.${role}) (
+          builtins.filter (role: builtins.hasAttr role roleModules) (fleetTopology.rolesForNode nodeId)
+        );
+      nixosConfigurations = nixpkgs.lib.mapAttrs (
+        nodeId: node:
+        mkHost {
+          inherit (node) system;
+          hostname = nodeId;
+          modules = modulesForNode nodeId node;
+        }
+      ) fleetTopology.nodes;
       forAllSystems = nixpkgs.lib.genAttrs [
         "aarch64-linux"
         "x86_64-linux"
       ];
-      frameworkFacts = {
-        framework-01 = {
-          diskById = "UNRESOLVED";
-          diskModel = "Samsung SSD 970 EVO Plus 2TB";
-          diskSerial = "S59CNM0W713317D";
-          diskSectors = 3907029168;
-          nicMembers = [
-            "enp0s13f0u1"
-            "enp0s13f0u2"
-          ];
-          nicMac = "9c:bf:0d:00:23:fe";
-          gpuPciId = "8086:9a49";
-          address = "10.15.4.5";
-        };
-        framework-02 = {
-          diskById = "UNRESOLVED";
-          diskModel = "Samsung SSD 980 1TB";
-          diskSerial = "S64ANS0RB36721W";
-          diskSectors = 1953525168;
-          nicMembers = [
-            "enp0s13f0u3"
-            "enp0s13f0u4"
-          ];
-          nicMac = "9c:bf:0d:00:0d:3c";
-          gpuPciId = "8086:4626";
-          address = "10.15.4.7";
-        };
-        framework-03 = {
-          diskById = "UNRESOLVED";
-          diskModel = "Samsung SSD 980 1TB";
-          diskSerial = "S64ANL0T801753P";
-          diskSectors = 1953525168;
-          nicMembers = [
-            "enp0s13f0u3"
-            "enp0s13f0u4"
-          ];
-          nicMac = "9c:bf:0d:00:20:37";
-          gpuPciId = "8086:9a49";
-          address = "10.15.4.9";
-        };
-      };
+      frameworkFacts = nixpkgs.lib.mapAttrs (_: node: {
+        diskById = node.installDisk.byId;
+        diskModel = node.installDisk.model;
+        diskSerial = node.installDisk.serial;
+        diskSectors = node.installDisk.sectors;
+        nicMembers = node.nic.members;
+        nicMac = node.nic.macAddress;
+        inherit (node) gpuPciId address;
+      }) (nixpkgs.lib.filterAttrs (_: node: node.hardwareClass == "framework") fleetTopology.nodes);
       mkFrameworkImage =
         targetHost:
         (nixpkgs.lib.nixosSystem {
@@ -172,12 +131,13 @@
         }).config.system.build.isoImage;
       mkPiImageConfiguration =
         targetHost:
+        let
+          node = fleetTopology.nodes.${targetHost};
+        in
         mkHost {
-          system = "aarch64-linux";
+          inherit (node) system;
           hostname = targetHost;
-          modules = piModules ++ [
-            comin.nixosModules.comin
-            (if targetHost == "observability-pi" then ./hosts/observability-pi else ./hosts/services-pi)
+          modules = modulesForNode targetHost node ++ [
             {
               _module.args = {
                 inherit targetHost;
@@ -187,21 +147,19 @@
             }
           ];
         };
-      piImageConfigurations = {
-        observability-pi = mkPiImageConfiguration "observability-pi";
-        services-pi = mkPiImageConfiguration "services-pi";
-      };
+      piImageConfigurations = nixpkgs.lib.genAttrs (builtins.filter (
+        nodeId: fleetTopology.nodes.${nodeId}.imageType == "rpi"
+      ) fleetTopology.nodeIds) mkPiImageConfiguration;
+      images = nixpkgs.lib.genAttrs fleetTopology.nodeIds (
+        nodeId:
+        if fleetTopology.nodes.${nodeId}.imageType == "rpi" then
+          piImageConfigurations.${nodeId}.config.system.build.sdImage
+        else
+          mkFrameworkImage nodeId
+      );
     in
     {
-      inherit nixosConfigurations;
-
-      images = {
-        observability-pi = piImageConfigurations.observability-pi.config.system.build.sdImage;
-        services-pi = piImageConfigurations.services-pi.config.system.build.sdImage;
-        framework-01 = mkFrameworkImage "framework-01";
-        framework-02 = mkFrameworkImage "framework-02";
-        framework-03 = mkFrameworkImage "framework-03";
-      };
+      inherit images nixosConfigurations;
 
       lib = {
         inherit fleetTopology mkFleetTopology mkHost;
@@ -300,7 +258,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
         };
         evaluation = import ./checks/evaluation.nix {
-          inherit nixosConfigurations;
+          inherit images nixosConfigurations;
           inherit (nixpkgs) lib;
           pkgs = nixpkgs.legacyPackages.${system};
         };

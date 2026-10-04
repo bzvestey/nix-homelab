@@ -30,14 +30,14 @@ let
     }
   ];
   expected = {
-    observability-pi = {
+    hl-node-00 = {
       address = "10.15.4.6/24";
       networks."20-lan" = {
         Name = "end0";
         MACAddress = "2c:cf:67:72:a7:20";
       };
     };
-    framework-01 = {
+    hl-node-02 = {
       address = "10.15.4.5/24";
       networks = {
         "10-member-1" = {
@@ -51,7 +51,7 @@ let
         "20-bond0".Name = "bond0";
       };
     };
-    framework-02 = {
+    hl-node-03 = {
       address = "10.15.4.7/24";
       networks = {
         "10-member-1" = {
@@ -65,7 +65,7 @@ let
         "20-bond0".Name = "bond0";
       };
     };
-    framework-03 = {
+    hl-node-04 = {
       address = "10.15.4.9/24";
       networks = {
         "10-member-1" = {
@@ -79,7 +79,7 @@ let
         "20-bond0".Name = "bond0";
       };
     };
-    services-pi = {
+    hl-node-01 = {
       address = "10.15.4.4/24";
       networks."20-lan" = {
         Name = "end0";
@@ -139,19 +139,19 @@ let
     assert config.services.journald.settings.Journal.Storage == "persistent";
     assert !(config.systemd.services ? observability-bootstrap-single-ethernet);
     assert
-      hostname != "observability-pi"
+      hostname != "hl-node-00"
       || config.sops.secrets."cloudflared-tunnel.json".path == "/run/secrets/cloudflared-tunnel.json";
     assert
-      hostname != "observability-pi"
+      hostname != "hl-node-00"
       ||
         config.sops.secrets."cloudflared-tunnel.json".sopsFile == ../secrets/pi-connectors/cloudflared.yaml;
-    assert hostname != "services-pi" || !(config.sops.secrets ? "cloudflared-tunnel.json");
+    assert hostname != "hl-node-01" || !(config.sops.secrets ? "cloudflared-tunnel.json");
     assert config.networking.firewall.enable;
     assert config.networking.nftables.enable;
     assert !(builtins.elem 4243 config.networking.firewall.allowedTCPPorts);
     assert
       config.networking.firewall.extraInputRules
-      == lib.optionalString (hostname == "observability-pi") observabilityRule + exporterRule;
+      == lib.optionalString (hostname == "hl-node-00") observabilityRule + exporterRule;
     assert comin.exporter.listen_address == "0.0.0.0";
     assert comin.exporter.port == 4243;
     assert comin.exporter.openFirewall == false;
@@ -173,7 +173,7 @@ let
     == (cominPackageFor "aarch64-linux").drvPath
   ) (builtins.attrNames piImageConfigurations);
   cominHost =
-    if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "services-pi" else "framework-01";
+    if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "hl-node-01" else "hl-node-02";
   deployedCominPackage = nixosConfigurations.${cominHost}.config.services.comin.package;
   cominExecutableTests = deployedCominPackage.overrideAttrs (old: {
     patches = (old.patches or [ ]) ++ [
@@ -199,7 +199,7 @@ let
   };
   telemetryInitializer = import ../installers/telemetry-initializer.nix {
     inherit lib pkgs;
-    targetHost = "observability-pi";
+    targetHost = "hl-node-00";
     telemetryIdentity = null;
   };
 in
@@ -210,7 +210,7 @@ assert deployedCominPackage.system == pkgs.stdenv.hostPlatform.system;
 pkgs.runCommand "common-host" { } ''
   test -e ${cominExecutableTests}
 
-  if printf 'observability-pi\n' | ${telemetryInitializer}/bin/initialize-telemetry-ssd >initializer-output 2>&1; then
+  if printf 'hl-node-00\n' | ${telemetryInitializer}/bin/initialize-telemetry-ssd >initializer-output 2>&1; then
     echo "initializer accepted unresolved telemetry identity" >&2
     exit 1
   fi
@@ -220,7 +220,7 @@ pkgs.runCommand "common-host" { } ''
   ! grep -F 'About to create an ext4 filesystem' initializer-output
   ! grep -F 'mkfs' initializer-output
 
-  if ${pkgs.bash}/bin/bash ${piGuard} observability-pi UNRESOLVED UNRESOLVED UNRESOLVED 0 observability-pi 2>guard-error; then
+  if ${pkgs.bash}/bin/bash ${piGuard} hl-node-00 UNRESOLVED UNRESOLVED UNRESOLVED 0 hl-node-00 2>guard-error; then
     echo "unresolved telemetry identity was accepted" >&2
     exit 1
   fi

@@ -88,7 +88,7 @@ let
     ttyOut = "/build/fixture/output";
   };
   facts = {
-    framework-01 = {
+    hl-node-02 = {
       model = "Samsung SSD 970 EVO Plus 2TB";
       serial = "S59CNM0W713317D";
       sectors = 3907029168;
@@ -99,7 +99,7 @@ let
       mac = "9c:bf:0d:00:23:fe";
       gpu = "8086:9a49";
     };
-    framework-02 = {
+    hl-node-03 = {
       model = "Samsung SSD 980 1TB";
       serial = "S64ANS0RB36721W";
       sectors = 1953525168;
@@ -110,7 +110,7 @@ let
       mac = "9c:bf:0d:00:0d:3c";
       gpu = "8086:4626";
     };
-    framework-03 = {
+    hl-node-04 = {
       model = "Samsung SSD 980 1TB";
       serial = "S64ANL0T801753P";
       sectors = 1953525168;
@@ -145,7 +145,7 @@ let
     inherit pkgs;
     inherit (pkgs) lib;
     diskoPackage = pkgs.hello;
-    targetHost = "framework-01";
+    targetHost = "hl-node-02";
     targetSystem = "/nix/store/test-system";
     diskById = "UNRESOLVED";
     diskModel = "model";
@@ -165,9 +165,9 @@ pkgs.runCommand "installer-safety-tests"
     ];
   }
   ''
-    export INSTALL_01=${installer "framework-01"}/bin/install-framework-01
-    export INSTALL_02=${installer "framework-02"}/bin/install-framework-02
-    export INSTALL_03=${installer "framework-03"}/bin/install-framework-03
+    export INSTALL_01=${installer "hl-node-02"}/bin/install-hl-node-02
+    export INSTALL_02=${installer "hl-node-03"}/bin/install-hl-node-03
+    export INSTALL_03=${installer "hl-node-04"}/bin/install-hl-node-04
     export PROD_01=${productionInstaller}
     test -s ${evaluatedDiskConfig}
     bash ${./installer-safety-tests.sh}

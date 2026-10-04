@@ -64,5 +64,5 @@ in
     phy-rockchip-pcie = lib.mkForce false;
     pcie-rockchip-host = lib.mkForce false;
   };
-  environment.systemPackages = lib.optional (targetHost == "observability-pi") telemetryInitializer;
+  environment.systemPackages = lib.optional (targetHost == "hl-node-00") telemetryInitializer;
 }

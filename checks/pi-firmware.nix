@@ -6,8 +6,8 @@
 }:
 let
   piHosts = [
-    "observability-pi"
-    "services-pi"
+    "hl-node-00"
+    "hl-node-01"
   ];
   cleanup =
     hostName:

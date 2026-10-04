@@ -72,4 +72,8 @@ in
     fsType = "vfat";
     options = lib.mkForce [ "nofail" ];
   };
+  fileSystems."/" = {
+    device = "/dev/disk/by-label/NIXOS_SD";
+    fsType = "ext4";
+  };
 }

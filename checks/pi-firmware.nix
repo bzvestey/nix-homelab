@@ -58,6 +58,11 @@ assert lib.all (
 assert lib.all (
   hostName: piImageConfigurations.${hostName}.config.sdImage.firmwareSize == 128
 ) piHosts;
+assert lib.all (
+  hostName:
+  nixosConfigurations.${hostName}.config.fileSystems."/".device == "/dev/disk/by-label/NIXOS_SD"
+  && nixosConfigurations.${hostName}.config.fileSystems."/".fsType == "ext4"
+) piHosts;
 pkgs.runCommand "pi-firmware" { } ''
   ${validateFirmware}
 

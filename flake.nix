@@ -70,12 +70,20 @@
         framework = frameworkModules;
         raspberry-pi-5 = piModules;
       };
-      roleModules = {
-        observability = ./modules/roles/observability-node.nix;
-        lightweight-services = ./modules/roles/lightweight-services.nix;
-        storage-services = ./modules/roles/storage-services.nix;
-        developer-media-services = ./modules/roles/developer-media-services.nix;
-      };
+      roleModules =
+        let
+          modules = {
+            observability = [ ./modules/roles/observability-node.nix ];
+            lightweight-services = [ ./modules/roles/lightweight-services.nix ];
+            application-services = [ ];
+            storage-services = [ ./modules/roles/storage-services.nix ];
+            developer-media-services = [ ./modules/roles/developer-media-services.nix ];
+          };
+        in
+        assert nixpkgs.lib.assertMsg (
+          builtins.attrNames modules == builtins.attrNames fleetTopology.roleAssignments
+        ) "role module lookup must exactly match fleet topology roles";
+        modules;
       modulesForNode =
         nodeId: node:
         hardwareModules.${node.hardwareClass}
@@ -88,9 +96,7 @@
           { fleet.telemetry.enable = true; }
           (./hosts + "/${nodeId}")
         ]
-        ++ map (role: roleModules.${role}) (
-          builtins.filter (role: builtins.hasAttr role roleModules) (fleetTopology.rolesForNode nodeId)
-        );
+        ++ nixpkgs.lib.concatMap (role: roleModules.${role}) (fleetTopology.rolesForNode nodeId);
       nixosConfigurations = nixpkgs.lib.mapAttrs (
         nodeId: node:
         mkHost {

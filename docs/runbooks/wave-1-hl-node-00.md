@@ -300,27 +300,30 @@ replace the bootstrap remote during this wave.
 Run and record every check after a reboot:
 
 ```sh
-ssh root@hl-node-00 'set -eu; systemctl reboot'
+set -eu
+expected_fingerprint='SHA256:AbBRaZDEZOslLc9vS5xIvQjshiizOBBVtFQKhUxuAug'
+known_hosts=$(mktemp)
+trap 'rm -f -- "$known_hosts" "$known_hosts.pub"' EXIT
+ssh-keyscan -t ed25519 hl-node-00 > "$known_hosts"
+ssh-keygen -lf "$known_hosts" > "$known_hosts.pub"
+test "$(wc -l < "$known_hosts.pub")" -eq 1
+test "$(awk 'NR == 1 { print $2 }' "$known_hosts.pub")" = "$expected_fingerprint"
+ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'set -eu; systemctl reboot'
 ping -c 3 10.15.4.6
-ssh root@hl-node-00 'set -eu; findmnt -M /var/lib/telemetry; systemctl --failed --no-legend | grep -q . && exit 1 || :; systemctl is-active prometheus loki tempo grafana opentelemetry-collector comin cloudflared'
-ssh root@hl-node-00 'curl -fsS http://127.0.0.1:9090/-/ready; curl -fsS http://127.0.0.1:3100/ready; curl -fsS http://127.0.0.1:3200/ready; curl -fsS http://127.0.0.1:3000/api/health; curl -fsS http://127.0.0.1:4243/metrics >/dev/null'
+ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'set -eu; ! findmnt -M /var/lib/telemetry; systemctl --failed --no-legend | grep -q . && exit 1 || :; for backend in prometheus loki tempo grafana; do ! systemctl is-active --quiet "$backend"; done; systemctl is-active opentelemetry-collector comin cloudflared'
+ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'curl -fsS http://127.0.0.1:4243/metrics >/dev/null'
 ```
 
-From a disposable test client, send uniquely labelled OTLP metrics, logs, and
-one sampled trace to the `observability` gateway alias, then query Prometheus, Loki, and
-Tempo for those labels. Record queries and non-secret results. Verify configured
-retention and filesystem quotas, fire and resolve each required test alert,
-and save Grafana/comin dashboard URLs. Confirm connector 1 is healthy without
-displaying its credential.
+While the powered USB 3 hub and telemetry SSD remain unavailable, skip backend
+readiness, ingestion, retention, quota, alert, dashboard, backup, and restore
+acceptance. Do not attach, initialize, or format storage without a separate
+destructive-action approval after the powered hub is available. Confirm
+connector 1 is healthy without displaying its credential.
 
-Connect the current Kubernetes cluster only through its approved telemetry
-agent/scrape configuration. Apply no workload changes. Verify targets are up,
-all three signals arrive with cluster identity, and delivery interruption does
-not make workloads depend on telemetry.
-
-Run the documented backup job, verify a new snapshot exists, and perform the
-approved restore rehearsal from `docs/runbooks/backup-restore.md`. Do not claim
-readiness from configuration alone.
+Current-cluster connection and the backup/restore rehearsal remain postponed
+with backend acceptance. After storage is separately approved and accepted,
+connect the cluster only through its approved telemetry agent/scrape
+configuration, then follow `docs/runbooks/backup-restore.md`.
 
 ## 7. Rollback
 

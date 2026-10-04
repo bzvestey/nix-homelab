@@ -214,6 +214,10 @@
           ${nixpkgs.legacyPackages.${system}.bash}/bin/bash ${./checks/no-legacy-hostnames.sh} ${self}
           touch $out
         '';
+        wave-1-runbook = nixpkgs.legacyPackages.${system}.runCommand "wave-1-runbook" { } ''
+          ${nixpkgs.legacyPackages.${system}.bash}/bin/bash ${./checks/wave-1-runbook.sh} ${self}
+          touch $out
+        '';
         fleet-topology = import ./checks/fleet-topology.nix {
           inherit fleetTopology mkFleetTopology selectRoleModules;
           inherit (nixpkgs) lib;

@@ -160,7 +160,11 @@ let
         "observability"
       ];
     assert selectRoleModules moved "hl-node-00" == [ ];
-    assert lib.length (selectRoleModules moved "hl-node-04") == 2;
+    assert
+      selectRoleModules moved "hl-node-04" == [
+        ../modules/roles/developer-media-services.nix
+        ../modules/roles/observability-node.nix
+      ];
     assert
       moved.aliasAddresses == {
         "10.15.4.9" = [ "observability" ];

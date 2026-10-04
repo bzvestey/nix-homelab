@@ -182,7 +182,7 @@ in
     enable = lib.mkEnableOption "fleet OpenTelemetry agent";
     gatewayEndpoint = lib.mkOption {
       type = lib.types.str;
-      default = "http://observability-pi:4320";
+      default = "http://observability:4320";
       description = "OTLP/HTTP gateway endpoint resolved by fleet DNS or Tailscale.";
     };
     prometheusPort = lib.mkOption {

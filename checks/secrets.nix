@@ -69,7 +69,7 @@ let
           ]
           and .creation_rules == [
             {
-              "path_regex": "secrets/hosts/observability-pi/.*\\.yaml$",
+              "path_regex": "secrets/hosts/hl-node-00/.*\\.yaml$",
               "key_groups": [{
                 "age": [
                   "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",

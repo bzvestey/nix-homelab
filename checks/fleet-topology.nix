@@ -3,6 +3,7 @@
   lib,
   mkFleetTopology,
   fleetTopology,
+  selectRoleModules,
 }:
 let
   expectedNodeIds = map (number: "hl-node-0${toString number}") (lib.range 0 4);
@@ -99,7 +100,7 @@ let
   addresses = lib.mapAttrs (_: node: node.address) fleetTopology.nodes;
   moved = mkFleetTopology {
     roleAssignments = expectedRoleAssignments // {
-      observability = "hl-node-01";
+      observability = "hl-node-04";
     };
   };
   duplicateIpNodes = fleetTopology.nodes // {
@@ -151,10 +152,18 @@ let
     assert unknownRole.success == false;
     assert aliasCollision.success == false;
     assert moved.nodes.hl-node-00.address == "10.15.4.6";
-    assert moved.nodes.hl-node-01.address == "10.15.4.4";
+    assert moved.nodes.hl-node-04.address == "10.15.4.9";
+    assert moved.rolesForNode "hl-node-00" == [ ];
+    assert
+      moved.rolesForNode "hl-node-04" == [
+        "developer-media-services"
+        "observability"
+      ];
+    assert selectRoleModules moved "hl-node-00" == [ ];
+    assert lib.length (selectRoleModules moved "hl-node-04") == 2;
     assert
       moved.aliasAddresses == {
-        "10.15.4.4" = [ "observability" ];
+        "10.15.4.9" = [ "observability" ];
       };
     true;
 in

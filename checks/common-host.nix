@@ -129,6 +129,7 @@ let
           };
     in
     assert config.networking.hostName == hostname;
+    assert config.networking.hosts."10.15.4.6" == [ "observability" ];
     assert networkAddresses == [ facts.address ];
     assert selectorsValid;
     assert config.services.openssh.enable;
@@ -155,6 +156,7 @@ let
     assert comin.exporter.listen_address == "0.0.0.0";
     assert comin.exporter.port == 4243;
     assert comin.exporter.openFirewall == false;
+    assert config.fleet.telemetry.gatewayEndpoint == "http://observability:4320";
     assert cominPolicyValid;
     true;
   allHostsValid = lib.all (hostname: checkHost hostname expected.${hostname}) (

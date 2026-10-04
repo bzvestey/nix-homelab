@@ -3,7 +3,12 @@ pkgs.testers.runNixOSTest {
   name = "telemetry-agent";
 
   nodes.agent =
-    { config, lib, ... }:
+    {
+      config,
+      lib,
+      options,
+      ...
+    }:
     {
       imports = [
         ../modules/fleet/telemetry-agent.nix
@@ -63,6 +68,10 @@ pkgs.testers.runNixOSTest {
       environment.systemPackages = [ pkgs.curl ];
 
       assertions = [
+        {
+          assertion = options.fleet.telemetry.gatewayEndpoint.default == "http://observability:4320";
+          message = "the telemetry gateway default must use the observability role alias";
+        }
         {
           assertion =
             !(lib.elem "opentelemetry-collector.service" config.systemd.services.unrelated-application.after);

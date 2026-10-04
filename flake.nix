@@ -84,6 +84,8 @@
           builtins.attrNames modules == builtins.attrNames fleetTopology.roleAssignments
         ) "role module lookup must exactly match fleet topology roles";
         modules;
+      selectRoleModules =
+        topology: nodeId: nixpkgs.lib.concatMap (role: roleModules.${role}) (topology.rolesForNode nodeId);
       modulesForNode =
         nodeId: node:
         hardwareModules.${node.hardwareClass}
@@ -91,12 +93,14 @@
           comin.nixosModules.comin
           ./modules/fleet/base.nix
           ./modules/fleet/networking.nix
+          ./modules/fleet/role-aliases.nix
           ./modules/fleet/comin.nix
           ./modules/fleet/telemetry-agent.nix
           { fleet.telemetry.enable = true; }
+          { _module.args = { inherit fleetTopology; }; }
           (./hosts + "/${nodeId}")
         ]
-        ++ nixpkgs.lib.concatMap (role: roleModules.${role}) (fleetTopology.rolesForNode nodeId);
+        ++ selectRoleModules fleetTopology nodeId;
       nixosConfigurations = nixpkgs.lib.mapAttrs (
         nodeId: node:
         mkHost {
@@ -207,7 +211,7 @@
 
       checks = forAllSystems (system: {
         fleet-topology = import ./checks/fleet-topology.nix {
-          inherit fleetTopology mkFleetTopology;
+          inherit fleetTopology mkFleetTopology selectRoleModules;
           inherit (nixpkgs) lib;
           pkgs = nixpkgs.legacyPackages.${system};
         };

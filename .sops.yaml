@@ -1,30 +1,29 @@
 keys:
   - &administrator age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz
-  - &observability-pi age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec
+  - &hl-node-00 age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec
 
 # Enrollment adds public host recipients here, using the exact anchor printed
 # by fleet-enroll. Never add private keys or generated credentials.
-#   - &framework-01 age1...
-#   - &framework-02 age1...
-#   - &framework-03 age1...
-#   - &observability-pi age1...
-#   - &services-pi age1...
+#   - &hl-node-01 age1...
+#   - &hl-node-02 age1...
+#   - &hl-node-03 age1...
+#   - &hl-node-04 age1...
 
 creation_rules:
   # Add one rule per enrolled host. Keep the administrator and only that host.
-  - path_regex: secrets/hosts/observability-pi/.*\.yaml$
+  - path_regex: secrets/hosts/hl-node-00/.*\.yaml$
     key_groups:
-      - age: [*administrator, *observability-pi]
+      - age: [*administrator, *hl-node-00]
 
-  # - path_regex: secrets/hosts/framework-01/.*\.yaml$
+  # - path_regex: secrets/hosts/hl-node-01/.*\.yaml$
   #   key_groups:
-  #     - age: [*administrator, *framework-01]
+  #     - age: [*administrator, *hl-node-01]
 
   # Connector credentials are readable only by the administrator and enrolled
-  # Raspberry Pi hosts. Add *observability-pi and *services-pi after enrollment.
+  # Raspberry Pi hosts. Add their canonical node anchors after enrollment.
   - path_regex: secrets/pi-connectors/.*\.yaml$
     key_groups:
-      - age: [*administrator, *observability-pi]
+      - age: [*administrator, *hl-node-00]
 
   # Runner credentials are readable only by the administrator and enrolled
   # Framework hosts. Add their anchors after enrollment.

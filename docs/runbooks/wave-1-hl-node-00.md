@@ -23,28 +23,27 @@ activation removes only stale external Pi firmware files before installing the
 managed set. After an interrupted firmware update, do not reboot until that
 activation succeeds.
 
-The reviewed, successfully booted image is from revision
-`f2136979cfa49aee795857b0c536e15711907272`, workflow run `37098600729`, and
-artifact `11267220813`. Later documentation-only revisions do not change that
-image identity and must not be substituted for it. Download and verify it with
-the executable block below. The block binds the archive digest from GitHub
-metadata to the expected digest, workflow run, artifact name, and image
-revision before extraction. It then requires exactly the three expected files,
-exactly one of each manifest field, the exact image revision, and the image
-SHA-256. Do not proceed with a merely self-consistent image/checksum pair from
-another artifact. Artifacts expire after seven days; a failed or missing check
-is a hard stop.
+### Historical pre-rename evidence (non-executable)
 
-```bash
+The reviewed, successfully booted image was produced before the canonical
+identity migration. Its immutable GitHub metadata records revision
+`f2136979cfa49aee795857b0c536e15711907272`, workflow run `37098600729`, and
+artifact `11267220813`. The artifact name and member names below are retained
+verbatim as migration history; this block documents the old evidence and is
+not an active procedure. Task 5 must obtain and pin new canonical CI evidence
+before a canonical artifact is used for installation. Do not substitute new
+names while retaining these immutable IDs or hashes.
+
+```text
 set -euo pipefail
 repo=bzvestey/nix-homelab
 workflow_run=37098600729
 artifact_id=11267220813
 image_revision=f2136979cfa49aee795857b0c536e15711907272
-artifact_name="hl-node-00-$image_revision"
-archive=./hl-node-00-artifact.zip
+artifact_name="observability-pi-$image_revision"
+archive=./observability-pi-artifact.zip
 archive_sha256=faae280f4ace27c640bc5bf89528ba93fa0089a3c1adc3628f2d2774dcade7fa
-artifact_dir=./hl-node-00-artifact
+artifact_dir=./observability-pi-artifact
 image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
 
 metadata=$(gh api "repos/$repo/actions/artifacts/$artifact_id")
@@ -69,8 +68,8 @@ mkdir -- "$artifact_dir"
 mapfile -t members < <(unzip -Z1 "$archive" | LC_ALL=C sort)
 expected_members=(
   "$image_filename"
-  hl-node-00.manifest
-  hl-node-00.sha256
+  observability-pi.manifest
+  observability-pi.sha256
 )
 test "${#members[@]}" -eq "${#expected_members[@]}"
 for i in "${!expected_members[@]}"; do
@@ -78,7 +77,7 @@ for i in "${!expected_members[@]}"; do
 done
 unzip -q "$archive" -d "$artifact_dir"
 
-manifest="$artifact_dir/hl-node-00.manifest"
+manifest="$artifact_dir/observability-pi.manifest"
 mapfile -t manifest_keys < <(cut -d= -f1 "$manifest" | LC_ALL=C sort)
 expected_keys=(git_commit image_store_path nix_output)
 test "${#manifest_keys[@]}" -eq "${#expected_keys[@]}"
@@ -98,13 +97,11 @@ nix_output=$(manifest_value nix_output)
 image_store_path=$(manifest_value image_store_path)
 [[ "$nix_output" = /nix/store/* ]]
 [[ "$image_store_path" = "$nix_output/sd-image/$image_filename" ]]
-(cd "$artifact_dir" && sha256sum -c hl-node-00.sha256)
+(cd "$artifact_dir" && sha256sum -c observability-pi.sha256)
 ```
 
-The run ID and workflow definition are separate GitHub fields; the exact run
-ID and workflow path checks above bind both for this already-reviewed run.
-Retain the verified archive through the flash so its digest can be rechecked
-at the write boundary.
+The historical run ID and workflow definition are separate GitHub fields; the
+recorded checks bound both for that already-reviewed run.
 
 For a local rebuild instead, use the reviewed `main` tree. Jujutsu normally
 places an empty working-copy commit above `main`, so compare trees rather than
@@ -143,9 +140,9 @@ done | sort -u > /tmp/hl-node-00-closure
   \( -name 'ssh_host_*_key' -o -name '*.agekey' -o -name 'id_ed25519' \) -print -quit | grep -q .
 ```
 
-Transfer the image and checksum over an authenticated channel. The reviewed
-artifact procedure above is preferred for this wave; a local rebuild is a new
-image and requires its own review and binding evidence.
+Transfer the locally built image and checksum over an authenticated channel.
+The local rebuild is a new image and requires its own review and binding
+evidence. Once Task 5 pins canonical CI evidence, use that procedure instead.
 
 ## 2. Guarded boot-media flash
 
@@ -154,9 +151,9 @@ The stable boot-media path is
 resolve to the observed whole disk `/dev/sdb`, but `/dev/sdb` alone must never
 be used to select the target. Its currently observed identity is: model
 `MicroSD(2nd Gen)`, serial `FRACCVBZ91544401B2`, exactly `128177930240`
-bytes. Do not write it until the native artifact and hash have been verified.
-Immediately before writing, run this whole block as root. It refuses identity
-drift, mounted children, the system disk, non-removable media, and an
+bytes. Do not write it until the reviewed native image and checksum have been
+verified. Immediately before writing, run this whole block as root. It refuses
+identity drift, mounted children, the system disk, non-removable media, and an
 unverified image hash.
 
 ```bash
@@ -164,13 +161,9 @@ set -euo pipefail
 test "$(id -u)" -eq 0
 stable_device=/dev/disk/by-id/usb-FRMW_MicroSD_2nd_Gen__FRACCVBZ91544401B2-0:0
 expected_device=/dev/sdb
-artifact_dir=./hl-node-00-artifact
-archive=./hl-node-00-artifact.zip
-archive_sha256=faae280f4ace27c640bc5bf89528ba93fa0089a3c1adc3628f2d2774dcade7fa
 image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
-image="$artifact_dir/$image_filename"
-image_sha256=c3ccf4a1b057a8c80cb86da16896a52b3cbe7bd985ef1f144266d5da1ef0bf52
-checksum="$artifact_dir/hl-node-00.sha256"
+image=./result/sd-image/$image_filename
+checksum=./$image_filename.sha256
 
 guard_flash_target() {
   test -L "$stable_device"
@@ -190,9 +183,8 @@ guard_flash_target() {
     system_ancestry=$(lsblk -srno PATH "$system_source")
     ! grep -Fxq "$device" <<<"$system_ancestry"
   done
-  printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum -c -
-  printf '%s  %s\n' "$image_sha256" "$image" | sha256sum -c -
-  (cd "$artifact_dir" && sha256sum -c "$(basename "$checksum")")
+  test -f "$checksum"
+  sha256sum -c "$checksum"
 }
 
 guard_flash_target

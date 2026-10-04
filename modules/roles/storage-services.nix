@@ -1,5 +1,4 @@
-{ ... }:
-{
+_: {
   fleet = {
     telemetry.enable = true;
     storage.nfsMounts = {

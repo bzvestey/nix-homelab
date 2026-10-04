@@ -48,9 +48,13 @@ scan_files 'current inventory' \
   docs/inventory/hosts.md \
   docs/inventory/nfs-mappings.md
 
+mapfile -t inventory_fixtures < <(find checks/fixtures -maxdepth 1 -type f -name '*.json' -print)
+scan_files 'operational inventory fixtures' "${inventory_fixtures[@]}"
+
 while IFS= read -r runbook; do
   matches=$(awk '
-    /^```/ { in_command = !in_command; next }
+    /^```(bash|sh|shell)$/ { in_command = 1; next }
+    /^```$/ { in_command = 0; next }
     in_command { print FNR ":" $0 }
   ' "$runbook" | grep -E "$legacy" || true)
   if [[ -n "$matches" ]]; then

@@ -108,22 +108,22 @@ let
       address = fleetTopology.nodes.hl-node-00.address;
     };
   };
-  duplicateIp = builtins.tryEval ((mkFleetTopology { nodes = duplicateIpNodes; }).validation);
-  unknownRole = builtins.tryEval (
-    (mkFleetTopology {
-      roleAssignments = expectedRoleAssignments // {
-        observability = "hl-node-99";
-      };
-    }).validation
-  );
-  aliasCollision = builtins.tryEval (
-    (mkFleetTopology {
-      roleAliases = {
-        observability = "services";
-        lightweight-services = "services";
-      };
-    }).validation
-  );
+  duplicateIp = builtins.tryEval (mkFleetTopology { nodes = duplicateIpNodes; }).validation;
+  unknownRole =
+    builtins.tryEval
+      (mkFleetTopology {
+        roleAssignments = expectedRoleAssignments // {
+          observability = "hl-node-99";
+        };
+      }).validation;
+  aliasCollision =
+    builtins.tryEval
+      (mkFleetTopology {
+        roleAliases = {
+          observability = "services";
+          lightweight-services = "services";
+        };
+      }).validation;
   contract =
     assert fleetTopology.nodeIds == expectedNodeIds;
     assert lib.all (nodeId: builtins.match "hl-node-[0-9]{2}" nodeId != null) fleetTopology.nodeIds;

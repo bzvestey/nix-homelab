@@ -1,5 +1,4 @@
-{ ... }:
-{
+_: {
   systemd.network.networks."20-lan" = {
     matchConfig = {
       Name = "end0";

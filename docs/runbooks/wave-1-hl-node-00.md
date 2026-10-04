@@ -1,6 +1,6 @@
 # Wave 1: observability Pi
 
-This runbook installs `observability-pi` at `10.15.4.6`. Record evidence in
+This runbook installs `hl-node-00` at `10.15.4.6`. Record evidence in
 the fields at the end without copying credentials, private keys, or decrypted
 secret values. Stop at any failed guard; a device path alone is never an
 identity.
@@ -41,10 +41,10 @@ repo=bzvestey/nix-homelab
 workflow_run=37098600729
 artifact_id=11267220813
 image_revision=f2136979cfa49aee795857b0c536e15711907272
-artifact_name="observability-pi-$image_revision"
-archive=./observability-pi-artifact.zip
+artifact_name="hl-node-00-$image_revision"
+archive=./hl-node-00-artifact.zip
 archive_sha256=faae280f4ace27c640bc5bf89528ba93fa0089a3c1adc3628f2d2774dcade7fa
-artifact_dir=./observability-pi-artifact
+artifact_dir=./hl-node-00-artifact
 image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
 
 metadata=$(gh api "repos/$repo/actions/artifacts/$artifact_id")
@@ -69,8 +69,8 @@ mkdir -- "$artifact_dir"
 mapfile -t members < <(unzip -Z1 "$archive" | LC_ALL=C sort)
 expected_members=(
   "$image_filename"
-  observability-pi.manifest
-  observability-pi.sha256
+  hl-node-00.manifest
+  hl-node-00.sha256
 )
 test "${#members[@]}" -eq "${#expected_members[@]}"
 for i in "${!expected_members[@]}"; do
@@ -78,7 +78,7 @@ for i in "${!expected_members[@]}"; do
 done
 unzip -q "$archive" -d "$artifact_dir"
 
-manifest="$artifact_dir/observability-pi.manifest"
+manifest="$artifact_dir/hl-node-00.manifest"
 mapfile -t manifest_keys < <(cut -d= -f1 "$manifest" | LC_ALL=C sort)
 expected_keys=(git_commit image_store_path nix_output)
 test "${#manifest_keys[@]}" -eq "${#expected_keys[@]}"
@@ -98,7 +98,7 @@ nix_output=$(manifest_value nix_output)
 image_store_path=$(manifest_value image_store_path)
 [[ "$nix_output" = /nix/store/* ]]
 [[ "$image_store_path" = "$nix_output/sd-image/$image_filename" ]]
-(cd "$artifact_dir" && sha256sum -c observability-pi.sha256)
+(cd "$artifact_dir" && sha256sum -c hl-node-00.sha256)
 ```
 
 The run ID and workflow definition are separate GitHub fields; the exact run
@@ -117,13 +117,13 @@ reviewed_revision=REPLACE_WITH_REVIEWED_MAIN_COMMIT
 [[ "$reviewed_revision" =~ ^[0-9a-f]{40}$ ]]
 test "$(jj log -r main -T 'commit_id' --no-graph)" = "$reviewed_revision"
 test -z "$(jj diff --from "$reviewed_revision" --to @ --summary)"
-nix build ".#images.observability-pi"
-nix build ".#nixosConfigurations.observability-pi.config.system.build.toplevel"
+nix build ".#images.hl-node-00"
+nix build ".#nixosConfigurations.hl-node-00.config.system.build.toplevel"
 mapfile -t images < <(find -L result/sd-image -maxdepth 1 -type f -name '*.img.zst' -print)
 test "${#images[@]}" -eq 1
 image=${images[0]}
 sha256sum "$image" | tee "$(basename "$image").sha256"
-nix path-info -S ".#images.observability-pi" ".#nixosConfigurations.observability-pi.config.system.build.toplevel"
+nix path-info -S ".#images.hl-node-00" ".#nixosConfigurations.hl-node-00.config.system.build.toplevel"
 ```
 
 Inspect both closures before transfer. Replace `SECRET_SENTINEL` only with a
@@ -133,13 +133,13 @@ an argument, environment variable, store path, or log.
 ```bash
 set -euo pipefail
 for output in \
-  "$(nix path-info .#images.observability-pi)" \
-  "$(nix path-info .#nixosConfigurations.observability-pi.config.system.build.toplevel)"
+  "$(nix path-info .#images.hl-node-00)" \
+  "$(nix path-info .#nixosConfigurations.hl-node-00.config.system.build.toplevel)"
 do
   nix-store -qR "$output"
-done | sort -u > /tmp/observability-pi-closure
-! grep -RIl --binary-files=without-match 'SECRET_SENTINEL' $(cat /tmp/observability-pi-closure)
-! find -L $(cat /tmp/observability-pi-closure) -type f \
+done | sort -u > /tmp/hl-node-00-closure
+! grep -RIl --binary-files=without-match 'SECRET_SENTINEL' $(cat /tmp/hl-node-00-closure)
+! find -L $(cat /tmp/hl-node-00-closure) -type f \
   \( -name 'ssh_host_*_key' -o -name '*.agekey' -o -name 'id_ed25519' \) -print -quit | grep -q .
 ```
 
@@ -164,13 +164,13 @@ set -euo pipefail
 test "$(id -u)" -eq 0
 stable_device=/dev/disk/by-id/usb-FRMW_MicroSD_2nd_Gen__FRACCVBZ91544401B2-0:0
 expected_device=/dev/sdb
-artifact_dir=./observability-pi-artifact
-archive=./observability-pi-artifact.zip
+artifact_dir=./hl-node-00-artifact
+archive=./hl-node-00-artifact.zip
 archive_sha256=faae280f4ace27c640bc5bf89528ba93fa0089a3c1adc3628f2d2774dcade7fa
 image_filename=nixos-image-sd-card-26.11.20261001.c59305b-aarch64-linux.img.zst
 image="$artifact_dir/$image_filename"
 image_sha256=c3ccf4a1b057a8c80cb86da16896a52b3cbe7bd985ef1f144266d5da1ef0bf52
-checksum="$artifact_dir/observability-pi.sha256"
+checksum="$artifact_dir/hl-node-00.sha256"
 
 guard_flash_target() {
   test -L "$stable_device"
@@ -196,8 +196,8 @@ guard_flash_target() {
 }
 
 guard_flash_target
-read -r -p "Type FLASH observability-pi TO MicroSD(2nd Gen) FRACCVBZ91544401B2: " answer
-test "$answer" = 'FLASH observability-pi TO MicroSD(2nd Gen) FRACCVBZ91544401B2'
+read -r -p "Type FLASH hl-node-00 TO MicroSD(2nd Gen) FRACCVBZ91544401B2: " answer
+test "$answer" = 'FLASH hl-node-00 TO MicroSD(2nd Gen) FRACCVBZ91544401B2'
 # Repeat every destructive guard after confirmation, directly at the write boundary.
 guard_flash_target
 zstdcat -- "$image" | dd of="$device" bs=16M iflag=fullblock oflag=direct conv=fsync status=progress
@@ -233,15 +233,15 @@ set -euo pipefail
 expected_fingerprint='SHA256:AbBRaZDEZOslLc9vS5xIvQjshiizOBBVtFQKhUxuAug'
 known_hosts=$(mktemp)
 trap 'rm -f -- "$known_hosts" "$known_hosts.pub"' EXIT
-ssh-keyscan -t ed25519 10.15.4.6 > "$known_hosts"
+ssh-keyscan -t ed25519 hl-node-00 > "$known_hosts"
 ssh-keygen -lf "$known_hosts" > "$known_hosts.pub"
 test "$(wc -l < "$known_hosts.pub")" -eq 1
 test "$(awk 'NR == 1 { print $2 }' "$known_hosts.pub")" = "$expected_fingerprint"
 ping -c 3 10.15.4.6
 ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes \
-  root@10.15.4.6 'hostnamectl --static; ip -br link; ip route'
+  root@hl-node-00 'hostnamectl --static; ip -br link; ip route'
 ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes \
-  root@10.15.4.6 'for i in /sys/class/net/*; do printf "%s " "$(basename "$i")"; cat "$i/address"; done'
+  root@hl-node-00 'for i in /sys/class/net/*; do printf "%s " "$(basename "$i")"; cat "$i/address"; done'
 ```
 
 The observed wired identity is `end0` at `2c:cf:67:72:a7:20`; `wld0` at
@@ -256,11 +256,13 @@ deferred until the switch port is confirmed and coordinated as a trunk.
 The boot card is `/dev/mmcblk0`, exactly 128,177,930,240 bytes, at stable ID
 `/dev/disk/by-id/mmc-ED2S5_0xb13669d3`; partition 1 is mounted at
 `/boot/firmware`, and partition 2 backs `/` and `/nix/store`. It is not telemetry
-storage. No separate telemetry SSD is attached. Connect a separate
-SSD of at least 2,000,000,000,000 bytes and collect its stable identity:
+storage. No separate telemetry SSD is attached, and a safe powered USB 3 hub
+is an unresolved blocker. Do not attach or initialize telemetry storage until
+that hub is available. Then connect a separate SSD of at least
+2,000,000,000,000 bytes and collect its stable identity:
 
 ```sh
-ssh root@10.15.4.6 'set -eu; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,FSTYPE,MOUNTPOINTS; findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib /var/lib/telemetry 2>/dev/null || true'
+ssh root@hl-node-00 'set -eu; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,FSTYPE,MOUNTPOINTS; findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib /var/lib/telemetry 2>/dev/null || true'
 ```
 
 Record model, serial or WWN, exact bytes, and `/dev/disk/by-id` symlink. Update
@@ -283,13 +285,13 @@ device credentials or unrelated serials.
 ## 5. sops enrollment and comin deployment
 
 On the Pi, `fleet-enroll` reads only the public SSH host key. Add its printed
-public age recipient only to the `observability-pi` host rule and the
+public age recipient only to the `hl-node-00` host rule and the
 `pi-connectors` group in `.sops.yaml`. Rewrap only affected encrypted files;
 inspect metadata-only diffs and never print decrypted content.
 
 ```sh
-ssh root@10.15.4.6 fleet-enroll
-sops updatekeys secrets/hosts/observability-pi/REPLACE.yaml
+ssh root@hl-node-00 fleet-enroll
+sops updatekeys secrets/hosts/hl-node-00/REPLACE.yaml
 sops updatekeys secrets/pi-connectors/REPLACE.yaml
 jj diff --summary
 ```
@@ -306,14 +308,14 @@ replace the bootstrap remote during this wave.
 Run and record every check after a reboot:
 
 ```sh
-ssh root@10.15.4.6 'set -eu; systemctl reboot'
+ssh root@hl-node-00 'set -eu; systemctl reboot'
 ping -c 3 10.15.4.6
-ssh root@10.15.4.6 'set -eu; findmnt -M /var/lib/telemetry; systemctl --failed --no-legend | grep -q . && exit 1 || :; systemctl is-active prometheus loki tempo grafana opentelemetry-collector comin cloudflared'
-ssh root@10.15.4.6 'curl -fsS http://127.0.0.1:9090/-/ready; curl -fsS http://127.0.0.1:3100/ready; curl -fsS http://127.0.0.1:3200/ready; curl -fsS http://127.0.0.1:3000/api/health; curl -fsS http://127.0.0.1:4243/metrics >/dev/null'
+ssh root@hl-node-00 'set -eu; findmnt -M /var/lib/telemetry; systemctl --failed --no-legend | grep -q . && exit 1 || :; systemctl is-active prometheus loki tempo grafana opentelemetry-collector comin cloudflared'
+ssh root@hl-node-00 'curl -fsS http://127.0.0.1:9090/-/ready; curl -fsS http://127.0.0.1:3100/ready; curl -fsS http://127.0.0.1:3200/ready; curl -fsS http://127.0.0.1:3000/api/health; curl -fsS http://127.0.0.1:4243/metrics >/dev/null'
 ```
 
 From a disposable test client, send uniquely labelled OTLP metrics, logs, and
-one sampled trace to the configured gateway, then query Prometheus, Loki, and
+one sampled trace to the `observability` gateway alias, then query Prometheus, Loki, and
 Tempo for those labels. Record queries and non-secret results. Verify configured
 retention and filesystem quotas, fire and resolve each required test alert,
 and save Grafana/comin dashboard URLs. Confirm connector 1 is healthy without

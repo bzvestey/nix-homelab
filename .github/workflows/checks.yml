@@ -50,7 +50,8 @@ jobs:
                   ".#checks.${{ matrix.architecture }}.common-host" \
                   ".#checks.${{ matrix.architecture }}.evaluation" \
                   ".#checks.${{ matrix.architecture }}.inventory" \
-                  ".#checks.${{ matrix.architecture }}.inventory-fixtures"
+                  ".#checks.${{ matrix.architecture }}.inventory-fixtures" \
+                  ".#checks.${{ matrix.architecture }}.no-legacy-hostnames"
               } 2>&1 | tee "$log"
               status=${PIPESTATUS[0]}
               {
@@ -72,7 +73,8 @@ jobs:
                 .#checks.aarch64-linux.common-host \
                 .#checks.aarch64-linux.evaluation \
                 .#checks.aarch64-linux.inventory \
-                .#checks.aarch64-linux.inventory-fixtures
+                .#checks.aarch64-linux.inventory-fixtures \
+                .#checks.aarch64-linux.no-legacy-hostnames
             } 2>&1 | tee "$log"
             status=${PIPESTATUS[0]}
           fi
@@ -102,15 +104,15 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
-            host: framework-01
+            host: hl-node-02
           - runner: ubuntu-24.04
-            host: framework-02
+            host: hl-node-03
           - runner: ubuntu-24.04
-            host: framework-03
+            host: hl-node-04
           - runner: ubuntu-24.04-arm
-            host: observability-pi
+            host: hl-node-00
           - runner: ubuntu-24.04-arm
-            host: services-pi
+            host: hl-node-01
     name: ${{ matrix.host }} closure (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:

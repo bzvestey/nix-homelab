@@ -1,7 +1,7 @@
 {
   "targets": [
     {
-      "name": "framework-01",
+      "name": "hl-node-02",
       "address": "10.15.4.5",
       "architecture": "x86_64-linux",
       "measuredFreeBytes": {
@@ -55,7 +55,7 @@
     {
       "name": "empty-arch",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "example.invalid/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "architectures": [],
       "database": {

@@ -1,7 +1,7 @@
 {
   "targets": [
     {
-      "name": "framework-01",
+      "name": "hl-node-02",
       "address": "10.15.4.5",
       "architecture": "x86_64-linux",
       "measuredFreeBytes": {
@@ -23,12 +23,12 @@
             "model": "Samsung SSD 970 EVO Plus 2TB",
             "serial": "S59CNM0W713317D",
             "capacityBytes": 2000398934016,
-            "stableId": "framework-01:nvme0n1:S59CNM0W713317D",
+            "stableId": "hl-node-02:nvme0n1:S59CNM0W713317D",
             "observedAt": "2026-10-02",
             "evidence": {
               "type": "command-output",
               "command": "block-device-sysfs",
-              "scope": "kubernetes-node/framework-01/sysfs/block/nvme0n1"
+              "scope": "kubernetes-node/hl-node-02/sysfs/block/nvme0n1"
             }
           }
         },
@@ -49,7 +49,7 @@
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "kubernetes-node/framework-01/sysfs/class/net"
+            "scope": "kubernetes-node/hl-node-02/sysfs/class/net"
           }
         },
         "gpu": {
@@ -61,7 +61,7 @@
           "evidence": {
             "type": "command-output",
             "command": "pci-sysfs",
-            "scope": "kubernetes-node/framework-01/sysfs/bus/pci/devices/0000:00:02.0"
+            "scope": "kubernetes-node/hl-node-02/sysfs/bus/pci/devices/0000:00:02.0"
           }
         }
       }

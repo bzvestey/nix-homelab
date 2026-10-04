@@ -3,7 +3,7 @@
   "observedAt": "2026-10-03",
   "targets": [
     {
-      "name": "observability-pi",
+      "name": "hl-node-00",
       "address": "10.15.4.6",
       "architecture": "aarch64-linux",
       "networkSegment": {
@@ -35,7 +35,7 @@
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "observability-pi/sysfs/class/net-and-ip-route"
+            "scope": "hl-node-00/sysfs/class/net-and-ip-route"
           }
         },
         "gpu": {
@@ -50,7 +50,7 @@
       }
     },
     {
-      "name": "framework-01",
+      "name": "hl-node-02",
       "address": "10.15.4.5",
       "architecture": "x86_64-linux",
       "measuredFreeBytes": {
@@ -67,12 +67,12 @@
             "model": "Samsung SSD 970 EVO Plus 2TB",
             "serial": "S59CNM0W713317D",
             "capacityBytes": 2000398934016,
-            "stableId": "framework-01:nvme0n1:S59CNM0W713317D",
+            "stableId": "hl-node-02:nvme0n1:S59CNM0W713317D",
             "observedAt": "2026-10-02",
             "evidence": {
               "type": "command-output",
               "command": "block-device-sysfs",
-              "scope": "kubernetes-node/framework-01/sysfs/block/nvme0n1"
+              "scope": "kubernetes-node/hl-node-02/sysfs/block/nvme0n1"
             }
           }
         },
@@ -93,7 +93,7 @@
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "kubernetes-node/framework-01/sysfs/class/net"
+            "scope": "kubernetes-node/hl-node-02/sysfs/class/net"
           }
         },
         "gpu": {
@@ -105,7 +105,7 @@
           "evidence": {
             "type": "command-output",
             "command": "pci-sysfs",
-            "scope": "kubernetes-node/framework-01/sysfs/bus/pci/devices/0000:00:02.0"
+            "scope": "kubernetes-node/hl-node-02/sysfs/bus/pci/devices/0000:00:02.0"
           }
         }
       },
@@ -116,7 +116,7 @@
       }
     },
     {
-      "name": "framework-02",
+      "name": "hl-node-03",
       "address": "10.15.4.7",
       "architecture": "x86_64-linux",
       "measuredFreeBytes": {
@@ -133,12 +133,12 @@
             "model": "Samsung SSD 980 1TB",
             "serial": "S64ANS0RB36721W",
             "capacityBytes": 1000204886016,
-            "stableId": "framework-02:nvme0n1:S64ANS0RB36721W",
+            "stableId": "hl-node-03:nvme0n1:S64ANS0RB36721W",
             "observedAt": "2026-10-02",
             "evidence": {
               "type": "command-output",
               "command": "block-device-sysfs",
-              "scope": "kubernetes-node/framework-02/sysfs/block/nvme0n1"
+              "scope": "kubernetes-node/hl-node-03/sysfs/block/nvme0n1"
             }
           }
         },
@@ -159,7 +159,7 @@
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "kubernetes-node/framework-02/sysfs/class/net"
+            "scope": "kubernetes-node/hl-node-03/sysfs/class/net"
           }
         },
         "gpu": {
@@ -171,7 +171,7 @@
           "evidence": {
             "type": "command-output",
             "command": "pci-sysfs",
-            "scope": "kubernetes-node/framework-02/sysfs/bus/pci/devices/0000:00:02.0"
+            "scope": "kubernetes-node/hl-node-03/sysfs/bus/pci/devices/0000:00:02.0"
           }
         }
       },
@@ -182,7 +182,7 @@
       }
     },
     {
-      "name": "framework-03",
+      "name": "hl-node-04",
       "address": "10.15.4.9",
       "architecture": "x86_64-linux",
       "measuredFreeBytes": {
@@ -199,12 +199,12 @@
             "model": "Samsung SSD 980 1TB",
             "serial": "S64ANL0T801753P",
             "capacityBytes": 1000204886016,
-            "stableId": "framework-03:nvme0n1:S64ANL0T801753P",
+            "stableId": "hl-node-04:nvme0n1:S64ANL0T801753P",
             "observedAt": "2026-10-02",
             "evidence": {
               "type": "command-output",
               "command": "block-device-sysfs",
-              "scope": "kubernetes-node/framework-03/sysfs/block/nvme0n1"
+              "scope": "kubernetes-node/hl-node-04/sysfs/block/nvme0n1"
             }
           }
         },
@@ -225,7 +225,7 @@
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "kubernetes-node/framework-03/sysfs/class/net"
+            "scope": "kubernetes-node/hl-node-04/sysfs/class/net"
           }
         },
         "gpu": {
@@ -237,7 +237,7 @@
           "evidence": {
             "type": "command-output",
             "command": "pci-sysfs",
-            "scope": "kubernetes-node/framework-03/sysfs/bus/pci/devices/0000:00:02.0"
+            "scope": "kubernetes-node/hl-node-04/sysfs/bus/pci/devices/0000:00:02.0"
           }
         }
       },
@@ -248,7 +248,7 @@
       }
     },
     {
-      "name": "services-pi",
+      "name": "hl-node-01",
       "address": "10.15.4.4",
       "architecture": "aarch64-linux",
       "measuredFreeBytes": {
@@ -266,12 +266,12 @@
             "serial": "0x3a0a638a",
             "capacityBytes": 256355860480,
             "deviceCid": "1b534d4745345335303a0a638aa16a00",
-            "stableId": "services-pi:mmcblk0:1b534d4745345335303a0a638aa16a00",
+            "stableId": "hl-node-01:mmcblk0:1b534d4745345335303a0a638aa16a00",
             "observedAt": "2026-10-02",
             "evidence": {
               "type": "command-output",
               "command": "block-device-sysfs",
-              "scope": "kubernetes-node/services-pi/sysfs/block/mmcblk0"
+              "scope": "kubernetes-node/hl-node-01/sysfs/block/mmcblk0"
             }
           }
         },
@@ -288,7 +288,7 @@
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "kubernetes-node/services-pi/sysfs/class/net"
+            "scope": "kubernetes-node/hl-node-01/sysfs/class/net"
           }
         },
         "gpu": {
@@ -307,7 +307,7 @@
     {
       "id": "comma-feed-data",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/commafeed/data"
       ],
@@ -331,7 +331,7 @@
     {
       "id": "deluge-config",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/config"
       ],
@@ -350,7 +350,7 @@
     {
       "id": "donetick-data",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/donetick_data"
       ],
@@ -374,7 +374,7 @@
     {
       "id": "forgejo-data",
       "placement": "local-copy",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "sourcePaths": [
         "/var/lib/gitea",
         "/var/lib/postgresql/data"
@@ -400,7 +400,7 @@
     {
       "id": "foundry-data",
       "placement": "local-copy",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "sourcePaths": [
         "/home/foundry/app",
         "/home/foundry/data"
@@ -426,7 +426,7 @@
     {
       "id": "homarr-data",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/appdata"
       ],
@@ -450,7 +450,7 @@
     {
       "id": "immich-data",
       "placement": "local-copy",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "sourcePaths": [
         "/usr/src/app/upload",
         "/var/lib/postgresql/data"
@@ -476,7 +476,7 @@
     {
       "id": "jellyfin-config",
       "placement": "local-copy",
-      "targetHost": "framework-02",
+      "targetHost": "hl-node-03",
       "sourcePaths": [
         "/config"
       ],
@@ -500,7 +500,7 @@
     {
       "id": "kavita-config",
       "placement": "local-copy",
-      "targetHost": "framework-02",
+      "targetHost": "hl-node-03",
       "sourcePaths": [
         "/config"
       ],
@@ -524,7 +524,7 @@
     {
       "id": "mealie-data",
       "placement": "local-copy",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "sourcePaths": [
         "/app/data",
         "/var/lib/postgresql/data"
@@ -550,7 +550,7 @@
     {
       "id": "pocket-id-data",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/app/data"
       ],
@@ -574,7 +574,7 @@
     {
       "id": "prowlarr-config",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/config"
       ],
@@ -598,7 +598,7 @@
     {
       "id": "publication-manager-data",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/data",
         "/storage"
@@ -619,7 +619,7 @@
     {
       "id": "radarr-config",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/config"
       ],
@@ -643,7 +643,7 @@
     {
       "id": "sabnzbd-config",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/config"
       ],
@@ -667,7 +667,7 @@
     {
       "id": "sonarr-config",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/config"
       ],
@@ -691,7 +691,7 @@
     {
       "id": "tangled-knot-data",
       "placement": "local-copy",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "sourcePaths": [
         "/data"
       ],
@@ -715,7 +715,7 @@
     {
       "id": "tranquil-pds-data",
       "placement": "local-copy",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "sourcePaths": [
         "/var/lib/tranquil-pds/blobs",
         "/var/lib/postgresql/data"
@@ -741,7 +741,7 @@
     {
       "id": "tuwunel-data",
       "placement": "local-copy",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "sourcePaths": [
         "/var/lib/tuwunel"
       ],
@@ -760,7 +760,7 @@
     {
       "id": "vikunja-data",
       "placement": "local-copy",
-      "targetHost": "framework-02",
+      "targetHost": "hl-node-03",
       "sourcePaths": [
         "/app/vikunja/files",
         "/var/lib/postgresql/data"
@@ -786,7 +786,7 @@
     {
       "id": "wallos-data",
       "placement": "local-copy",
-      "targetHost": "services-pi",
+      "targetHost": "hl-node-01",
       "sourcePaths": [
         "/var/www/html/db",
         "/var/www/html/images/uploads/logos"
@@ -812,7 +812,7 @@
     {
       "id": "whisparr-config",
       "placement": "local-copy",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "sourcePaths": [
         "/config"
       ],
@@ -883,7 +883,7 @@
     {
       "name": "comma-feed",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "docker.io/athou/commafeed@sha256:0e52f2a86c2ae36cb446401292c87ba6ca658fafda64c99bc7e8713ed433d8a3",
       "architectures": [
         "linux/amd64"
@@ -930,7 +930,7 @@
     {
       "name": "deluge",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "docker.io/linuxserver/deluge@sha256:9505c64720afa9e5f0ac1576e660dd6d1e9d4a6733b791f4821e8f496f19f41f",
       "architectures": [
         "linux/amd64"
@@ -960,7 +960,7 @@
     {
       "name": "donetick",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "docker.io/donetick/donetick@sha256:a1cc21dd5a37acb5009009f13e5d2529153049361afb0a1cd94bde312382d36a",
       "architectures": [
         "linux/amd64"
@@ -1012,7 +1012,7 @@
     {
       "name": "forgejo",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "codeberg.org/forgejo/forgejo@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8",
       "architectures": [
         "linux/amd64"
@@ -1065,7 +1065,7 @@
     {
       "name": "foundry",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "ghcr.io/bzvestey/foundry@sha256:5d59c2eabaa4a495171cfa5ca73148aaf76056bd2052e84d978935f80ea32709",
       "architectures": [
         "linux/amd64"
@@ -1093,7 +1093,7 @@
     {
       "name": "homarr",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "ghcr.io/homarr-labs/homarr@sha256:f0fb462299af9749a72f11040fd3f604d1c4976b3d9a137ae5021b7f44d980f5",
       "architectures": [
         "linux/amd64"
@@ -1140,7 +1140,7 @@
     {
       "name": "immich",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "ghcr.io/immich-app/immich-server@sha256:79cc1623323d5894922686d8743b4780181428f98eecbfb58ce12c41ef02d1ea",
       "architectures": [
         "linux/amd64"
@@ -1187,7 +1187,7 @@
     {
       "name": "jellyfin",
       "disposition": "retain",
-      "targetHost": "framework-02",
+      "targetHost": "hl-node-03",
       "image": "ghcr.io/linuxserver/jellyfin@sha256:b0b6d034aa52ed6e1a76daaa3d7ed29039d2b802a50fa8ffd1d9fc8d3fd836c7",
       "architectures": [
         "linux/amd64"
@@ -1235,7 +1235,7 @@
     {
       "name": "kavita",
       "disposition": "retain",
-      "targetHost": "framework-02",
+      "targetHost": "hl-node-03",
       "image": "docker.io/linuxserver/kavita@sha256:2842f1c0882b9d0ce3103420eea0a90b27e4537ff29f87b1471cdd752e936837",
       "architectures": [
         "linux/amd64"
@@ -1283,7 +1283,7 @@
     {
       "name": "mailrise",
       "disposition": "retain",
-      "targetHost": "services-pi",
+      "targetHost": "hl-node-01",
       "image": "docker.io/yoryan/mailrise@sha256:0b8b1ce3447c83b625c9e8896cd9c3db0205590f92ce4d4adaae69729830f52b",
       "architectures": [
         "linux/amd64",
@@ -1315,7 +1315,7 @@
     {
       "name": "mealie",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "ghcr.io/mealie-recipes/mealie@sha256:8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688",
       "architectures": [
         "linux/amd64"
@@ -1367,7 +1367,7 @@
     {
       "name": "pocket-id",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "ghcr.io/pocket-id/pocket-id@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
       "architectures": [
         "linux/amd64"
@@ -1417,7 +1417,7 @@
     {
       "name": "prowlarr",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "ghcr.io/linuxserver/prowlarr@sha256:f2b26429893d4c4cb71941b7ee50b1bdecd9d5f9f9e02d5410615e9f4f7c8d95",
       "architectures": [
         "linux/amd64"
@@ -1464,7 +1464,7 @@
     {
       "name": "publication-manager",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "private-registry/lcp-decryption-plugin@sha256:542e39a5fffc457dd8d3475cb1529b7d5461d720b142ce00133f6f639e32974c",
       "architectures": [
         "linux/amd64"
@@ -1493,7 +1493,7 @@
     {
       "name": "radarr",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "ghcr.io/linuxserver/radarr@sha256:adb6c09d6b729ea5e642c99cea35af72702ef476bf4763f153299ac5db9f0b4f",
       "architectures": [
         "linux/amd64"
@@ -1541,7 +1541,7 @@
     {
       "name": "sabnzbd",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "ghcr.io/linuxserver/sabnzbd@sha256:4f7ee6c53834bc336365bd0a7c35f4fc870156a72d33a334753010258aa077a4",
       "architectures": [
         "linux/amd64"
@@ -1570,7 +1570,7 @@
     {
       "name": "sonarr",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "ghcr.io/linuxserver/sonarr@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06",
       "architectures": [
         "linux/amd64"
@@ -1618,7 +1618,7 @@
     {
       "name": "tangled-knot",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "atcr.io/tangled.org/knot@sha256:6a9246da7b49a8bbe6f84122fd6fc09aac3ae93589b193956873daf33f88faa6",
       "architectures": [
         "linux/amd64"
@@ -1647,7 +1647,7 @@
     {
       "name": "tranquil-pds",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "atcr.io/tranquil.farm/tranquil-pds@sha256:bfbcb3b574bd836e9719012c98b172a8ebea2046acb6a87cb989eeb4f4dba9a4",
       "architectures": [
         "linux/amd64"
@@ -1701,7 +1701,7 @@
     {
       "name": "tuwunel",
       "disposition": "retain",
-      "targetHost": "framework-01",
+      "targetHost": "hl-node-02",
       "image": "docker.io/jevolk/tuwunel@sha256:678b7f5350e06a41614444497c587da9dddf66767e4068a27480402f3c1367d0",
       "architectures": [
         "linux/amd64"
@@ -1751,7 +1751,7 @@
     {
       "name": "vikunja",
       "disposition": "retain",
-      "targetHost": "framework-02",
+      "targetHost": "hl-node-03",
       "image": "docker.io/vikunja/vikunja@sha256:417ada6f94e81f0267aa2f007d0a811fc82d38dd2aa58351e3ea520ca01c2ea5",
       "architectures": [
         "linux/amd64"
@@ -1805,7 +1805,7 @@
     {
       "name": "wallos",
       "disposition": "retain",
-      "targetHost": "services-pi",
+      "targetHost": "hl-node-01",
       "image": "docker.io/bellamy/wallos@sha256:0f049dbab45b9f8e8d43b84fd1b77ef9e55909bd1a384a0f4fe8597ab68a1d5d",
       "architectures": [
         "linux/amd64",
@@ -1854,7 +1854,7 @@
     {
       "name": "whisparr",
       "disposition": "retain",
-      "targetHost": "framework-03",
+      "targetHost": "hl-node-04",
       "image": "ghcr.io/hotio/whisparr@sha256:c60aabe2ab85417e8f23dfc56285a33be413c5336ebe47b8f26eca9e7145540c",
       "architectures": [
         "linux/amd64"

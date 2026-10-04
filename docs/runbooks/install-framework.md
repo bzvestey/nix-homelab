@@ -9,9 +9,9 @@ Task 2 could not observe `/dev/disk/by-id`. Before physical cutover, boot the fi
 Build on x86_64 Linux:
 
 ```console
-nix build .#images.framework-01
-nix build .#images.framework-02
-nix build .#images.framework-03
+nix build .#images.hl-node-02
+nix build .#images.hl-node-03
+nix build .#images.hl-node-04
 ```
 
 ## Authorized physical procedure (pending Task 11)

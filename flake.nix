@@ -210,6 +210,10 @@
       });
 
       checks = forAllSystems (system: {
+        no-legacy-hostnames = nixpkgs.legacyPackages.${system}.runCommand "no-legacy-hostnames" { } ''
+          ${nixpkgs.legacyPackages.${system}.bash}/bin/bash ${./checks/no-legacy-hostnames.sh} ${self}
+          touch $out
+        '';
         fleet-topology = import ./checks/fleet-topology.nix {
           inherit fleetTopology mkFleetTopology selectRoleModules;
           inherit (nixpkgs) lib;
@@ -296,20 +300,20 @@
               (fixture ./checks/fixtures/duplicate-dataset.json [ "schema:duplicate-dataset:shared" ])
               (fixture ./checks/fixtures/amd64-only.json [ "readiness:bad-arch:missing-linux-arm64" ])
               (fixture ./checks/fixtures/oversized.json [
-                "readiness:framework-01:insufficient-measured-free-space"
+                "readiness:hl-node-02:insufficient-measured-free-space"
               ])
               (fixture ./checks/fixtures/missing-evidence.json [
                 "readiness:no-evidence:backup-blocked"
                 "readiness:no-evidence:restore-blocked"
               ])
               (fixture ./checks/fixtures/missing-hardware.json [
-                "schema:framework-01:invalid-hardware-gpu"
-                "schema:framework-01:invalid-hardware-installDisk"
-                "schema:framework-01:invalid-hardware-nic"
+                "schema:hl-node-02:invalid-hardware-gpu"
+                "schema:hl-node-02:invalid-hardware-installDisk"
+                "schema:hl-node-02:invalid-hardware-nic"
               ])
               (fixture ./checks/fixtures/sysfs-hardware.json [
-                "readiness:framework-01:free-bytes-blocked"
-                "readiness:framework-01:installDisk-blocked"
+                "readiness:hl-node-02:free-bytes-blocked"
+                "readiness:hl-node-02:installDisk-blocked"
               ])
               (fixture ./checks/fixtures/malformed-observed-evidence.json [
                 "schema:data:invalid-size"

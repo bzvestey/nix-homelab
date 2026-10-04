@@ -6,8 +6,8 @@ on local filesystems.
 
 | Dataset | TrueNAS source | NixOS target | Hosts | Classification | Consumers |
 | --- | --- | --- | --- | --- | --- |
-| `shared-video-library` | `10.15.4.101:/mnt/spinners-1/videos` | `/mnt/bulk/videos` | `framework-02`, `framework-03` | bulk, shared-retained | Deluge, Jellyfin, Radarr, SABnzbd, Sonarr, Whisparr |
-| `kavita-library` | `10.15.4.101:/mnt/spinners-1/Computer/books` | `/mnt/bulk/books` | `framework-02` | bulk, shared-retained | Kavita |
+| `shared-video-library` | `10.15.4.101:/mnt/spinners-1/videos` | `/mnt/bulk/videos` | `hl-node-03`, `hl-node-04` | bulk, shared-retained | Deluge, Jellyfin, Radarr, SABnzbd, Sonarr, Whisparr |
+| `kavita-library` | `10.15.4.101:/mnt/spinners-1/Computer/books` | `/mnt/bulk/books` | `hl-node-03` | bulk, shared-retained | Kavita |
 
 The source facts come from the read-only legacy OpenTofu configuration:
 `opentofu/modules/pv/main.tf` identifies `tns-1` as the TrueNAS server and

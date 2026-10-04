@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
-      - run: nix build .#checks.x86_64-linux.installers .#images.framework-01 .#images.framework-02 .#images.framework-03
+      - run: nix build .#checks.x86_64-linux.installers .#images.hl-node-02 .#images.hl-node-03 .#images.hl-node-04
 
   raspberry-pi:
     name: Raspberry Pi image (${{ matrix.host }})
@@ -21,8 +21,8 @@ jobs:
       fail-fast: false
       matrix:
         host:
-          - observability-pi
-          - services-pi
+          - hl-node-00
+          - hl-node-01
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -54,26 +54,26 @@ jobs:
             exit "$status"
           fi
       - name: Prepare observability image artifact
-        if: matrix.host == 'observability-pi'
+        if: matrix.host == 'hl-node-00'
         run: |
           set -euo pipefail
-          output=$(readlink -f result-observability-pi)
+          output=$(readlink -f result-hl-node-00)
           mapfile -t images < <(find "$output" -type f -name '*.img.zst' -print)
           test "${#images[@]}" -eq 1
           mkdir artifact
           cp -- "${images[0]}" artifact/
           image="artifact/$(basename "${images[0]}")"
-          (cd artifact && sha256sum "$(basename "$image")" > observability-pi.sha256)
+          (cd artifact && sha256sum "$(basename "$image")" > hl-node-00.sha256)
           {
             printf 'git_commit=%s\n' "$GITHUB_SHA"
             printf 'nix_output=%s\n' "$output"
             printf 'image_store_path=%s\n' "${images[0]}"
-          } > artifact/observability-pi.manifest
+          } > artifact/hl-node-00.manifest
       - name: Upload observability image artifact
-        if: matrix.host == 'observability-pi'
+        if: matrix.host == 'hl-node-00'
         uses: actions/upload-artifact@v4
         with:
-          name: observability-pi-${{ github.sha }}
+          name: hl-node-00-${{ github.sha }}
           path: artifact/
           if-no-files-found: error
           retention-days: 7

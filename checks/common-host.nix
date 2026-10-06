@@ -210,6 +210,7 @@ let
     sysDevBlock = "/sys/dev/block";
     readlink = "${pkgs.coreutils}/bin/readlink";
     stat = "${pkgs.coreutils}/bin/stat";
+    tr = "${pkgs.coreutils}/bin/tr";
     lsblk = "${pkgs.util-linux}/bin/lsblk";
     logGuard = ":";
   };
@@ -221,13 +222,19 @@ let
     case "$name" in
       readlink) echo "$state/dev/sda" ;;
       stat) echo '8 0' ;;
+      tr)
+        [ ! -e "$state/read-fails" ] || exit 3
+        cat
+        ;;
       lsblk)
+        touch "$state/lsblk-called"
         case "$*" in
           *MODEL*) cat "$state/fallback-model" ;;
           *SERIAL*) cat "$state/fallback-serial" ;;
           *) exit 2 ;;
         esac
         ;;
+      mkfs.ext4) touch "$state/mkfs-called" ;;
     esac
   '';
   bridgeGuardToolFor =
@@ -238,8 +245,21 @@ let
     sysDevBlock = "/build/bridge-guard/sys/dev/block";
     readlink = bridgeGuardToolFor "readlink";
     stat = bridgeGuardToolFor "stat";
+    tr = bridgeGuardToolFor "tr";
     lsblk = bridgeGuardToolFor "lsblk";
     logGuard = ":";
+  };
+  resolvedTelemetryInitializer = import ../installers/telemetry-initializer.nix {
+    inherit lib pkgs;
+    targetHost = "hl-node-00";
+    telemetryIdentity = {
+      byId = "/build/bridge-guard/dev/disk/by-id/ata-Samsung";
+      model = "Samsung SSD 970 EVO Plus 2TB";
+      serial = "S6S2NS0W226715A";
+      sectors = 3907029168;
+    };
+    deviceGuard = bridgeGuard;
+    mkfsExt4 = bridgeGuardToolFor "mkfs.ext4";
   };
   telemetryInitializer = import ../installers/telemetry-initializer.nix {
     inherit lib pkgs;
@@ -301,6 +321,17 @@ pkgs.runCommand "common-host" { } ''
     'Samsung SSD 970 EVO Plus 2TB' S6S2NS0W226715A 3907029168 hl-node-00 >/dev/null
   grep -q '^lsblk:' "$bridge/log"
 
+  touch "$bridge/read-fails"
+  rm -f "$bridge/lsblk-called"
+  if ${pkgs.bash}/bin/bash ${bridgeGuard} hl-node-00 "$bridge/dev/disk/by-id/ata-Samsung" \
+    'Samsung SSD 970 EVO Plus 2TB' S6S2NS0W226715A 3907029168 hl-node-00 2>bridge-error; then
+    echo "bridge guard accepted a failed readable sysfs fact" >&2
+    exit 1
+  fi
+  grep -Fx 'refusing: device facts are incomplete' bridge-error
+  test ! -e "$bridge/lsblk-called"
+  rm "$bridge/read-fails"
+
   for mismatch in model serial; do
     printf 'Samsung SSD 970 EVO Plus 2TB\n' > "$bridge/fallback-model"
     printf 'S6S2NS0W226715A\n' > "$bridge/fallback-serial"
@@ -312,6 +343,16 @@ pkgs.runCommand "common-host" { } ''
       exit 1
     fi
     grep -Fx "$mismatch mismatch" < <(sed 's/^refusing: //' bridge-error)
+
+    rm -f "$bridge/mkfs-called"
+    if printf 'hl-node-00\nINITIALIZE TELEMETRY SSD\n' \
+      | ${resolvedTelemetryInitializer}/bin/initialize-telemetry-ssd >initializer-output 2>&1; then
+      echo "initializer accepted bridge fallback mismatched $mismatch" >&2
+      exit 1
+    fi
+    test "$(cat initializer-output)" = "refusing: $mismatch mismatch"
+    ! grep -F 'Type INITIALIZE TELEMETRY SSD' initializer-output
+    test ! -e "$bridge/mkfs-called"
   done
 
   test_selector() {

@@ -3,17 +3,25 @@
   pkgs,
   targetHost,
   telemetryIdentity ? null,
+  deviceGuard ? null,
+  mkfsExt4 ? null,
 }:
 let
-  guard = pkgs.replaceVars ./destructive-device-guard.sh {
-    bash = "${pkgs.bash}/bin/bash";
-    devRoot = "/dev";
-    sysDevBlock = "/sys/dev/block";
-    readlink = "${pkgs.coreutils}/bin/readlink";
-    stat = "${pkgs.coreutils}/bin/stat";
-    lsblk = "${pkgs.util-linux}/bin/lsblk";
-    logGuard = ":";
-  };
+  guard =
+    if deviceGuard == null then
+      pkgs.replaceVars ./destructive-device-guard.sh {
+        bash = "${pkgs.bash}/bin/bash";
+        devRoot = "/dev";
+        sysDevBlock = "/sys/dev/block";
+        readlink = "${pkgs.coreutils}/bin/readlink";
+        stat = "${pkgs.coreutils}/bin/stat";
+        tr = "${pkgs.coreutils}/bin/tr";
+        lsblk = "${pkgs.util-linux}/bin/lsblk";
+        logGuard = ":";
+      }
+    else
+      deviceGuard;
+  mkfs = if mkfsExt4 == null then "${pkgs.e2fsprogs}/bin/mkfs.ext4" else mkfsExt4;
   identity =
     if telemetryIdentity == null then
       {
@@ -64,6 +72,6 @@ pkgs.writeShellApplication {
       ]
     } "$typed_host")
     [ "$boundary_token" = "$token" ] || { echo "device identity changed at format boundary" >&2; exit 1; }
-    mkfs.ext4 -F -L telemetry "$device"
+    ${mkfs} -F -L telemetry "$device"
   '';
 }

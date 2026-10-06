@@ -33,10 +33,16 @@ sys_device=@sysDevBlock@/$major_minor
 [ -e "$sys_device" ] || refuse "resolved block device has no sysfs identity"
 [ ! -e "$sys_device/partition" ] || refuse "resolved target is not a whole block device"
 
-read_fact() { tr -d '\000' <"$1" | sed 's/[[:space:]]*$//'; }
+read_fact() { @tr@ -d '\000' <"$1" | sed 's/[[:space:]]*$//'; }
 [ -r "$sys_device/size" ] || refuse "device facts are incomplete"
-model=$([ -r "$sys_device/device/model" ] && read_fact "$sys_device/device/model" || :)
-serial=$([ -r "$sys_device/device/serial" ] && read_fact "$sys_device/device/serial" || :)
+model=
+if [ -r "$sys_device/device/model" ]; then
+  model=$(read_fact "$sys_device/device/model") || refuse "device facts are incomplete"
+fi
+serial=
+if [ -r "$sys_device/device/serial" ]; then
+  serial=$(read_fact "$sys_device/device/serial") || refuse "device facts are incomplete"
+fi
 if [ -z "$model" ] || [ -z "$serial" ]; then
   model=$(@lsblk@ -dnro MODEL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"
   serial=$(@lsblk@ -dnro SERIAL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"

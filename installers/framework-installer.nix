@@ -26,6 +26,7 @@ let
     sysDevBlock = "${sysRoot}/dev/block";
     readlink = command "readlink" "${pkgs.coreutils}/bin/readlink";
     stat = command "stat" "${pkgs.coreutils}/bin/stat";
+    tr = "${pkgs.coreutils}/bin/tr";
     lsblk = command "lsblk" "${pkgs.util-linux}/bin/lsblk";
     logGuard = command "logGuard" ":";
   };

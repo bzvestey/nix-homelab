@@ -72,6 +72,6 @@ pkgs.writeShellApplication {
       ]
     } "$typed_host")
     [ "$boundary_token" = "$token" ] || { echo "device identity changed at format boundary" >&2; exit 1; }
-    ${mkfs} -F -L telemetry "$device"
+    ${mkfs} -F -O project,quota -L telemetry "$device"
   '';
 }

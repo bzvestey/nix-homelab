@@ -248,6 +248,7 @@ let
   '';
   bridgeGuardToolFor =
     name: pkgs.runCommand "bridge-fixture-${name}" { } ''ln -s ${bridgeGuardTool} "$out"'';
+  fixtureSystemd = pkgs.writeShellScriptBin "udevadm" "exit 0";
   bridgeGuard = pkgs.replaceVars ../installers/destructive-device-guard.sh {
     bash = "${pkgs.bash}/bin/bash";
     devRoot = "/build/bridge-guard/dev";
@@ -270,6 +271,20 @@ let
     deviceGuard = bridgeGuard;
     mkfsExt4 = bridgeGuardToolFor "mkfs.ext4";
   };
+  filesystemTelemetryInitializer = import ../installers/telemetry-initializer.nix {
+    inherit lib;
+    pkgs = pkgs // {
+      systemd = fixtureSystemd;
+    };
+    targetHost = "hl-node-00";
+    telemetryIdentity = {
+      byId = "/build/bridge-guard/dev/disk/by-id/ata-Samsung";
+      model = "Samsung SSD 970 EVO Plus 2TB";
+      serial = "S6S2NS0W226715A";
+      sectors = 3907029168;
+    };
+    deviceGuard = bridgeGuard;
+  };
   initializerMismatchExpect = pkgs.writeText "initializer-mismatch.exp" ''
     set initializer [lindex $argv 0]
     set mismatch [lindex $argv 1]
@@ -280,6 +295,20 @@ let
     set status [lindex [wait] 3]
     if {$status == 0} {
       puts stderr "initializer accepted bridge fallback mismatched $mismatch"
+      exit 1
+    }
+  '';
+  initializerSuccessExpect = pkgs.writeText "initializer-success.exp" ''
+    set initializer [lindex $argv 0]
+    spawn -noecho $initializer
+    expect -exact "Type hl-node-00 to authorize telemetry SSD initialization: "
+    send -- "hl-node-00\r"
+    expect -exact "Type INITIALIZE TELEMETRY SSD: "
+    send -- "INITIALIZE TELEMETRY SSD\r"
+    expect eof
+    set status [lindex [wait] 3]
+    if {$status != 0} {
+      puts stderr "initializer failed with status $status"
       exit 1
     }
   '';
@@ -343,6 +372,13 @@ pkgs.runCommand "common-host" { nativeBuildInputs = [ pkgs.expect ]; } ''
     'Samsung SSD 970 EVO Plus 2TB' S6S2NS0W226715A 3907029168 hl-node-00 >/dev/null
   grep -Fx 'lsblk:-dno MODEL -- /build/bridge-guard/dev/sda' "$bridge/log"
   grep -Fx 'lsblk:-dno SERIAL -- /build/bridge-guard/dev/sda' "$bridge/log"
+
+  truncate -s 64M "$bridge/dev/sda"
+  expect ${initializerSuccessExpect} \
+    ${filesystemTelemetryInitializer}/bin/initialize-telemetry-ssd | tee initializer-transcript
+  ${pkgs.e2fsprogs}/bin/tune2fs -l "$bridge/dev/sda" >filesystem-features
+  grep '^Filesystem features:.*project' filesystem-features
+  grep '^Filesystem features:.*quota' filesystem-features
 
   touch "$bridge/read-fails"
   rm -f "$bridge/lsblk-called"

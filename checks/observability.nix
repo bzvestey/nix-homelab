@@ -22,7 +22,10 @@ pkgs.testers.runNixOSTest {
       enabledCollectors = [ "textfile" ];
       extraFlags = [ "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector" ];
     };
-    virtualisation.emptyDiskImages = [ 2048 ];
+    virtualisation.emptyDiskImages = [
+      2047
+      2048
+    ];
     environment.systemPackages = with pkgs; [
       curl
       jq
@@ -55,13 +58,22 @@ pkgs.testers.runNixOSTest {
     import hashlib
 
     start_all()
-    machine.succeed("mkfs.ext4 -F -L telemetry -O project,quota /dev/vdb")
+    machine.succeed("mkfs.ext4 -F -L telemetry-small -O project,quota /dev/vdb")
+    machine.succeed("mkfs.ext4 -F -L telemetry -O project,quota /dev/vdc")
+    machine.wait_until_succeeds("test -e /dev/disk/by-label/telemetry-small && test -e /dev/disk/by-label/telemetry")
     for unit in ["prometheus", "loki", "tempo", "grafana", "otel-gateway"]:
         machine.fail(f"systemctl is-active {unit}.service")
     machine.wait_for_unit("systemd-tmpfiles-setup.service")
     machine.succeed("mkdir -p /var/lib/telemetry; test -z \"$(find /var/lib/telemetry -mindepth 1 -print -quit)\"")
-    machine.succeed("mkdir -p /var/lib/telemetry; systemd-mount --options=prjquota /dev/vdb /var/lib/telemetry")
+    machine.succeed("mount -o prjquota /dev/disk/by-label/telemetry-small /var/lib/telemetry")
     machine.wait_until_succeeds("findmnt -M /var/lib/telemetry")
+    machine.succeed("test $(blockdev --getsize64 /dev/vdb) -lt 2147483648")
+    machine.fail("systemctl start telemetry-quotas.service")
+    machine.succeed("systemctl reset-failed telemetry-quotas.service; umount /var/lib/telemetry")
+    machine.succeed("mount -o prjquota /dev/disk/by-label/telemetry /var/lib/telemetry")
+    machine.wait_until_succeeds("findmnt -M /var/lib/telemetry")
+    machine.succeed("test $(blockdev --getsize64 /dev/vdc) -ge 2147483648")
+    machine.succeed("test $(df --output=size -B1 /var/lib/telemetry | tail -1) -lt 2147483648")
     machine.succeed("mkdir -p /var/lib/telemetry/prometheus/preexisting/nested; echo adopted > /var/lib/telemetry/prometheus/preexisting/nested/file")
     machine.succeed("mkdir -p /var/lib/telemetry/loki/wrong-project; ${pkgs.e2fsprogs}/bin/chattr -p 9999 /var/lib/telemetry/loki/wrong-project")
     machine.fail("systemctl start telemetry-quotas.service")

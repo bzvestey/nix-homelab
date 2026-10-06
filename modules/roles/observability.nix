@@ -8,6 +8,7 @@ let
   cfg = config.fleet.observability;
   stateRoot = "/var/lib/telemetry";
   gib = 1024 * 1024 * 1024;
+  minimumDeviceBytes = if cfg.testMode then 2 * gib else cfg.storage.minimumFilesystemBytes;
   effectiveBudget =
     name:
     if cfg.testMode then cfg.storage.backends.${name}.testBytes else cfg.storage.backends.${name}.bytes;
@@ -353,9 +354,9 @@ in
         serviceConfig.Type = "oneshot";
         script = ''
           ${pkgs.util-linux}/bin/mountpoint -q ${stateRoot}
-          ${lib.optionalString (!cfg.testMode) ''
-            test "$(${pkgs.coreutils}/bin/df --output=size -B1 ${stateRoot} | tail -1)" -ge ${toString cfg.storage.minimumFilesystemBytes}
-          ''}
+          device=$(${pkgs.util-linux}/bin/findmnt -n -o SOURCE -M ${stateRoot})
+          test -b "$device"
+          test "$(${pkgs.util-linux}/bin/blockdev --getsize64 "$device")" -ge ${toString minimumDeviceBytes}
           ${pkgs.quota}/bin/quotaon -P ${stateRoot} 2>/dev/null || ${pkgs.quota}/bin/quotaon -p ${stateRoot} | grep -q 'project quota on'
           ${quotaCommands}
         '';

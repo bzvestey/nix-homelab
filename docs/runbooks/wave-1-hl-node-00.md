@@ -248,27 +248,36 @@ deferred until the switch port is confirmed and coordinated as a trunk.
 The boot card is `/dev/mmcblk0`, exactly 128,177,930,240 bytes, at stable ID
 `/dev/disk/by-id/mmc-ED2S5_0xb13669d3`; partition 1 is mounted at
 `/boot/firmware`, and partition 2 backs `/` and `/nix/store`. It is not telemetry
-storage. No separate telemetry SSD is attached, and a safe powered USB 3 hub
-is an unresolved blocker. Do not attach or initialize telemetry storage until
-that hub is available. Then connect a separate SSD of at least
-2,000,000,000,000 bytes and collect its stable identity:
+storage. The telemetry SSD is now attached through a powered USB 3/UAS path at
+`/dev/disk/by-id/ata-Samsung_SSD_970_EVO_Plus_2TB_S6S2NS0W226715A`. Its pinned
+tuple is model `Samsung SSD 970 EVO Plus 2TB`, serial `S6S2NS0W226715A`, and
+exactly 3,907,029,168 512-byte sectors (2,000,398,934,016 bytes). Revalidate all
+of those facts immediately before seeking destructive approval:
 
 ```sh
 ssh root@hl-node-00 'set -eu; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,FSTYPE,MOUNTPOINTS; findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib /var/lib/telemetry 2>/dev/null || true'
 ```
 
-Record model, serial or WWN, exact bytes, and `/dev/disk/by-id` symlink. Update
-`telemetryIdentity` with that tuple (capacity represented by its exact sector
-count), rebuild natively, and rerun installer safety checks. On the Pi, first
-prove the unresolved image refuses `initialize-telemetry-ssd`; after deploying
-the pinned build, run it interactively. Do not pipe confirmations. It must
-locate the disk by the pinned tuple and revalidate at the format boundary.
+The drive's ATA by-id is intentionally pinned instead of the observed Sabrent
+USB bridge ID because the ATA identity follows the physical SSD rather than
+the enclosure. Read-only inspection on 2026-10-06 found the disk unmounted,
+SMART overall passed, no critical warning, 37 C, 100% spare, 0% used, and no
+media/data-integrity or logged errors. It also found about 826 GB of old data
+and existing Windows recovery, Microsoft data, and EFI partitions. Do not use
+their mutable GPT/PTUUID or filesystem identifiers in the guard.
+
+The pinned tuple is not destructive approval. Before using the initializer,
+obtain separate explicit approval to erase all old data, rebuild the image on
+native ARM64, rerun installer safety checks, and repeat the read-only identity,
+mount, and health checks. Run it interactively and do not pipe confirmations.
+It must locate the whole disk by the pinned tuple and revalidate it at the
+format boundary before `mkfs`.
 
 ```sh
 initialize-telemetry-ssd
 findmnt -M /var/lib/telemetry -o SOURCE,TARGET,FSTYPE,OPTIONS
 lsblk -f
-smartctl -x /dev/disk/by-id/REPLACE_WITH_OBSERVED_STABLE_ID
+smartctl -x /dev/disk/by-id/ata-Samsung_SSD_970_EVO_Plus_2TB_S6S2NS0W226715A
 ```
 
 Record the filesystem UUID and a redacted SMART health baseline. Never record
@@ -314,10 +323,10 @@ ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-no
 ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'curl -fsS http://127.0.0.1:4243/metrics >/dev/null'
 ```
 
-While the powered USB 3 hub and telemetry SSD remain unavailable, skip backend
-readiness, ingestion, retention, quota, alert, dashboard, backup, and restore
-acceptance. Do not attach, initialize, or format storage without a separate
-destructive-action approval after the powered hub is available. Confirm
+Until telemetry initialization receives separate destructive approval and is
+completed, skip backend readiness, ingestion, retention, quota, alert,
+dashboard, backup, and restore acceptance. Do not initialize or format the
+SSD merely because its exact tuple is pinned. Confirm
 connector 1 is healthy without displaying its credential.
 
 Current-cluster connection and the backup/restore rehearsal remain postponed

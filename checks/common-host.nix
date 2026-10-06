@@ -3,7 +3,9 @@
   lib,
   nixosConfigurations,
   piImageConfigurations,
+  piPkgs,
   pkgs,
+  telemetryIdentities,
 }:
 let
   adminKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMpx0yPdFPKUFBLn6OKJJAyqnlvoLmll4m97l/YMLu8 bryan@vestey.dev";
@@ -174,6 +176,16 @@ let
     piImageConfigurations.${hostName}.config.services.comin.package.drvPath
     == (cominPackageFor "aarch64-linux").drvPath
   ) (builtins.attrNames piImageConfigurations);
+  telemetryIdentityWiringValid =
+    telemetryIdentities == {
+      hl-node-00 = {
+        byId = "/dev/disk/by-id/ata-Samsung_SSD_970_EVO_Plus_2TB_S6S2NS0W226715A";
+        model = "Samsung SSD 970 EVO Plus 2TB";
+        serial = "S6S2NS0W226715A";
+        sectors = 3907029168;
+      };
+      hl-node-01 = null;
+    };
   cominHost =
     if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "hl-node-01" else "hl-node-02";
   deployedCominPackage = nixosConfigurations.${cominHost}.config.services.comin.package;
@@ -204,10 +216,27 @@ let
     targetHost = "hl-node-00";
     telemetryIdentity = null;
   };
+  expectedTelemetryInitializer = import ../installers/telemetry-initializer.nix {
+    inherit lib;
+    pkgs = piPkgs;
+    targetHost = "hl-node-00";
+    telemetryIdentity = telemetryIdentities.hl-node-00;
+  };
+  imageTelemetryInitializers =
+    hostName:
+    lib.filter (
+      package: lib.getName package == "initialize-telemetry-ssd"
+    ) piImageConfigurations.${hostName}.config.environment.systemPackages;
+  productionTelemetryWiringValid =
+    map (package: package.drvPath) (imageTelemetryInitializers "hl-node-00")
+    == [ expectedTelemetryInitializer.drvPath ]
+    && imageTelemetryInitializers "hl-node-01" == [ ];
 in
 assert allHostsValid;
 assert allHostsUseCorrectedComin;
 assert allPiImagesUseCorrectedComin;
+assert telemetryIdentityWiringValid;
+assert productionTelemetryWiringValid;
 assert deployedCominPackage.system == pkgs.stdenv.hostPlatform.system;
 pkgs.runCommand "common-host" { } ''
   test -e ${cominExecutableTests}

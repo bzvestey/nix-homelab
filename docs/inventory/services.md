@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "observedAt": "2026-10-03",
+  "observedAt": "2026-10-06",
   "targets": [
     {
       "name": "hl-node-00",
@@ -13,14 +13,24 @@
       },
       "measuredFreeBytes": {
         "status": "blocked",
-        "reason": "no separate telemetry SSD is attached, so telemetry filesystem free bytes are unavailable",
+        "reason": "the observed telemetry SSD is unmounted and retains old Windows data; telemetry filesystem free bytes are unavailable until separately approved initialization",
         "collectionCommand": "findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib/telemetry 2>/dev/null || df -B1 --output=source,target,avail / /var/lib/telemetry"
       },
       "hardware": {
         "installDisk": {
-          "status": "blocked",
-          "reason": "no separate >=2 TB telemetry SSD is connected; controller /dev/sdb is a 128177930240-byte MicroSD boot-media candidate and is explicitly ineligible",
-          "collectionCommand": "lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS"
+          "status": "observed",
+          "model": "Samsung SSD 970 EVO Plus 2TB",
+          "serial": "S6S2NS0W226715A",
+          "capacityBytes": 2000398934016,
+          "byIdPath": "/dev/disk/by-id/ata-Samsung_SSD_970_EVO_Plus_2TB_S6S2NS0W226715A",
+          "stableId": "/dev/disk/by-id/ata-Samsung_SSD_970_EVO_Plus_2TB_S6S2NS0W226715A",
+          "observedAt": "2026-10-06",
+          "evidence": {
+            "type": "command-output",
+            "command": "lsblk-json",
+            "scope": "hl-node-00/whole-disk-telemetry-ssd"
+          },
+          "warning": "unmounted disk contains old Windows recovery, Microsoft data, and EFI partitions; initialization requires separate destructive approval and will erase them"
         },
         "nic": {
           "status": "observed",

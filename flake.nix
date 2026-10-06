@@ -139,6 +139,15 @@
             ./installers/framework-iso.nix
           ];
         }).config.system.build.isoImage;
+      telemetryIdentities = {
+        hl-node-00 = {
+          byId = "/dev/disk/by-id/ata-Samsung_SSD_970_EVO_Plus_2TB_S6S2NS0W226715A";
+          model = "Samsung SSD 970 EVO Plus 2TB";
+          serial = "S6S2NS0W226715A";
+          sectors = 3907029168;
+        };
+        hl-node-01 = null;
+      };
       mkPiImageConfiguration =
         targetHost:
         let
@@ -151,7 +160,7 @@
             {
               _module.args = {
                 inherit targetHost;
-                telemetryIdentity = null;
+                telemetryIdentity = telemetryIdentities.${targetHost};
               };
               imports = [ ./installers/rpi-image.nix ];
             }
@@ -270,9 +279,10 @@
           fleetEnroll = self.packages.${system}.fleet-enroll;
         };
         common-host = import ./checks/common-host.nix {
-          inherit nixosConfigurations piImageConfigurations;
+          inherit nixosConfigurations piImageConfigurations telemetryIdentities;
           inherit (nixpkgs) lib;
           cominPackageFor = cominPackage;
+          piPkgs = nixpkgs.legacyPackages.aarch64-linux;
           pkgs = nixpkgs.legacyPackages.${system};
         };
         evaluation = import ./checks/evaluation.nix {

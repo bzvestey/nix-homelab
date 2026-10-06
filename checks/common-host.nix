@@ -228,9 +228,18 @@ let
         ;;
       lsblk)
         touch "$state/lsblk-called"
-        case "$*" in
-          *MODEL*) cat "$state/fallback-model" ;;
-          *SERIAL*) cat "$state/fallback-serial" ;;
+        raw=false
+        column=
+        for arg in "$@"; do
+          case "$arg" in
+            --raw | -[!-]*r*) raw=true ;;
+            MODEL | SERIAL) column="$arg" ;;
+          esac
+        done
+        case "$column:$raw" in
+          MODEL:true) sed 's/ /\\x20/g' "$state/fallback-model" ;;
+          MODEL:false) cat "$state/fallback-model" ;;
+          SERIAL:*) cat "$state/fallback-serial" ;;
           *) exit 2 ;;
         esac
         ;;
@@ -332,7 +341,8 @@ pkgs.runCommand "common-host" { nativeBuildInputs = [ pkgs.expect ]; } ''
   : > "$bridge/log"
   ${pkgs.bash}/bin/bash ${bridgeGuard} hl-node-00 "$bridge/dev/disk/by-id/ata-Samsung" \
     'Samsung SSD 970 EVO Plus 2TB' S6S2NS0W226715A 3907029168 hl-node-00 >/dev/null
-  grep -q '^lsblk:' "$bridge/log"
+  grep -Fx 'lsblk:-dno MODEL -- /build/bridge-guard/dev/sda' "$bridge/log"
+  grep -Fx 'lsblk:-dno SERIAL -- /build/bridge-guard/dev/sda' "$bridge/log"
 
   touch "$bridge/read-fails"
   rm -f "$bridge/lsblk-called"

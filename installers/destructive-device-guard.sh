@@ -44,8 +44,8 @@ if [ -r "$sys_device/device/serial" ]; then
   serial=$(read_fact "$sys_device/device/serial") || refuse "device facts are incomplete"
 fi
 if [ -z "$model" ] || [ -z "$serial" ]; then
-  model=$(@lsblk@ -dnro MODEL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"
-  serial=$(@lsblk@ -dnro SERIAL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"
+  model=$(@lsblk@ -dno MODEL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"
+  serial=$(@lsblk@ -dno SERIAL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"
 fi
 sectors=$(read_fact "$sys_device/size")
 [ -n "$model" ] && [ -n "$serial" ] || refuse "device facts are incomplete"

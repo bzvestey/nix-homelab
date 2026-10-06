@@ -149,6 +149,27 @@ let
       hostname != "hl-node-00"
       ||
         config.sops.secrets."cloudflared-tunnel.json".sopsFile == ../secrets/pi-connectors/cloudflared.yaml;
+    assert
+      hostname != "hl-node-00"
+      ||
+        lib.all
+          (
+            name:
+            config.sops.secrets.${name}.sopsFile == ../secrets/hosts/hl-node-00/bootstrap.yaml
+            && config.sops.secrets.${name}.path == "/run/secrets/${name}"
+            && config.sops.secrets.${name}.mode == "0400"
+            && config.sops.secrets.${name}.owner == null
+            && config.sops.secrets.${name}.uid == 0
+          )
+          [
+            "tailscale-auth-key"
+            "restic-repository"
+            "restic-password"
+            "restic-s3-credentials"
+          ];
+    assert
+      hostname != "hl-node-00"
+      || config.fleet.backup.s3CredentialsFile == "/run/secrets/restic-s3-credentials";
     assert hostname != "hl-node-01" || !(config.sops.secrets ? "cloudflared-tunnel.json");
     assert config.networking.firewall.enable;
     assert config.networking.nftables.enable;

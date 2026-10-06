@@ -15,6 +15,7 @@ pkgs.testers.runNixOSTest {
     fleet.backup = {
       repositoryFile = "/run/observability-test/restic-repository";
       passwordFile = "/run/observability-test/restic-password";
+      s3CredentialsFile = "/run/observability-test/restic-s3-credentials";
     };
     services.prometheus.exporters.node = {
       enable = true;
@@ -137,7 +138,23 @@ pkgs.testers.runNixOSTest {
     machine.succeed(f"curl -fsS -u '{auth}' 'http://127.0.0.1:3000/api/search?type=dash-db' | jq -e 'map(.uid) | sort == [\"backups\",\"comin\",\"fleet\",\"ingress\",\"postgres\",\"storage\"]'")
     machine.succeed("test -s /var/lib/telemetry/grafana/admin-password")
     machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q TelemetryRefusedOrDropped")
+    machine.succeed("mkdir -p /var/lib/node_exporter/textfile_collector; printf '%s\\n' 'otelcol_receiver_refused_spans 0' 'otelcol_receiver_refused_log_records 0' > /var/lib/node_exporter/textfile_collector/otel-colliding-labels.prom")
+    machine.wait_until_succeeds("curl -GfsS --data-urlencode 'query=count({__name__=~\"otelcol_receiver_refused_(spans|log_records)\"})' http://127.0.0.1:9090/api/v1/query | jq -e '.data.result[0].value[1] == \"2\"'", timeout=30)
+    previous_evaluation = machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -r '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .lastEvaluation'").strip()
+    machine.wait_until_succeeds(f"curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .lastEvaluation != \"{previous_evaluation}\"'", timeout=90)
+    machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .health == \"ok\" and .state == \"inactive\"'")
+    machine.succeed("printf '%s\\n' 'otelcol_receiver_refused_spans 3' 'otelcol_receiver_refused_log_records 7' > /var/lib/node_exporter/textfile_collector/otel-colliding-labels.prom")
+    machine.wait_until_succeeds("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .health == \"ok\" and .state == \"firing\"'", timeout=90)
     machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q TelemetryDisk75Percent; curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q TelemetryDisk85Percent")
+    machine.succeed("mkdir -p /run/observability-test")
+    credentials = ["restic-repository", "restic-password", "restic-s3-credentials"]
+    for missing in credentials:
+        for present in credentials:
+            machine.succeed(f"touch /run/observability-test/{present}")
+        machine.succeed(f"rm /run/observability-test/{missing}")
+        for unit in ["fleet-backup-grafana-state", "fleet-backup-check"]:
+            machine.succeed(f"systemctl reset-failed {unit}; systemctl start {unit}; systemctl show {unit} -p Result --value | grep -qx exec-condition")
+    machine.succeed("printf '%s\\n' '[default]' 'aws_access_key_id = fixture-access' 'aws_secret_access_key = fixture-secret' > /run/observability-test/restic-s3-credentials")
     machine.succeed("mkdir -p /run/observability-test /var/lib/restic-test; printf '%s\\n' /var/lib/restic-test > /run/observability-test/restic-repository; printf '%s\\n' test-password > /run/observability-test/restic-password; RESTIC_REPOSITORY=/var/lib/restic-test RESTIC_PASSWORD_FILE=/run/observability-test/restic-password restic init")
     machine.succeed("sqlite3 /var/lib/telemetry/grafana/grafana.db \"create table if not exists task9_fixture(value text); delete from task9_fixture; insert into task9_fixture values ('restorable');\"")
     machine.succeed("systemctl start fleet-backup-grafana-state.service")

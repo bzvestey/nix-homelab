@@ -107,6 +107,15 @@ let
           ]
         ' <<<"$credential_json"
         ! grep -Eq 'AccountTag|TunnelSecret|TunnelID|(^|[[:space:]])[ast]:' ${connectorCredentialFile}
+        bootstrap_json=$(yq --output-format=json '.' ${../secrets/hosts/hl-node-00/bootstrap.yaml})
+        jq -e '
+          (keys | sort) == ["restic-password", "restic-repository", "restic-s3-credentials", "sops", "tailscale-auth-key"]
+          and (del(.sops) | all(.[]; startswith("ENC[AES256_GCM,")))
+          and [.sops.age[].recipient] == [
+            "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+            "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
+          ]
+        ' <<<"$bootstrap_json"
         touch $out
       '';
 

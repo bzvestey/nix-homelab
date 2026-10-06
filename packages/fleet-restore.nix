@@ -15,6 +15,7 @@
   jobs,
   repositoryFile,
   passwordFile,
+  s3CredentialsFile ? null,
   stateDirectory ? "/var/lib/fleet-backup",
   metricsDirectory ? "/var/lib/node_exporter/textfile_collector",
   cgroupRoot ? "/sys/fs/cgroup",
@@ -50,6 +51,10 @@ let
     password_file=${lib.escapeShellArg passwordFile}
     load_credentials() {
       [ -r "$repository_file" ] && [ -r "$password_file" ] || { echo "fleet backup: credential files are not readable" >&2; return 1; }
+      ${lib.optionalString (s3CredentialsFile != null) ''
+        [ -r ${lib.escapeShellArg s3CredentialsFile} ] || { echo "fleet backup: S3 credential file is not readable" >&2; return 1; }
+        export AWS_SHARED_CREDENTIALS_FILE=${lib.escapeShellArg s3CredentialsFile} AWS_PROFILE=default
+      ''}
       mkdir -p "$state_root/cache"
       export RESTIC_REPOSITORY RESTIC_PASSWORD_FILE="$password_file" RESTIC_CACHE_DIR="$state_root/cache"
       RESTIC_REPOSITORY=$(cat "$repository_file")

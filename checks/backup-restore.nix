@@ -5,6 +5,8 @@ let
     name = "restic";
     runtimeInputs = [ pkgs.coreutils ];
     text = ''
+      test "''${AWS_SHARED_CREDENTIALS_FILE:-}" = ${root}/s3-credentials
+      test "$(cat "$AWS_SHARED_CREDENTIALS_FILE")" = garage-fixture-credentials
       echo "restic:$*" >> ${root}/log
       case "$1" in
         backup)
@@ -183,6 +185,7 @@ let
     systemd = fakeSystemd;
     repositoryFile = "${root}/repository";
     passwordFile = "${root}/password";
+    s3CredentialsFile = "${root}/s3-credentials";
     stateDirectory = "${root}/state";
     metricsDirectory = "${root}/metrics";
     cgroupRoot = "${root}/cgroup";
@@ -249,6 +252,8 @@ pkgs.runCommand "backup-restore-tests"
         printf original >${root}/source/data
         printf repository >${root}/repository
         printf password >${root}/password
+        printf garage-fixture-credentials >${root}/s3-credentials
+        unset AWS_SHARED_CREDENTIALS_FILE
 
         # The module executes this same generated production program.
         grep -F '/bin/fleet-backup-run files' ${pkgs.writeText "exec" evaluated.config.systemd.services.fleet-backup-files.serviceConfig.ExecStart}
@@ -256,6 +261,13 @@ pkgs.runCommand "backup-restore-tests"
         grep -F 'restic:forget --tag fleet-job=files --group-by tags --keep-hourly 24 --keep-daily 30 --keep-monthly 12 --prune' ${root}/log
         grep -F 'fleet_backup_result{job="files",class="state"} 1' ${root}/metrics/fleet_backup_files.prom
         test "$(cat ${root}/state/files/last-good/payload/data)" = original
+
+        # Missing S3 credentials refuse both entry points before repository work.
+        mv ${root}/s3-credentials ${root}/s3-credentials.saved; : >${root}/log
+        ${tools}/bin/fleet-backup-run files && exit 1 || true
+        ${tools}/bin/fleet-restore files --rehearsal && exit 1 || true
+        ! grep -F 'restic:' ${root}/log
+        mv ${root}/s3-credentials.saved ${root}/s3-credentials
 
         # Partial export and repository failures preserve last-good, never prune,
         # retain diagnostics, and enforce the configured generation bound.

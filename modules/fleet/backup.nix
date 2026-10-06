@@ -92,20 +92,27 @@ let
     };
   };
   tools = pkgs.callPackage ../../packages/fleet-restore.nix {
-    inherit (cfg) jobs passwordFile repositoryFile;
+    inherit (cfg)
+      jobs
+      passwordFile
+      repositoryFile
+      s3CredentialsFile
+      ;
   };
+  credentialChecks = map (path: "${pkgs.coreutils}/bin/test -r ${lib.escapeShellArg path}") (
+    [
+      cfg.repositoryFile
+      cfg.passwordFile
+    ]
+    ++ lib.optional (cfg.s3CredentialsFile != null) cfg.s3CredentialsFile
+  );
   mkService = name: _: {
     description = "Verified fleet backup for ${name}";
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${tools}/bin/fleet-backup-run ${lib.escapeShellArg name}";
       StateDirectory = "fleet-backup";
-    };
-    unitConfig = {
-      ConditionPathIsReadable = [
-        cfg.repositoryFile
-        cfg.passwordFile
-      ];
+      ExecCondition = credentialChecks;
     };
   };
   mkTimer = name: job: {
@@ -131,6 +138,11 @@ in
       default = "/run/secrets/restic-password";
       description = "Runtime restic password file.";
     };
+    s3CredentialsFile = lib.mkOption {
+      type = lib.types.nullOr (lib.types.strMatching "^/.*");
+      default = null;
+      description = "Runtime AWS shared credentials INI file used by backups, checks, and manual restores.";
+    };
     jobs = lib.mkOption {
       type = lib.types.attrsOf jobType;
       default = { };
@@ -148,11 +160,8 @@ in
           serviceConfig = {
             ExecStart = "${tools}/bin/fleet-backup-check";
             StateDirectory = "fleet-backup";
+            ExecCondition = credentialChecks;
           };
-          unitConfig.ConditionPathIsReadable = [
-            cfg.repositoryFile
-            cfg.passwordFile
-          ];
         };
       };
     systemd.timers =

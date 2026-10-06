@@ -267,14 +267,19 @@ and existing Windows recovery, Microsoft data, and EFI partitions. Do not use
 their mutable GPT/PTUUID or filesystem identifiers in the guard.
 
 The pinned tuple is not destructive approval. Before using the initializer,
-obtain separate explicit approval to erase all old data, rebuild the image on
-native ARM64, rerun installer safety checks, and repeat the read-only identity,
-mount, and health checks. Run it interactively and do not pipe confirmations.
-It must locate the whole disk by the pinned tuple and revalidate it at the
-format boundary before `mkfs`.
+obtain separate explicit approval to erase all old data, verify the approved
+repository commit and its signature, rerun installer safety checks, and repeat
+the read-only identity, mount, and health checks. On the already deployed Pi,
+run the package from that immutable commit rather than mutable `main`. Run it
+interactively and do not pipe either confirmation. It must locate the whole
+disk by the pinned tuple and revalidate it at the format boundary before
+`mkfs`.
 
 ```sh
-initialize-telemetry-ssd
+approved_revision=REPLACE_WITH_APPROVED_40_CHARACTER_COMMIT
+[[ "$approved_revision" =~ ^[0-9a-f]{40}$ ]]
+nix run "github:bzvestey/nix-homelab/$approved_revision#initialize-telemetry-ssd"
+# At the prompts, type hl-node-00, then separately type INITIALIZE TELEMETRY SSD.
 findmnt -M /var/lib/telemetry -o SOURCE,TARGET,FSTYPE,OPTIONS
 lsblk -f
 smartctl -x /dev/disk/by-id/ata-Samsung_SSD_970_EVO_Plus_2TB_S6S2NS0W226715A

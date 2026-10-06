@@ -148,6 +148,14 @@
         };
         hl-node-01 = null;
       };
+      mkTelemetryInitializer =
+        system:
+        import ./installers/telemetry-initializer.nix {
+          inherit (nixpkgs) lib;
+          pkgs = nixpkgs.legacyPackages.${system};
+          targetHost = "hl-node-00";
+          telemetryIdentity = telemetryIdentities.hl-node-00;
+        };
       mkPiImageConfiguration =
         targetHost:
         let
@@ -195,6 +203,7 @@
           repositoryFile = "/run/secrets/restic-repository";
           passwordFile = "/run/secrets/restic-password";
         };
+        initialize-telemetry-ssd = mkTelemetryInitializer system;
       });
 
       apps = forAllSystems (system: {
@@ -284,6 +293,7 @@
           cominPackageFor = cominPackage;
           piPkgs = nixpkgs.legacyPackages.aarch64-linux;
           pkgs = nixpkgs.legacyPackages.${system};
+          telemetryInitializerPackage = self.packages.aarch64-linux.initialize-telemetry-ssd;
         };
         evaluation = import ./checks/evaluation.nix {
           inherit images nixosConfigurations;

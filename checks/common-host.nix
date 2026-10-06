@@ -5,6 +5,7 @@
   piImageConfigurations,
   piPkgs,
   pkgs,
+  telemetryInitializerPackage,
   telemetryIdentities,
 }:
 let
@@ -230,6 +231,7 @@ let
   productionTelemetryWiringValid =
     map (package: package.drvPath) (imageTelemetryInitializers "hl-node-00")
     == [ expectedTelemetryInitializer.drvPath ]
+    && telemetryInitializerPackage.drvPath == expectedTelemetryInitializer.drvPath
     && imageTelemetryInitializers "hl-node-01" == [ ];
 in
 assert allHostsValid;

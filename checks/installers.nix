@@ -49,6 +49,10 @@ let
             true
             ;;
           lsblk)
+            if [[ "$*" == *'-dnro MODEL'* || "$*" == *'-dnro SERIAL'* ]]; then
+              touch "$state/fallback-called"
+              exit 2
+            fi
             cat <<EOF
     $state/dev/nvme0n1p1 259:1 framework-root
     $state/dev/nvme0n1p2 259:2 framework-data
@@ -171,5 +175,6 @@ pkgs.runCommand "installer-safety-tests"
     export PROD_01=${productionInstaller}
     test -s ${evaluatedDiskConfig}
     bash ${./installer-safety-tests.sh}
+    test ! -e /build/fixture/fallback-called
     touch "$out"
   ''

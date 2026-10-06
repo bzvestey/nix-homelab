@@ -260,7 +260,9 @@ ssh root@hl-node-00 'set -eu; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE
 
 The drive's ATA by-id is intentionally pinned instead of the observed Sabrent
 USB bridge ID because the ATA identity follows the physical SSD rather than
-the enclosure. Read-only inspection on 2026-10-06 found the disk unmounted,
+the enclosure. If the bridge leaves either sysfs model or serial blank, the
+guard resolves both identity fields through packaged `lsblk`; sector count and
+whole-device checks remain bound to sysfs. Read-only inspection on 2026-10-06 found the disk unmounted,
 SMART overall passed, no critical warning, 37 C, 100% spare, 0% used, and no
 media/data-integrity or logged errors. It also found about 826 GB of old data
 and existing Windows recovery, Microsoft data, and EFI partitions. Do not use

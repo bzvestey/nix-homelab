@@ -11,6 +11,7 @@ let
     sysDevBlock = "/sys/dev/block";
     readlink = "${pkgs.coreutils}/bin/readlink";
     stat = "${pkgs.coreutils}/bin/stat";
+    lsblk = "${pkgs.util-linux}/bin/lsblk";
     logGuard = ":";
   };
   identity =

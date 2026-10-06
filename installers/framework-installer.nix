@@ -26,6 +26,7 @@ let
     sysDevBlock = "${sysRoot}/dev/block";
     readlink = command "readlink" "${pkgs.coreutils}/bin/readlink";
     stat = command "stat" "${pkgs.coreutils}/bin/stat";
+    lsblk = command "lsblk" "${pkgs.util-linux}/bin/lsblk";
     logGuard = command "logGuard" ":";
   };
   diskConfig = pkgs.writeText "${targetHost}-disk-config.nix" ''

@@ -34,10 +34,15 @@ sys_device=@sysDevBlock@/$major_minor
 [ ! -e "$sys_device/partition" ] || refuse "resolved target is not a whole block device"
 
 read_fact() { tr -d '\000' <"$1" | sed 's/[[:space:]]*$//'; }
-[ -r "$sys_device/device/model" ] && [ -r "$sys_device/device/serial" ] && [ -r "$sys_device/size" ] || refuse "device facts are incomplete"
-model=$(read_fact "$sys_device/device/model")
-serial=$(read_fact "$sys_device/device/serial")
+[ -r "$sys_device/size" ] || refuse "device facts are incomplete"
+model=$([ -r "$sys_device/device/model" ] && read_fact "$sys_device/device/model" || :)
+serial=$([ -r "$sys_device/device/serial" ] && read_fact "$sys_device/device/serial" || :)
+if [ -z "$model" ] || [ -z "$serial" ]; then
+  model=$(@lsblk@ -dnro MODEL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"
+  serial=$(@lsblk@ -dnro SERIAL -- "$canonical" | sed 's/[[:space:]]*$//') || refuse "device facts are incomplete"
+fi
 sectors=$(read_fact "$sys_device/size")
+[ -n "$model" ] && [ -n "$serial" ] || refuse "device facts are incomplete"
 case "$sectors" in '' | *[!0-9]*) refuse "observed sector count is invalid" ;; esac
 [ "$model" = "$expected_model" ] || refuse "model mismatch"
 [ "$serial" = "$expected_serial" ] || refuse "serial mismatch"

@@ -210,6 +210,35 @@ let
     sysDevBlock = "/sys/dev/block";
     readlink = "${pkgs.coreutils}/bin/readlink";
     stat = "${pkgs.coreutils}/bin/stat";
+    lsblk = "${pkgs.util-linux}/bin/lsblk";
+    logGuard = ":";
+  };
+  bridgeGuardTool = pkgs.writeShellScript "bridge-guard-tool" ''
+    set -euo pipefail
+    state=/build/bridge-guard
+    name=''${0##*fixture-}
+    echo "$name:$*" >> "$state/log"
+    case "$name" in
+      readlink) echo "$state/dev/sda" ;;
+      stat) echo '8 0' ;;
+      lsblk)
+        case "$*" in
+          *MODEL*) cat "$state/fallback-model" ;;
+          *SERIAL*) cat "$state/fallback-serial" ;;
+          *) exit 2 ;;
+        esac
+        ;;
+    esac
+  '';
+  bridgeGuardToolFor =
+    name: pkgs.runCommand "bridge-fixture-${name}" { } ''ln -s ${bridgeGuardTool} "$out"'';
+  bridgeGuard = pkgs.replaceVars ../installers/destructive-device-guard.sh {
+    bash = "${pkgs.bash}/bin/bash";
+    devRoot = "/build/bridge-guard/dev";
+    sysDevBlock = "/build/bridge-guard/sys/dev/block";
+    readlink = bridgeGuardToolFor "readlink";
+    stat = bridgeGuardToolFor "stat";
+    lsblk = bridgeGuardToolFor "lsblk";
     logGuard = ":";
   };
   telemetryInitializer = import ../installers/telemetry-initializer.nix {
@@ -259,6 +288,31 @@ pkgs.runCommand "common-host" { } ''
   fi
   grep -Fx 'refusing: expected device identity is unresolved' guard-error
   ! grep -F 'Permission denied' guard-error
+
+  bridge=/build/bridge-guard
+  mkdir -p "$bridge/dev/disk/by-id" "$bridge/dev" "$bridge/sys/dev/block/8:0/device"
+  touch "$bridge/dev/disk/by-id/ata-Samsung" "$bridge/dev/sda"
+  printf '                \n' > "$bridge/sys/dev/block/8:0/device/model"
+  printf '3907029168\n' > "$bridge/sys/dev/block/8:0/size"
+  printf 'Samsung SSD 970 EVO Plus 2TB\n' > "$bridge/fallback-model"
+  printf 'S6S2NS0W226715A\n' > "$bridge/fallback-serial"
+  : > "$bridge/log"
+  ${pkgs.bash}/bin/bash ${bridgeGuard} hl-node-00 "$bridge/dev/disk/by-id/ata-Samsung" \
+    'Samsung SSD 970 EVO Plus 2TB' S6S2NS0W226715A 3907029168 hl-node-00 >/dev/null
+  grep -q '^lsblk:' "$bridge/log"
+
+  for mismatch in model serial; do
+    printf 'Samsung SSD 970 EVO Plus 2TB\n' > "$bridge/fallback-model"
+    printf 'S6S2NS0W226715A\n' > "$bridge/fallback-serial"
+    printf 'WRONG\n' > "$bridge/fallback-$mismatch"
+    : > "$bridge/log"
+    if ${pkgs.bash}/bin/bash ${bridgeGuard} hl-node-00 "$bridge/dev/disk/by-id/ata-Samsung" \
+      'Samsung SSD 970 EVO Plus 2TB' S6S2NS0W226715A 3907029168 hl-node-00 2>bridge-error; then
+      echo "bridge fallback accepted mismatched $mismatch" >&2
+      exit 1
+    fi
+    grep -Fx "$mismatch mismatch" < <(sed 's/^refusing: //' bridge-error)
+  done
 
   test_selector() {
     expected="$1"

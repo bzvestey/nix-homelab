@@ -261,6 +261,19 @@ let
     deviceGuard = bridgeGuard;
     mkfsExt4 = bridgeGuardToolFor "mkfs.ext4";
   };
+  initializerMismatchExpect = pkgs.writeText "initializer-mismatch.exp" ''
+    set initializer [lindex $argv 0]
+    set mismatch [lindex $argv 1]
+    spawn -noecho $initializer
+    expect -exact "Type hl-node-00 to authorize telemetry SSD initialization: "
+    send -- "hl-node-00\rINITIALIZE TELEMETRY SSD\r"
+    expect eof
+    set status [lindex [wait] 3]
+    if {$status == 0} {
+      puts stderr "initializer accepted bridge fallback mismatched $mismatch"
+      exit 1
+    }
+  '';
   telemetryInitializer = import ../installers/telemetry-initializer.nix {
     inherit lib pkgs;
     targetHost = "hl-node-00";
@@ -289,7 +302,7 @@ assert allPiImagesUseCorrectedComin;
 assert telemetryIdentityWiringValid;
 assert productionTelemetryWiringValid;
 assert deployedCominPackage.system == pkgs.stdenv.hostPlatform.system;
-pkgs.runCommand "common-host" { } ''
+pkgs.runCommand "common-host" { nativeBuildInputs = [ pkgs.expect ]; } ''
   test -e ${cominExecutableTests}
 
   if printf 'hl-node-00\n' | ${telemetryInitializer}/bin/initialize-telemetry-ssd >initializer-output 2>&1; then
@@ -345,12 +358,11 @@ pkgs.runCommand "common-host" { } ''
     grep -Fx "$mismatch mismatch" < <(sed 's/^refusing: //' bridge-error)
 
     rm -f "$bridge/mkfs-called"
-    if printf 'hl-node-00\nINITIALIZE TELEMETRY SSD\n' \
-      | ${resolvedTelemetryInitializer}/bin/initialize-telemetry-ssd >initializer-output 2>&1; then
-      echo "initializer accepted bridge fallback mismatched $mismatch" >&2
-      exit 1
-    fi
-    test "$(cat initializer-output)" = "refusing: $mismatch mismatch"
+    expect ${initializerMismatchExpect} \
+      ${resolvedTelemetryInitializer}/bin/initialize-telemetry-ssd "$mismatch" >initializer-transcript
+    tr -d '\r' <initializer-transcript >initializer-output
+    grep -F 'Type hl-node-00 to authorize telemetry SSD initialization: ' initializer-output
+    grep -Fx "refusing: $mismatch mismatch" initializer-output
     ! grep -F 'Type INITIALIZE TELEMETRY SSD' initializer-output
     test ! -e "$bridge/mkfs-called"
   done

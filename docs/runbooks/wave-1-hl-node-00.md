@@ -313,7 +313,50 @@ replace the bootstrap remote during this wave.
 
 ## 6. Acceptance and current-cluster connection
 
-Run and record every check after a reboot:
+### Current acceptance state (2026-10-07)
+
+The powered telemetry SSD has been initialized and is mounted at
+`/var/lib/telemetry` as ext4 with `prjquota`. Its filesystem UUID is
+`62b1e073-8938-4b3d-b58f-b8b172a2dc07`. Do not rerun initialization on this
+installed host. The unresolved-storage instructions above describe the
+installation safety boundary, not the current live state.
+
+Comin deployed signed revision
+[`958664186e5f08a0deaebea2f8c29d2cac0b6274`](https://github.com/bzvestey/nix-homelab/commit/958664186e5f08a0deaebea2f8c29d2cac0b6274).
+Prometheus, Loki, Tempo, Grafana, the gateway/host collectors, Comin, Tailscale,
+and connector 1 are active. Backend signal ingestion, Grafana authentication,
+and provisioned dashboards were exercised. Garage uses bucket `hl-node-00`
+at `http://nas.tailbc181.ts.net:30188`, reached over Tailscale. A valid Grafana
+backup and six non-destructive `fleet-restore grafana-state --rehearsal`
+executions passed; the live Grafana process stayed unchanged. Full Restic data
+verification passed and both backup timers are active.
+
+The final reboot acceptance is still pending. The current generation is
+`/nix/store/wxp34vwjdvvhd7g5m45spfsn3c4wg1yh-nixos-system-hl-node-00-26.11.20261001.c59305b`,
+but the host was last booted on the earlier canonical-identity generation.
+Latest native closure CI remains in progress; do not record it as successful.
+
+The live Kubernetes `otel-collector` DaemonSet and `otel-cluster-collector`
+Deployment still send metrics exclusively to
+`http://10.15.4.101:30104/api/v1/write`. Their authoritative configuration is
+in `new-cluster/opentofu/vars/op_otel_collector.yaml` and
+`new-cluster/opentofu/vars/op_otel_cluster_collector.yaml`, owned by OpenTofu.
+Neither has a logs/traces pipeline or a configured export to this Pi. Real
+cluster forwarding and its acceptance remain pending. Prepare an additive
+OTLP/HTTP export to `http://10.15.4.6:4320`, preserving the old destination;
+validate metric identities against the gateway's attribute policy before
+applying it. Applying the collector changes to the running cluster requires
+explicit approval. Do not claim existing application traces or log shipping
+where no source pipeline is configured.
+
+### Final reboot procedure
+
+After the reviewed revision's required CI gates pass, inspect firmware space,
+mounted telemetry storage, and current unit health. Obtain approval for the
+reboot and record the boot ID before it. Preserve the independently verified
+SSH host key. After reboot, wait for SSH and backend readiness rather than
+assuming the first failed connection or HTTP readiness response is final.
+Run and record these post-reboot checks:
 
 ```sh
 set -eu
@@ -324,22 +367,18 @@ ssh-keyscan -t ed25519 hl-node-00 > "$known_hosts"
 ssh-keygen -lf "$known_hosts" > "$known_hosts.pub"
 test "$(wc -l < "$known_hosts.pub")" -eq 1
 test "$(awk 'NR == 1 { print $2 }' "$known_hosts.pub")" = "$expected_fingerprint"
-ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'set -eu; systemctl reboot'
 ping -c 3 10.15.4.6
-ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'set -eu; ! findmnt -M /var/lib/telemetry; systemctl --failed --no-legend | grep -q . && exit 1 || :; for backend in prometheus loki tempo grafana; do ! systemctl is-active --quiet "$backend"; done; systemctl is-active opentelemetry-collector comin cloudflared'
-ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'curl -fsS http://127.0.0.1:4243/metrics >/dev/null'
+ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'set -eu; test "$(hostname)" = hl-node-00; findmnt -M /var/lib/telemetry; test "$(findmnt -nro FSTYPE -M /var/lib/telemetry)" = ext4; findmnt -nro OPTIONS -M /var/lib/telemetry | grep -Eq "(^|,)prjquota(,|$)"; test "$(readlink /run/current-system)" = "$(readlink /run/booted-system)"; systemctl --failed --no-legend | grep -q . && exit 1 || :; systemctl is-active prometheus loki tempo grafana otel-gateway opentelemetry-collector comin cloudflared-fleet tailscaled fleet-backup-grafana-state.timer fleet-backup-check.timer'
+ssh -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=yes root@hl-node-00 'set -eu; curl -fsS http://127.0.0.1:9090/-/ready; curl -fsS http://127.0.0.1:3100/ready; curl -fsS http://127.0.0.1:3200/ready; curl -fsS http://127.0.0.1:3000/api/health; curl -fsS http://127.0.0.1:4243/metrics >/dev/null; fleet-restore grafana-state --rehearsal'
 ```
 
-Until telemetry initialization receives separate destructive approval and is
-completed, skip backend readiness, ingestion, retention, quota, alert,
-dashboard, backup, and restore acceptance. Do not initialize or format the
-SSD merely because its exact tuple is pinned. Confirm
-connector 1 is healthy without displaying its credential.
-
-Current-cluster connection and the backup/restore rehearsal remain postponed
-with backend acceptance. After storage is separately approved and accepted,
-connect the cluster only through its approved telemetry agent/scrape
-configuration, then follow `docs/runbooks/backup-restore.md`.
+Confirm the reboot changed the boot ID, the deployed revision remains the
+reviewed one, telemetry retention/quotas and dashboards remain configured,
+and connector 1 is healthy without displaying its credential. Connect the
+cluster only through its approved telemetry configuration, prove that real
+node/workload signals reach the new backends with distinct operational
+identities, then follow `docs/runbooks/backup-restore.md`. Keep this wave
+incomplete until the remaining reboot and current-cluster evidence is recorded.
 
 ## 7. Rollback
 

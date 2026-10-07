@@ -61,7 +61,10 @@
         ./modules/fleet/ingress.nix
         ./modules/fleet/cloudflared.nix
       ];
-      frameworkModules = fleetModules ++ [ disko.nixosModules.disko ];
+      frameworkModules = fleetModules ++ [
+        disko.nixosModules.disko
+        ./modules/services/forgejo-runner
+      ];
       piModules = fleetModules ++ [
         nixos-hardware.nixosModules.raspberry-pi-5
         ./modules/hardware/raspberry-pi-5.nix
@@ -253,6 +256,10 @@
           pkgs = nixpkgs.legacyPackages.${system};
         };
         telemetry-agent = import ./checks/telemetry-agent.nix {
+          pkgs = nixpkgs.legacyPackages.${system};
+        };
+        forgejo-runner = import ./checks/forgejo-runner.nix {
+          inherit nixosConfigurations;
           pkgs = nixpkgs.legacyPackages.${system};
         };
         backup-restore =

@@ -3,6 +3,10 @@
   imports = [
     ./disk-config.nix
   ];
+  services.fleet.forgejo-runner = {
+    enable = true;
+    uuid = "21f9ccab-5418-4bdb-bc74-021effc3dc03";
+  };
   boot = {
     loader = {
       grub.enable = false;

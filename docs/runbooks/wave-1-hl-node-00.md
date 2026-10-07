@@ -322,7 +322,7 @@ installed host. The unresolved-storage instructions above describe the
 installation safety boundary, not the current live state.
 
 Comin deployed signed revision
-[`958664186e5f08a0deaebea2f8c29d2cac0b6274`](https://github.com/bzvestey/nix-homelab/commit/958664186e5f08a0deaebea2f8c29d2cac0b6274).
+[`98b9c5ee5c214fdf179dfab92702d3378c7f11ed`](https://github.com/bzvestey/nix-homelab/commit/98b9c5ee5c214fdf179dfab92702d3378c7f11ed).
 Prometheus, Loki, Tempo, Grafana, the gateway/host collectors, Comin, Tailscale,
 and connector 1 are active. Backend signal ingestion, Grafana authentication,
 and provisioned dashboards were exercised. Garage uses bucket `hl-node-00`
@@ -332,22 +332,47 @@ executions passed; the live Grafana process stayed unchanged. Full Restic data
 verification passed and both backup timers are active.
 
 The final reboot acceptance is still pending. The current generation is
-`/nix/store/wxp34vwjdvvhd7g5m45spfsn3c4wg1yh-nixos-system-hl-node-00-26.11.20261001.c59305b`,
+`/nix/store/dzkzbmqds1v4grl9ihl9xzrk921j6jyw-nixos-system-hl-node-00-26.11.20261001.c59305b`,
 but the host was last booted on the earlier canonical-identity generation.
 Latest native closure CI remains in progress; do not record it as successful.
+The previous revision's x86 job timed out during the seven-VM ingress test's
+`start_all()`: two VMs never completed startup, before any ingress assertion.
+Its cause remains unresolved; do not treat the timeout as a passing check or
+attribute it to the guests' expected isolated-network Tailscale retries.
 
 The live Kubernetes `otel-collector` DaemonSet and `otel-cluster-collector`
-Deployment still send metrics exclusively to
-`http://10.15.4.101:30104/api/v1/write`. Their authoritative configuration is
+Deployment now have separate `metrics/fleet-node` pipelines sending node
+metrics through OTLP/HTTP to `http://10.15.4.6:4320`. Their original pipelines
+and destination `http://10.15.4.101:30104/api/v1/write` are unchanged, including
+the operator-injected self-metrics reader. Their authoritative configuration is
 in `new-cluster/opentofu/vars/op_otel_collector.yaml` and
 `new-cluster/opentofu/vars/op_otel_cluster_collector.yaml`, owned by OpenTofu.
-Neither has a logs/traces pipeline or a configured export to this Pi. Real
-cluster forwarding and its acceptance remain pending. Prepare an additive
-OTLP/HTTP export to `http://10.15.4.6:4320`, preserving the old destination;
-validate metric identities against the gateway's attribute policy before
-applying it. Applying the collector changes to the running cluster requires
-explicit approval. Do not claim existing application traces or log shipping
-where no source pipeline is configured.
+The owner approved the targeted live change. Guarded JSON patches tested the
+exact existing configuration before replacement; both collectors rolled out
+successfully, and rollback passed server-side dry-run. No broad OpenTofu apply
+or state update was performed; source changes remain local until separately
+published.
+
+Acceptance found four distinct node Ready series and node CPU, memory, and
+filesystem series for all three workers in the Pi's Prometheus. The original
+backend still received fresh node memory data. `k8s.node.name` maps to
+`host.name`, and the stable service names are `kubernetes-node-stats` and
+`kubernetes-node-health`. Conditions map to the permitted `state` attribute.
+The unchanged cluster receiver produces Ready only by default: additional
+conditions and allocatable metrics are not claimed as collected. The network
+allowlist preserves interface/direction when those metrics are available, but
+no live network series were observed. Independent OTLP runtime probes checked
+asymmetric node values, multiple conditions, interface/direction distinctions,
+and rejection of pod metrics and missing node identities. The exact image tag
+`0.146.0` reports binary version `0.145.0`; probes used that same tagged image.
+
+Pod/application metrics remain on the original backend rather than losing
+identities through the Pi gateway's bounded attribute policy. Neither source
+collector has a logs/traces pipeline; do not claim Kubernetes log or trace
+shipping. Sanitized acceptance logs and guarded forward/rollback patches are
+in the controller's ignored `.amp/in/artifacts/` directory, including
+`kubernetes-forwarding-validation.log` and
+`kubernetes-forwarding-acceptance.log`.
 
 ### Final reboot procedure
 
@@ -378,7 +403,7 @@ and connector 1 is healthy without displaying its credential. Connect the
 cluster only through its approved telemetry configuration, prove that real
 node/workload signals reach the new backends with distinct operational
 identities, then follow `docs/runbooks/backup-restore.md`. Keep this wave
-incomplete until the remaining reboot and current-cluster evidence is recorded.
+incomplete until the remaining CI and reboot evidence is recorded.
 
 ## 7. Rollback
 

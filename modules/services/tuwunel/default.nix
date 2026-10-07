@@ -38,11 +38,17 @@ in
       };
     };
     fleet = {
-      backup.jobs.tuwunel-state = backups.state {
-        name = "tuwunel";
-        path = "/var/lib/tuwunel";
-        healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:8008/_matrix/client/versions";
-      };
+      backup.jobs.tuwunel-state =
+        (backups.state {
+          name = "tuwunel";
+          path = "/var/lib/tuwunel";
+          healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:8008/_matrix/client/versions";
+        })
+        // {
+          # RocksDB needs database RPO/alerts despite its directory-copy capture.
+          frequency = "hourly";
+          backupClass = "database";
+        };
       ingress.routes = [
         {
           hostname = "matrix.minastas.social";

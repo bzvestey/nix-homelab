@@ -109,7 +109,12 @@ testPkgs.testers.runNixOSTest {
     };
     environment.etc."fixture-commands.json".text = builtins.toJSON (
       lib.mapAttrs (_: job: {
-        inherit (job) createCommand restoreCommand;
+        inherit (job)
+          createCommand
+          restoreCommand
+          frequency
+          backupClass
+          ;
       }) config.fleet.backup.jobs
     );
   };
@@ -119,6 +124,20 @@ testPkgs.testers.runNixOSTest {
     start_all()
     nas.wait_for_unit("nfs-server")
     machine.wait_for_unit("multi-user.target")
+    # Literal policy expectations catch database payloads mislabeled as state.
+    backup_policy = {
+        "immich-db": ("hourly", "database", 5400),
+        "mealie-db": ("hourly", "database", 5400),
+        "mealie-state": ("daily", "state", 93600),
+        "tuwunel-state": ("hourly", "database", 5400),
+    }
+    commands = json.loads(machine.succeed("cat /etc/fixture-commands.json"))
+    assert set(commands) == set(backup_policy)
+    for job, (frequency, backup_class, threshold) in backup_policy.items():
+        actual = (commands[job]["frequency"], commands[job]["backupClass"])
+        assert actual == (frequency, backup_class), f"{job}: expected {(frequency, backup_class)}, got {actual}"
+        timer = machine.succeed(f"systemctl cat fleet-backup-{job}.timer")
+        assert f"OnCalendar={frequency}\n" in timer, timer
     for unit in ["postgres-immich", "postgresql", "podman-immich", "podman-immich-ml", "podman-mealie", "podman-tuwunel"]:
         machine.fail(f"systemctl is-active --quiet {unit}")
         assert machine.succeed(f"systemctl show {unit} -P NRestarts").strip() == "0"
@@ -180,6 +199,10 @@ testPkgs.testers.runNixOSTest {
     assert mealie_manifest.strip()
     for job in jobs:
         machine.succeed(f"fleet-backup-run {job}", timeout=180)
+        frequency, backup_class, threshold = backup_policy[job]
+        metrics = machine.succeed(f"cat /var/lib/node_exporter/textfile_collector/fleet_backup_{job}.prom")
+        assert f'fleet_backup_result{{job="{job}",class="{backup_class}"}} 1' in metrics, metrics
+        assert f'fleet_backup_alert_threshold_seconds{{job="{job}",class="{backup_class}"}} {threshold}' in metrics, metrics
         machine.succeed(f"fleet-restore {job} --rehearsal", timeout=180)
     expected = {app: sql(app, "SELECT id,value FROM fleet_fixture ORDER BY id") for app in ["immich", "mealie"]}
     commands = json.loads(machine.succeed("cat /etc/fixture-commands.json"))

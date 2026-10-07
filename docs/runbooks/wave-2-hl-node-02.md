@@ -77,8 +77,12 @@ registration, credentials and `/webhook` route. Do not migrate its cryptostore.
 ## Backups, isolated rehearsal and cutover
 
 Four jobs protect real local state: hourly `immich-db` and `mealie-db` logical
-dumps, daily quiesced `mealie-state` (`/var/lib/mealie`) and `tuwunel-state`
-(`/var/lib/tuwunel`). Capture source-consistent logical dumps and quiesced state
+dumps, hourly quiesced `tuwunel-state` RocksDB (`/var/lib/tuwunel`), and daily
+quiesced `mealie-state` (`/var/lib/mealie`). All three database jobs use the
+database alert class (stale at 5,400 seconds); only `mealie-state` uses the
+state class (stale at 93,600 seconds). Tuwunel's directory-copy mechanism and
+job name do not exempt its database from the RPO of at most one hour.
+Capture source-consistent logical dumps and quiesced state
 with IDs, checksums and timestamps; production backup evidence remains separate
 from the synthetic fixture check.
 

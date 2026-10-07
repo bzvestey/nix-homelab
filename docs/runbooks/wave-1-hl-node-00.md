@@ -331,14 +331,26 @@ backup and six non-destructive `fleet-restore grafana-state --rehearsal`
 executions passed; the live Grafana process stayed unchanged. Full Restic data
 verification passed and both backup timers are active.
 
-The final reboot acceptance is still pending. The current generation is
-`/nix/store/dzkzbmqds1v4grl9ihl9xzrk921j6jyw-nixos-system-hl-node-00-26.11.20261001.c59305b`,
-but the host was last booted on the earlier canonical-identity generation.
-Latest native closure CI remains in progress; do not record it as successful.
+Final reboot acceptance passed after
+[Checks](https://github.com/bzvestey/nix-homelab/actions/runs/37576202954) and
+[Images](https://github.com/bzvestey/nix-homelab/actions/runs/37576202846)
+passed every job for the exact deployed revision. Both the current and booted
+generation are now
+`/nix/store/dzkzbmqds1v4grl9ihl9xzrk921j6jyw-nixos-system-hl-node-00-26.11.20261001.c59305b`.
+The boot ID changed from `45f6b613-45fb-4dfa-9619-8759073180f8` to
+`b3119b33-ecc6-4167-a67d-b76ccf620758`, with strict SSH host-key checking
+preserved. Storage UUID, ext4/project quotas, all required services and backup
+timers, backend readiness, and Comin's exact deployed revision were verified.
+The post-reboot Grafana restore rehearsal passed with its live PID unchanged;
+fresh Kubernetes worker metrics and all four Ready series resumed. Evidence is
+in `.amp/in/artifacts/wave-one-post-reboot.log` and
+`wave-one-post-reboot-metrics.log` on the controller.
+
 The previous revision's x86 job timed out during the seven-VM ingress test's
 `start_all()`: two VMs never completed startup, before any ingress assertion.
-Its cause remains unresolved; do not treat the timeout as a passing check or
-attribute it to the guests' expected isolated-network Tailscale retries.
+Its cause remains unresolved, but the latest x86 job passed. Do not recast the
+earlier timeout as a passing check or attribute it to the guests' expected
+isolated-network Tailscale retries.
 
 The live Kubernetes `otel-collector` DaemonSet and `otel-cluster-collector`
 Deployment now have separate `metrics/fleet-node` pipelines sending node
@@ -402,8 +414,9 @@ reviewed one, telemetry retention/quotas and dashboards remain configured,
 and connector 1 is healthy without displaying its credential. Connect the
 cluster only through its approved telemetry configuration, prove that real
 node/workload signals reach the new backends with distinct operational
-identities, then follow `docs/runbooks/backup-restore.md`. Keep this wave
-incomplete until the remaining CI and reboot evidence is recorded.
+identities, then follow `docs/runbooks/backup-restore.md`. For this installed
+host, the CI, node-forwarding, and final reboot acceptance evidence is recorded
+above; this does not claim Kubernetes pod/application logs or traces were moved.
 
 ## 7. Rollback
 

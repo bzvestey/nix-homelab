@@ -462,22 +462,33 @@
       "placement": "local-copy",
       "targetHost": "hl-node-02",
       "sourcePaths": [
-        "/usr/src/app/upload",
         "/var/lib/postgresql/data"
       ],
       "targetPaths": [
-        "/var/lib/immich/upload",
-        "/var/lib/postgresql"
+        "/var/lib/postgres-immich"
       ],
       "size": {
-        "status": "observed",
-        "bytes": 77778008026,
-        "evidence": {
-          "type": "command-output",
-          "reference": "du -sb for library and PostgreSQL filesystems, summed once"
-        },
-        "stableId": "immich-data-bytes",
-        "observedAt": "2026-10-02"
+        "status": "blocked",
+        "reason": "old 77778008026-byte observation combined library and database; separate local database size is not evidenced",
+        "collectionCommand": "kubectl exec -n <namespace> <postgres-pod> -- du -sb -- /var/lib/postgresql/data"
+      },
+      "ownerServices": [
+        "immich"
+      ]
+    },
+    {
+      "id": "immich-library",
+      "placement": "shared-retained",
+      "sourcePaths": [
+        "/usr/src/app/upload"
+      ],
+      "targetPaths": [
+        "/mnt/bulk/immich"
+      ],
+      "size": {
+        "status": "blocked",
+        "reason": "old combined library/database observation does not independently measure the retained library",
+        "collectionCommand": "du -sb --exclude=postgres -- /mnt/spinners-1/kube-store/immich"
       },
       "ownerServices": [
         "immich"
@@ -541,7 +552,7 @@
       ],
       "targetPaths": [
         "/var/lib/mealie",
-        "/var/lib/postgresql"
+        "/var/lib/postgresql/17"
       ],
       "size": {
         "status": "observed",
@@ -1164,7 +1175,7 @@
           "/var/lib/postgresql/data"
         ],
         "targetPaths": [
-          "/var/lib/postgresql"
+          "/var/lib/postgres-immich"
         ],
         "datasetEvidence": {
           "status": "blocked",
@@ -1172,13 +1183,20 @@
           "collectionCommand": "du -sb /var/lib/postgresql/data; record database identity, owner, source path, target path, and output digest"
         },
         "versionFact": {
-          "status": "blocked",
-          "reason": "CNPG image observation only established major version 16, not an observed numeric dotted database version",
-          "collectionCommand": "kubectl exec -n <namespace> <postgres-pod> -- psql -Atqc 'show server_version'"
+          "status": "observed",
+          "value": "16.9",
+          "stableId": "immich-database-version",
+          "observedAt": "2026-10-07",
+          "evidence": {
+            "type": "command-output",
+            "command": "database-version-query",
+            "scope": "controller read-only source SQL: SHOW server_version; extensions cube 1.5, earthdistance 1.2, pg_trgm 1.6, unaccent 1.1, uuid-ossp 1.1, vchord 0.4.3, vector 0.8.0"
+          }
         }
       },
       "datasetIds": [
-        "immich-data"
+        "immich-data",
+        "immich-library"
       ],
       "endpoints": [
         "https://immich.tailbc181.ts.net/"
@@ -1339,7 +1357,7 @@
           "/var/lib/postgresql/data"
         ],
         "targetPaths": [
-          "/var/lib/postgresql"
+          "/var/lib/postgresql/17"
         ],
         "datasetEvidence": {
           "status": "blocked",

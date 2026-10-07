@@ -15,6 +15,16 @@ let
 
     ip saddr 10.15.4.6 tcp dport 9464 accept comment "observability agent scrape"
   '';
+  applicationExporterRule = ''
+    ip saddr 10.15.4.6 tcp dport 4243 accept comment "observability comin scrape"
+
+    iifname "bond0" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport 8080 accept comment "cloudflared origins"
+
+    iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"
+
+
+    ip saddr 10.15.4.6 tcp dport 9464 accept comment "observability agent scrape"
+  '';
   observabilityRule = ''
     ip saddr 10.15.4.0/24 tcp dport { 4319, 4320 } accept comment "fleet OTLP gateway"
 
@@ -175,8 +185,12 @@ let
     assert config.networking.nftables.enable;
     assert !(builtins.elem 4243 config.networking.firewall.allowedTCPPorts);
     assert
-      config.networking.firewall.extraInputRules
-      == lib.optionalString (hostname == "hl-node-00") observabilityRule + exporterRule;
+      config.networking.firewall.extraInputRules == (
+        if hostname == "hl-node-02" then
+          applicationExporterRule
+        else
+          lib.optionalString (hostname == "hl-node-00") observabilityRule + exporterRule
+      );
     assert comin.exporter.listen_address == "0.0.0.0";
     assert comin.exporter.port == 4243;
     assert comin.exporter.openFirewall == false;

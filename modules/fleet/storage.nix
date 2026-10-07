@@ -48,13 +48,19 @@ in
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
         unitConfig.JobRunningTimeoutSec = "15s";
-        mountConfig.TimeoutSec = "10s";
+        mountConfig = {
+          TimeoutSec = "10s";
+          DirectoryMode = "0555";
+        };
       }) mounts;
 
       automounts = map (mount: {
         where = mount.target;
         wantedBy = [ "multi-user.target" ];
-        automountConfig.TimeoutIdleSec = "10min";
+        automountConfig = {
+          TimeoutIdleSec = "10min";
+          DirectoryMode = "0555";
+        };
       }) mounts;
 
       services = lib.mkMerge (

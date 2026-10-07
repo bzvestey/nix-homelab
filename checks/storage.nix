@@ -76,6 +76,7 @@ pkgs.testers.runNixOSTest {
     # Observe the real underlying directory, not the automount facade.
     client.succeed("systemctl stop mnt-bulk-test.automount")
     client.succeed("test $(stat -c %U:%G /mnt/bulk/test) = root:root")
+    client.succeed("test $(stat -c %a /mnt/bulk/test) = 555")
     client.fail("runuser -u fixture -- touch /mnt/bulk/test/bare-write")
 
     server.succeed("systemctl stop nfs-server.service")

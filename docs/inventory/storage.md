@@ -6,6 +6,13 @@ Each dataset names its owning services. Every durable embedded or external datab
 
 The 31,269,016,911,730-byte video library is one `shared-video-library` dataset referenced by Deluge, Jellyfin, Radarr, SABnzbd, Sonarr, and Whisparr. The 1,722,285,974,181-byte Kavita library is also `shared-retained`. Neither is copied locally or multiplied by consumer count. Local capacity is the sum of unique `local-copy` datasets per target; shared datasets are excluded.
 
+Immich's `immich-library` is also `shared-retained`, mounted at
+`/mnt/bulk/immich` and protected by NAS snapshots. The old 77,778,008,026-byte
+observation combined its library and PostgreSQL filesystem; it is not a
+separate measured local database size. `immich-data` now names only the local
+PG16 cluster `/var/lib/postgres-immich` and remains a typed size blocker until
+an independent database measurement is recorded. ML cache is disposable.
+
 Deluge config, Publication Manager data/storage, and Tuwunel data remain typed size blockers. They are not represented as zero. Run these read-only commands in the trusted Kubernetes maintenance environment after substituting names discovered with `kubectl get pods -A`; no credentials belong in command arguments or captured output:
 
 ```sh

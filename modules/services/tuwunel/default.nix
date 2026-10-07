@@ -1,0 +1,55 @@
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  cfg = config.services.fleet.tuwunel;
+  backups = import ../../../lib/application-backups.nix { inherit pkgs lib; };
+in
+{
+  options.services.fleet.tuwunel = {
+    enable = lib.mkEnableOption "pinned Tuwunel with local RocksDB";
+    configFile = lib.mkOption {
+      type = lib.types.strMatching "^/run/.*";
+      default = "/run/secrets/tuwunel.toml";
+      description = "Runtime complete TOML retaining Pocket ID settings; no retired Hookshot appservice.";
+    };
+  };
+  config = lib.mkIf cfg.enable {
+    systemd = {
+      tmpfiles.rules = [ "d /var/lib/tuwunel 0750 root root -" ];
+      services.podman-tuwunel.unitConfig.ConditionPathExists = cfg.configFile;
+    };
+    virtualisation.oci-containers = {
+      backend = "podman";
+      containers.tuwunel = {
+        image = "docker.io/jevolk/tuwunel@sha256:678b7f5350e06a41614444497c587da9dddf66767e4068a27480402f3c1367d0";
+        environment = {
+          TUWUNEL_CONFIG = "/etc/tuwunel.toml";
+          TUWUNEL_PORT = "8008";
+        };
+        volumes = [
+          "/var/lib/tuwunel:/var/lib/tuwunel"
+          "${cfg.configFile}:/etc/tuwunel.toml:ro"
+        ];
+        ports = [ "127.0.0.1:8008:8008" ];
+      };
+    };
+    fleet = {
+      backup.jobs.tuwunel-state = backups.state {
+        name = "tuwunel";
+        path = "/var/lib/tuwunel";
+        healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:8008/_matrix/client/versions";
+      };
+      ingress.routes = [
+        {
+          hostname = "matrix.minastas.social";
+          upstream = "http://127.0.0.1:8008";
+          exposure = "public";
+        }
+      ];
+    };
+  };
+}

@@ -92,10 +92,6 @@ in
         enable = true;
         openFirewall = false;
         authKeyFile = cfg.tailscaleAuthKeyFile;
-        authKeyParameters = {
-          ephemeral = false;
-          preauthorized = true;
-        };
         permitCertUid = "caddy";
       };
       systemd.services.tailscaled-autoconnect.unitConfig.ConditionPathIsReadable =

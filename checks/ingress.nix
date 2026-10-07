@@ -3,6 +3,28 @@ let
   routes = import ../lib/public-ingress-routes.nix;
   sentinel = "task10-credential-sentinel-7f9c2d";
   testPython = pkgs.python3.withPackages (python: [ python.pyyaml ]);
+  fakeTailscale = pkgs.writeShellApplication {
+    name = "tailscale";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = ''
+      case "$1" in
+        status)
+          if [ -e /run/task10-auth-accepted ]; then
+            echo '{"BackendState":"Running"}'
+          else
+            echo '{"BackendState":"NeedsLogin"}'
+          fi
+          ;;
+        up)
+          test "$#" -eq 3
+          test "$2" = --auth-key
+          test "$3" = tskey-auth-fixture
+          touch /run/task10-auth-accepted
+          ;;
+        *) exit 1 ;;
+      esac
+    '';
+  };
   app = pkgs.writeText "origin-app.py" ''
     import http.server, sys
     identity = sys.argv[1]
@@ -314,6 +336,9 @@ pkgs.testers.runNixOSTest {
     origin9.succeed("systemctl show tailscaled-autoconnect.service -p NRestarts --value | grep -Fx 0")
     origin9.fail("pgrep -af 'tailscale up'")
     origin9.fail("journalctl -u tailscaled-autoconnect.service --no-pager | grep -Ei 'log in|authenticate|https://login.tailscale.com'")
+    origin9.succeed("mkdir -p /run/secrets; printf '%s' tskey-auth-fixture > /run/secrets/task10-missing-tailscale-auth-key")
+    origin9.succeed("script=$(systemctl show tailscaled-autoconnect.service -p ExecStart --value | sed -n 's/^{ path=\\([^ ;]*\\).*$/\\1/p'); test -x \"$script\"; systemd-run --unit=task10-auth-key-probe --service-type=notify --property=TimeoutStartSec=10s --wait --pipe --setenv=PATH=${fakeTailscale}/bin:${pkgs.jq}/bin:${pkgs.systemd}/bin:${pkgs.coreutils}/bin \"$script\"")
+    origin9.succeed("test -e /run/task10-auth-accepted; rm /run/secrets/task10-missing-tailscale-auth-key /run/task10-auth-accepted")
     origin9.succeed("systemctl is-active pocket-id caddy tailscaled")
     lanClient.fail("curl --noproxy '*' --max-time 1 --fail http://10.15.4.5:9001")
     lanClient.fail("curl --noproxy '*' --max-time 1 --fail -H 'Host: foundry.minastas.xyz' http://10.15.4.5:8080")

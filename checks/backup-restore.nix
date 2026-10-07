@@ -71,6 +71,10 @@ let
     printf exited >${root}/transient/$unit.code
     printf '%s' "$rc" >${root}/transient/$unit.status
     ) &
+    if [ -e ${root}/complete-before-poll ]; then
+      while [ "$(cat ${root}/transient/$unit.code)" = 0 ]; do sleep 0.01; done
+      rm -rf ${root}/cgroup/fake/$unit
+    fi
     exit 0
     EOF
     cat >$out/bin/systemctl <<'EOF'
@@ -100,8 +104,10 @@ let
           exit 1
         fi
       fi
-      printf 'LoadState=loaded\nActiveState=%s\nMainPID=%s\nControlGroup=/fake/%s\nExecMainCode=%s\nExecMainStatus=%s\n' \
-        "$(cat ${root}/transient/$unit.state)" "$(cat ${root}/transient/$unit.pid)" "$unit" \
+      control_group=/fake/$unit
+      [ -d ${root}/cgroup/fake/$unit ] || control_group=
+      printf 'LoadState=loaded\nActiveState=%s\nMainPID=%s\nControlGroup=%s\nExecMainCode=%s\nExecMainStatus=%s\n' \
+        "$(cat ${root}/transient/$unit.state)" "$(cat ${root}/transient/$unit.pid)" "$control_group" \
         "$(cat ${root}/transient/$unit.code)" "$(cat ${root}/transient/$unit.status)"
     elif [ "$1" = kill ]; then
       unit=''${!#}; signal=TERM
@@ -110,8 +116,10 @@ let
     elif [ "$1" = stop ]; then
       unit=''${!#}
       kill -KILL "$(cat ${root}/transient/$unit.pid)" 2>/dev/null || true
-      : >${root}/cgroup/fake/$unit/cgroup.procs
-      printf 'populated 0\n' >${root}/cgroup/fake/$unit/cgroup.events
+      if [ -d ${root}/cgroup/fake/$unit ]; then
+        : >${root}/cgroup/fake/$unit/cgroup.procs
+        printf 'populated 0\n' >${root}/cgroup/fake/$unit/cgroup.events
+      fi
       printf inactive >${root}/transient/$unit.state
     elif [ "$1" = reset-failed ]; then
       exit 0
@@ -395,7 +403,10 @@ pkgs.runCommand "backup-restore-tests"
 
         # Rehearsal extracts and validates without service or destination mutation.
         : >${root}/log
+        # Match systemd's active/exited unit after a fast command's cgroup disappears.
+        touch ${root}/complete-before-poll
         ${tools}/bin/fleet-restore files --rehearsal
+        rm ${root}/complete-before-poll
         grep -F 'fleet_restore_rehearsal_result{job="files",snapshot="snapshot-good"} 1' ${root}/metrics/fleet_restore_rehearsal_files.prom
         ! grep -F 'systemctl:stop' ${root}/log
         rehearsal_previous=$(grep fleet_restore_rehearsal_last_success_timestamp_seconds ${root}/metrics/fleet_restore_rehearsal_files.prom)

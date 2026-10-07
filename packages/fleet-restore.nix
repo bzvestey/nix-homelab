@@ -188,7 +188,7 @@ let
         run_environment+=(--setenv=AWS_SHARED_CREDENTIALS_FILE --setenv=AWS_PROFILE)
       ''}
       if ! systemd-run --quiet --service-type=exec --unit="$unit" \
-        --property=RemainAfterExit=yes --property=KillMode=control-group --property=TimeoutStopSec=1s \
+        --property=Slice=system.slice --property=RemainAfterExit=yes --property=KillMode=control-group --property=TimeoutStopSec=1s \
         --property="LimitFSIZE=$max_payload_bytes" "''${run_environment[@]}" -- \
         bash -c 'printf "%s\n" "$BASHPID" >"$1"; ulimit -f "$2"; shift 2; exec "$@"' _ "$leader_file" "$max_blocks" "$@"; then
         rm -f "$leader_file"
@@ -196,11 +196,15 @@ let
         return 1
       fi
       started=0
+      # systemd clears ControlGroup when a fast command finishes before the
+      # first poll. Keep the explicitly selected slice path for membership checks.
+      cgroup="/system.slice/$unit"
       for _ in {1..100}; do
         if state=$(unit_state "$unit" 2>/dev/null); then
           load=$(printf '%s\n' "$state" | sed -n 's/^LoadState=//p')
-          cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
-          [ "$load" = loaded ] && [ -n "$cgroup" ] && started=1 && break
+          observed_cgroup=$(printf '%s\n' "$state" | sed -n 's/^ControlGroup=//p')
+          [ -z "$observed_cgroup" ] || cgroup=$observed_cgroup
+          [ "$load" = loaded ] && started=1 && break
         fi
         sleep 0.01
       done

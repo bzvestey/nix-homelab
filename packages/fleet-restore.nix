@@ -184,6 +184,9 @@ let
       unit="fleet-bounded-$job-$$-$unit_token.service"
       run_environment=(--setenv=PATH --setenv=RESTIC_REPOSITORY --setenv=RESTIC_PASSWORD_FILE --setenv=RESTIC_CACHE_DIR)
       [ -z "''${FLEET_BACKUP_STAGING_DIR:-}" ] || run_environment+=(--setenv=FLEET_BACKUP_STAGING_DIR)
+      ${lib.optionalString (s3CredentialsFile != null) ''
+        run_environment+=(--setenv=AWS_SHARED_CREDENTIALS_FILE --setenv=AWS_PROFILE)
+      ''}
       if ! systemd-run --quiet --service-type=exec --unit="$unit" \
         --property=RemainAfterExit=yes --property=KillMode=control-group --property=TimeoutStopSec=1s \
         --property="LimitFSIZE=$max_payload_bytes" "''${run_environment[@]}" -- \

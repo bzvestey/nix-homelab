@@ -606,7 +606,7 @@ in
       backupClass = "state";
       maxPayloadBytes = 1073741824;
       createCommand = ''
-        ${pkgs.sqlite}/bin/sqlite3 ${stateRoot}/grafana/grafana.db ".backup '$FLEET_BACKUP_STAGING_DIR/grafana.db'"
+        ${pkgs.sqlite}/bin/sqlite3 -readonly ${stateRoot}/grafana/data/grafana.db ".backup '$FLEET_BACKUP_STAGING_DIR/grafana.db'"
         install -m 0600 ${stateRoot}/grafana/admin-password "$FLEET_BACKUP_STAGING_DIR/admin-password"
         install -m 0600 ${stateRoot}/grafana/secret-key "$FLEET_BACKUP_STAGING_DIR/secret-key"
         # Keep the bounded transient command observable through systemd's
@@ -614,12 +614,12 @@ in
         sleep 1
       '';
       restoreCommand = ''
-        install -m 0640 "$FLEET_RESTORE_SOURCE_DIR/grafana.db" ${stateRoot}/grafana/grafana.db
+        install -m 0640 "$FLEET_RESTORE_SOURCE_DIR/grafana.db" ${stateRoot}/grafana/data/grafana.db
         install -m 0600 "$FLEET_RESTORE_SOURCE_DIR/admin-password" ${stateRoot}/grafana/admin-password
         install -m 0600 "$FLEET_RESTORE_SOURCE_DIR/secret-key" ${stateRoot}/grafana/secret-key
       '';
       healthCheckCommand = ''
-        test "$(${pkgs.sqlite}/bin/sqlite3 ${stateRoot}/grafana/grafana.db 'pragma integrity_check')" = ok
+        test "$(${pkgs.sqlite}/bin/sqlite3 -readonly ${stateRoot}/grafana/data/grafana.db 'pragma integrity_check')" = ok
         password=$(cat ${stateRoot}/grafana/admin-password)
         for attempt in $(seq 1 30); do
           if ${pkgs.curl}/bin/curl --connect-timeout 1 --max-time 3 -fsS -u "admin:$password" http://127.0.0.1:3000/api/user | ${pkgs.jq}/bin/jq -e '.login == "admin"' >/dev/null; then
@@ -629,7 +629,10 @@ in
         done
         exit 1
       '';
-      rehearsalCommand = ''test "$(${pkgs.sqlite}/bin/sqlite3 "$FLEET_RESTORE_SOURCE_DIR/grafana.db" 'pragma integrity_check')" = ok'';
+      rehearsalCommand = ''
+        test "$(${pkgs.sqlite}/bin/sqlite3 -readonly "$FLEET_RESTORE_SOURCE_DIR/grafana.db" 'pragma integrity_check')" = ok
+        test "$(${pkgs.sqlite}/bin/sqlite3 -readonly "$FLEET_RESTORE_SOURCE_DIR/grafana.db" "select count(*) from user where login = 'admin'")" = 1
+      '';
       preflightCommand = "${pkgs.util-linux}/bin/findmnt -M ${stateRoot} >/dev/null";
     };
     networking.firewall.extraInputRules = ''

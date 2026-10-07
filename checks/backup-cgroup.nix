@@ -4,6 +4,9 @@ let
     name = "restic";
     runtimeInputs = [ pkgs.coreutils ];
     text = ''
+      test "''${AWS_SHARED_CREDENTIALS_FILE:-}" = /run/fleet-test/s3-credentials
+      test "''${AWS_PROFILE:-}" = default
+      test "$(cat "$AWS_SHARED_CREDENTIALS_FILE")" = fixture-credentials
       case "$1" in
         snapshots)
           if printf '%s\n' "$*" | grep -q -- --latest || [ -e /run/fleet-test/backed-up ]; then
@@ -13,10 +16,11 @@ let
           fi
           ;;
         backup)
-          cat >/dev/null
+          cat >/run/fleet-test/archive
           touch /run/fleet-test/backed-up
           printf '%s\n' '{"message_type":"summary","snapshot_id":"snapshot-good"}'
           ;;
+        dump) cat /run/fleet-test/archive ;;
         forget) ;;
         *) exit 2 ;;
       esac
@@ -36,6 +40,7 @@ testPkgs.testers.runNixOSTest {
     fleet.backup = {
       repositoryFile = "/run/fleet-test/repository";
       passwordFile = "/run/fleet-test/password";
+      s3CredentialsFile = "/run/fleet-test/s3-credentials";
       jobs.files = {
         frequency = "hourly";
         paths = [ "/var/lib/fleet-target" ];
@@ -61,6 +66,7 @@ testPkgs.testers.runNixOSTest {
           fi
         '';
         restoreCommand = "true";
+        rehearsalCommand = ''test "$(cat "$FLEET_RESTORE_SOURCE_DIR/payload/data")" = valid'';
         requiredPaths = [ "payload/data" ];
         serviceUnits = [ ];
         healthCheckCommand = "true";
@@ -74,9 +80,11 @@ testPkgs.testers.runNixOSTest {
     start_all()
     machine.succeed("mkdir -p /run/fleet-test /var/lib/fleet-target")
     machine.succeed("printf repository >/run/fleet-test/repository; printf password >/run/fleet-test/password")
+    machine.succeed("printf fixture-credentials >/run/fleet-test/s3-credentials")
     machine.succeed("touch /run/fleet-test/delayed-success")
     machine.succeed("timeout 8 systemctl start fleet-backup-files.service")
     machine.succeed("test -e /run/fleet-test/backed-up")
+    machine.succeed("fleet-restore files --rehearsal; grep -F 'fleet_restore_rehearsal_result{job=\"files\",snapshot=\"snapshot-good\"} 1' /var/lib/node_exporter/textfile_collector/fleet_restore_rehearsal_files.prom")
     machine.fail("systemctl list-units --all 'fleet-bounded-*' --no-legend | grep -q .")
     machine.succeed("rm /run/fleet-test/delayed-success /run/fleet-test/backed-up")
     machine.succeed("touch /run/fleet-test/delayed-failure")

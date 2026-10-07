@@ -307,8 +307,16 @@ pkgs.testers.runNixOSTest {
     };
   };
   testScript = ''
-    import json, yaml
-    start_all()
+    import faulthandler, json, yaml
+    # Avoid the concurrent-start boundary; expose stacks if startup stalls again.
+    faulthandler.dump_traceback_later(120, repeat=True)
+    try:
+        for node in (origin5, origin9, connectorA, connectorB, edge, lanClient, tailClient):
+            print(f"startup begin: {node.name}", flush=True)
+            node.start()
+            print(f"startup return: {node.name}", flush=True)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
     for node, interface, address in (
         (origin5, "eth1", "10.15.4.5/24"), (origin5, "tailscale0", "100.64.0.5/24"),
         (origin9, "eth1", "10.15.4.9/24"), (connectorA, "eth1", "10.15.4.4/24"),

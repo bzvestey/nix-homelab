@@ -139,11 +139,20 @@ pkgs.testers.runNixOSTest {
     machine.succeed("test -s /var/lib/telemetry/grafana/admin-password")
     machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q TelemetryRefusedOrDropped")
     machine.succeed("mkdir -p /var/lib/node_exporter/textfile_collector; printf '%s\\n' 'otelcol_receiver_refused_spans 0' 'otelcol_receiver_refused_log_records 0' > /var/lib/node_exporter/textfile_collector/otel-colliding-labels.prom")
-    machine.wait_until_succeeds("curl -GfsS --data-urlencode 'query=count({__name__=~\"otelcol_receiver_refused_(spans|log_records)\"})' http://127.0.0.1:9090/api/v1/query | jq -e '.data.result[0].value[1] == \"2\"'", timeout=30)
+    def wait_for_fixture_scrape(spans, log_records):
+        # Counter increases require a scraped zero baseline, not merely an inactive rule.
+        query = '{__name__=~"otelcol_receiver_refused_(spans|log_records)",job="fleet-agents",instance="127.0.0.1:9464"}'
+        expected = f'[["otelcol_receiver_refused_log_records","{log_records}"],["otelcol_receiver_refused_spans","{spans}"]]'
+        machine.wait_until_succeeds(
+            f"curl --connect-timeout 1 --max-time 3 -GfsS --data-urlencode 'query={query}' http://127.0.0.1:9090/api/v1/query | jq -e '.data.result | map([.metric.__name__, .value[1]]) | sort == {expected}'",
+            timeout=120,
+        )
+    wait_for_fixture_scrape(0, 0)
     previous_evaluation = machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -r '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .lastEvaluation'").strip()
     machine.wait_until_succeeds(f"curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .lastEvaluation != \"{previous_evaluation}\"'", timeout=90)
     machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .health == \"ok\" and .state == \"inactive\"'")
     machine.succeed("printf '%s\\n' 'otelcol_receiver_refused_spans 3' 'otelcol_receiver_refused_log_records 7' > /var/lib/node_exporter/textfile_collector/otel-colliding-labels.prom")
+    wait_for_fixture_scrape(3, 7)
     machine.wait_until_succeeds("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '.data.groups[].rules[] | select(.name == \"TelemetryRefusedOrDropped\") | .health == \"ok\" and .state == \"firing\"'", timeout=90)
     machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q TelemetryDisk75Percent; curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q TelemetryDisk85Percent")
     machine.succeed("mkdir -p /run/observability-test")

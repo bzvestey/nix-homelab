@@ -5,6 +5,10 @@ enroll, write to Kubernetes, change public routes, or delete source data.
 Keep source Kubernetes configuration read-only. Never put passwords, client
 secrets, registration tokens, or decrypted TOML in command arguments or logs.
 
+Task 14 preparation is documented in the approval-gated
+[source export and offline real-data rehearsal procedure](wave-2-source-rehearsal.md).
+It does not authorize source maintenance or certify a production restore.
+
 ## Preflight gates
 
 1. Review and pin the signed local revision; run the focused real-application

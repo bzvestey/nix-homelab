@@ -115,7 +115,9 @@ let
         comin.enable
         && comin.debug == false
         && comin.sshAllowedSignersPath == "/etc/comin/allowed_signers"
-        && map remoteIdentity comin.remotes == expectedRemotes
+        &&
+          map remoteIdentity comin.remotes
+          == (if hostname == "hl-node-02" then lib.take 1 expectedRemotes else expectedRemotes)
         && lib.all (remote: remote.poller.period == 60) comin.remotes
         && lib.all (
           remote:

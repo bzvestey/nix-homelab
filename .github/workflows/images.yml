@@ -9,11 +9,39 @@ permissions:
 
 jobs:
   framework:
+    name: Framework bootstrap image (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - hl-node-02
+          - hl-node-03
+          - hl-node-04
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
-      - run: nix build .#checks.x86_64-linux.installers .#images.hl-node-02 .#images.hl-node-03 .#images.hl-node-04
+      - name: Test Framework artifact packaging
+        run: bash .github/tests/framework-packaging.sh
+      - name: Check installers
+        run: nix build .#checks.x86_64-linux.installers --out-link result-installers
+      - name: Build Framework bootstrap image
+        run: nix build ".#images.${{ matrix.host }}" --out-link "result-${{ matrix.host }}"
+      - name: Prepare Framework bootstrap artifact
+        run: bash .github/scripts/package-framework.sh '${{ matrix.host }}'
+      - name: Upload Framework bootstrap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.host }}-bootstrap-${{ github.sha }}
+          path: artifact-${{ matrix.host }}/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Record bootstrap readiness warning
+        run: |
+          {
+            echo '## Framework bootstrap artifact — not installation-ready'
+            echo 'Physical disk facts, source evacuation, secret enrollment, and published signed bootstrap policy gates must all be met before installation.'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   raspberry-pi:
     name: Raspberry Pi image (${{ matrix.host }})

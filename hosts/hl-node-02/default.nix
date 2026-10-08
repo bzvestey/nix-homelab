@@ -2,6 +2,7 @@
 {
   imports = [
     ./disk-config.nix
+    ./bootstrap.nix
   ];
   services.fleet.immich.librarySource = "10.15.4.101:/mnt/spinners-1/kube-store/immich";
   services.fleet.forgejo-runner = {

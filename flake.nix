@@ -236,6 +236,10 @@
           hl-node-02-services = import ./checks/hl-node-02-services.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };
+          hl-node-02-bootstrap = import ./checks/hl-node-02-bootstrap.nix {
+            inherit comin nixosConfigurations;
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
         }
         // {
           no-legacy-hostnames = nixpkgs.legacyPackages.${system}.runCommand "no-legacy-hostnames" { } ''

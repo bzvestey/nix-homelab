@@ -1,0 +1,102 @@
+{
+  pkgs,
+  comin,
+  nixosConfigurations,
+}:
+let
+  inherit (pkgs) lib;
+  host = nixosConfigurations.hl-node-02.config;
+  workloads = [
+    "podman-immich"
+    "podman-immich-ml"
+    "podman-mealie"
+    "podman-tuwunel"
+    "postgres-immich"
+    "postgresql"
+    "postgresql-setup"
+    "dragonflydb"
+    "forgejo-runner-hl\\x2dnode\\x2d02"
+    "caddy"
+  ];
+  backups = map (job: "fleet-backup-${job}") [
+    "immich-db"
+    "mealie-db"
+    "mealie-state"
+    "tuwunel-state"
+    "check"
+  ];
+  testPkgs = import pkgs.path {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    config.allowUnfreePredicate = package: lib.getName package == "dragonflydb";
+  };
+in
+assert lib.assertMsg (lib.all (
+  name: !host.systemd.services.${name}.enable
+) workloads) "hl-node-02 bootstrap: workload units must be masked";
+assert lib.all (
+  name: !host.systemd.services.${name}.enable && !host.systemd.timers.${name}.enable
+) backups;
+assert host.fleet.storage.nfsMounts == { };
+assert lib.all (
+  mount:
+  !(builtins.elem mount.type [
+    "nfs"
+    "nfs4"
+  ])
+) host.systemd.mounts;
+assert lib.all (mount: mount.where != "/mnt/bulk/immich") host.systemd.automounts;
+assert host.services.openssh.enable && host.fleet.telemetry.enable;
+assert host.services.comin.enable;
+assert map (remote: remote.name) host.services.comin.remotes == [ "github" ];
+testPkgs.testers.runNixOSTest {
+  name = "hl-node-02-bootstrap";
+  nodes.machine = {
+    imports = [
+      comin.nixosModules.comin
+      ../modules/fleet/comin.nix
+      ../modules/fleet/podman.nix
+      ../modules/fleet/storage.nix
+      ../modules/fleet/backup.nix
+      ../modules/fleet/ingress.nix
+      ../modules/fleet/telemetry-agent.nix
+      ../modules/roles/application-services.nix
+      ../modules/services/forgejo-runner
+      ../hosts/hl-node-02/bootstrap.nix
+    ];
+    networking.hostName = "hl-node-02";
+    # The real host policy is asserted above; fixtures must never poll live Git.
+    services.comin.enable = lib.mkForce false;
+    services.fleet = {
+      immich.librarySource = "unreachable.invalid:/production-library";
+      forgejo-runner = {
+        enable = true;
+        inherit (host.services.fleet.forgejo-runner) uuid;
+      };
+    };
+    fleet.ingress.enableTailscale = false;
+    fleet.ingress.testUseInternalTls = true;
+    virtualisation.memorySize = 2048;
+  };
+  testScript = ''
+    import shlex
+    start_all()
+    machine.wait_for_unit("multi-user.target")
+    # Credentials being present must not turn bootstrap into production.
+    machine.succeed("install -d -m 700 /run/secrets; printf 'DB_PASSWORD=fixture\n' >/run/secrets/immich.env; printf 'POSTGRES_PASSWORD=fixture\n' >/run/secrets/mealie.env; printf '[global]\n' >/run/secrets/tuwunel.toml; printf fixture >/run/secrets/forgejo-runner-hl-node-02; printf /var/lib/fixture-repository >/run/secrets/restic-repository; printf fixture >/run/secrets/restic-password; chmod 600 /run/secrets/*")
+    units = ${
+      builtins.toJSON (
+        map (name: "${name}.service") (workloads ++ backups) ++ map (name: "${name}.timer") backups
+      )
+    }
+    for unit in units:
+        quoted_unit = shlex.quote(unit)
+        assert machine.succeed(f"systemctl is-enabled {quoted_unit} || true").strip() == "masked", unit
+        machine.fail(f"systemctl start {quoted_unit}")
+        machine.fail(f"systemctl is-active --quiet {quoted_unit}")
+    machine.succeed("test -z \"$(find /var/lib -name PG_VERSION -print -quit)\"")
+    machine.fail("systemctl cat mnt-bulk-immich.mount")
+    machine.fail("systemctl cat mnt-bulk-immich.automount")
+    machine.fail("findmnt -rn -t nfs,nfs4")
+    machine.succeed("command -v fleet-restore; command -v fleet-backup-run")
+  '';
+}

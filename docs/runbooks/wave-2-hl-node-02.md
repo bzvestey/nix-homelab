@@ -9,6 +9,52 @@ Task 14 preparation is documented in the approval-gated
 [source export and offline real-data rehearsal procedure](wave-2-source-rehearsal.md).
 It does not authorize source maintenance or certify a production restore.
 
+## Approved handoff scope and source evacuation gate
+
+The offline real-data rehearsal has passed. That evidence does not authorize
+evacuation, installation, enrollment or production changes. External Pocket ID
+OIDC, Matrix client/federation, existing-session continuity and route gates,
+plus fresh final source captures, remain outstanding. Retain private rehearsal
+evidence and immutable captures; do not treat them as fresh cutover backups.
+
+Install **bootstrap-only**, not a shadow workload host. The default host imports
+`hosts/hl-node-02/bootstrap.nix`: workload/database/runner/Caddy and backup units
+are masked, production NFS is removed, and SSH, telemetry, enrollment tools and
+signed comin remain. Follow [Framework installation](install-framework.md) for
+hardware capture, downloadable ISO/checksum/revision provenance, escrow and TPM
+safety. Before boot, publish the signed, CI-cleared bootstrap policy on comin's
+switch branch; `fleet.comin.enableMirror = false` selects GitHub only until safe
+mirror publication. A production-enabled `main` or unsafe fallback must never
+replace bootstrap. Any fallback must be equally safe or disabled.
+
+The existing source worker is **`minastas-home-cluster-w1` at `10.15.4.5`**,
+the same address planned for hl-node-02. Before disk destruction or address
+takeover, separately approve and evidence evacuation of **all five**
+single-instance CNPG primaries: Forgejo, Immich, Mealie, Tranquil PDS and Vikunja.
+Each current PDB blocks disruption; a generic drain cannot be assumed safe.
+Record fresh read-only pod/node, Cluster, PDB, PVC/PV/storage attachment,
+capacity, backup and application-health evidence for every primary and all
+other worker workloads. Confirm storage can move to surviving workers; retain
+PVCs and source data. No force deletion, PVC recreation or disk wipe is implied.
+
+CNPG **1.28.1** supports temporary `spec.enablePDB = false` and graceful
+eviction reusing the existing PVC. Only under a separate reviewed maintenance
+plan, with backups, destination capacity and rollback owner/deadline established,
+temporarily disable the relevant policy and gracefully relocate one primary at
+a time. Preserve PVC identity; verify attachment/detachment, primary health,
+application health and **single-writer** status before restoring its original
+PDB policy and moving on. Failure is STOP/recovery, not permission to bypass
+eviction safety. Capture original policy and restored PDB state for each cluster.
+
+Forgejo and Tranquil PDS have observed Argo `selfHeal`/`prune`; temporary changes
+will be reconciled unless their owners are explicitly coordinated. Verify
+actual ownership/reconciliation for Immich, Mealie, Vikunja and other workloads
+before changes, rather than assuming they are unmanaged. Any reconciliation
+suspension/restoration needs explicit approval and evidence. Final evacuation
+acceptance requires no remaining source writers/attachments on this worker,
+all relocated applications healthy, original protection restored, and a reviewed
+rollback/address-release plan. No evacuation commands are authorized here.
+
 ## Preflight gates
 
 1. Review and pin the signed local revision; run the focused real-application
@@ -23,7 +69,8 @@ It does not authorize source maintenance or certify a production restore.
    `df -B1`/`findmnt` evidence and 25% headroom. The old combined Immich byte
    total is invalid for new local sizing. `nix run .#inventory-readiness` must
    pass before a physical migration; existing typed blockers remain gates.
-4. Enroll the genuine host recipient only with separate authorization. Supply
+4. Enroll the genuine host recipient only with separate authorization, while
+   retaining bootstrap masks and the production-NFS exclusion. Supply
    root-only runtime files `/run/secrets/immich.env` (`DB_PASSWORD`),
    `/run/secrets/mealie.env` (`POSTGRES_PASSWORD`, `OIDC_CLIENT_SECRET`), and
    `/run/secrets/tuwunel.toml`, plus fleet backup and Tailscale credentials,
@@ -34,6 +81,33 @@ It does not authorize source maintenance or certify a production restore.
    - Immich ML: `60dfcf266a9ef3b7376f5678e8c980d4fb61db5fc48c078fe8a326ab1535d60d`.
    - Mealie: `8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688`.
    - Tuwunel: `678b7f5350e06a41614444497c587da9dddf66767e4068a27480402f3c1367d0`.
+
+### Secret enrollment mapping (separate approval)
+
+Capture the physical host's real `/etc/ssh/ssh_host_ed25519_key.pub` and
+fingerprint after boot and prove persistence across reboot. Never fabricate a
+public key/age recipient or copy a private host key. Follow `enroll-host.md`:
+authorized `fleet-enroll` derives the recipient from that public key; add the
+`hl-node-02` anchor and administrator-plus-host rule for
+`secrets/hosts/hl-node-02/.*\.yaml` in `.sops.yaml`. Add this Framework host to
+`framework-runners` only when separately approved; not `pi-connectors` and not
+a universal fleet group. Rewrap only affected ciphertext, inspect metadata-only
+diffs and publish signed enrollment changes that **retain bootstrap policy**.
+
+| Consumer | Required root-only runtime mapping |
+| --- | --- |
+| Immich PG16/server | `/run/secrets/immich.env`: `DB_PASSWORD` |
+| Mealie PG17/server | `/run/secrets/mealie.env`: `POSTGRES_PASSWORD`, `OIDC_CLIENT_SECRET` |
+| Tuwunel | `/run/secrets/tuwunel.toml`: preserved server identity, registration and OIDC credentials/policy |
+| Fleet backups | `/run/secrets/restic-repository`, `/run/secrets/restic-password` (or reviewed configured paths) |
+| Tailscale | Credential at the effective configured auth-key runtime path; verify before enrollment |
+| Forgejo runner | Separately approved `framework-runners` credential mapping; runner remains masked |
+
+The application mappings must be implemented and reviewed in sops-nix before
+enrollment; this table is not evidence that encrypted files or declarations
+already exist. Prove decryption without displaying values, preserve mode 0600
+and restricted parents, and confirm masks remain effective after activation.
+Secret availability is not permission to start consumers or run backups.
 
 ## Placement and compatibility
 
@@ -50,8 +124,10 @@ PG16 only. Confirm `pg_extension` versions after restore and exercise a real
 VectorChord index and application migrations before acceptance. Mealie retains
 PG17/pg_trgm 1.6. Reject a restore that changes these contracts without proof.
 
-The Immich upload library is an NFS4.1 hard mount from
+The eventual production Immich upload library is an NFS4.1 hard mount from
 `10.15.4.101:/mnt/spinners-1/kube-store/immich` to `/mnt/bulk/immich`.
+This production mount/automount must be absent throughout bootstrap and isolated
+restore; use only an approved snapshot-derived isolated library for rehearsal.
 An unavailable startup mount blocks the server; stopping the mount stops only
 Immich. A server/network outage on an existing hard mount can block I/O, not
 fall back to local writes. Restore/recovery must never remount local storage
@@ -90,6 +166,15 @@ Capture source-consistent logical dumps and quiesced state
 with IDs, checksums and timestamps; production backup evidence remains separate
 from the synthetic fixture check.
 
+Bootstrap masks are not an isolated restore environment. A separately reviewed
+isolated generation must selectively permit restore/database/application units
+while blocking production clients, NFS, tailnet routes, external OIDC/federation,
+runner execution, comin replacement and backup timers/production repositories.
+Prove isolation before data transfer. Follow `wave-2-source-rehearsal.md` for
+Mealie paired-state-first staging, Immich library verification before DB restore,
+and Tuwunel state/runtime policy before first startup. Actual restore jobs can
+restart apps: review that behavior before allowing any unit through the masks.
+
 On an authorized isolated destination, initialize matching native clusters and
 runtime credentials first. Run `fleet-restore <job> --rehearsal` before any
 mutation. Stop the relevant application, then restore the selected explicit
@@ -117,3 +202,16 @@ remain unchanged. Rollback keeps source workloads, NAS snapshots, original
 logical dumps and the prior signed Nix generation intact. Source retirement,
 runner enrollment, public route cutover and production writes are separate
 authorization gates.
+
+## Production activation gate
+
+Do not remove bootstrap masks or restore production NFS merely because install,
+enrollment or offline restore succeeded. Require fresh final stopped-writer
+captures/checksums/snapshot IDs, coherent Mealie DB/state and verified Immich
+library, restore/rollback evidence, real external OIDC and Matrix/session
+continuity, and separately approved route checks. Approve a signed, CI-cleared
+activation revision explicitly, reviewing every unmasked workload/database,
+Caddy route, NFS mount and backup destination/timer. Preserve single-writer
+ownership throughout cutover; runner activation remains independently gated.
+Keep source PVCs, snapshots, prior signed generation and rollback access until
+separate retirement approval. No activation or retirement is authorized here.

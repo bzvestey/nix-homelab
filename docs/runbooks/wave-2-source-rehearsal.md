@@ -468,15 +468,21 @@ TMPDIR, XDG_RUNTIME_DIR, REPL history and output on approved encrypted scratch.
 No production NFS, tailnet, comin or cloudflared; block actual OIDC, client and
 federation outbound. Verify isolation before transferring real data, including
 guest routes/interface reachability and effective timer/service configuration.
+Use a short private runtime path on that same verified encrypted filesystem:
+the longer capture path exceeds Linux's Unix-socket limit when QEMU appends
+its VM/virtiofs socket directories. Record this additional scratch location
+and include it in capacity accounting and eventual plaintext cleanup.
 
 ```bash
 set -euo pipefail
 umask 077
 : "${secure:?}" "${driver:?}"
-install -d -m 0700 "$secure/tmp" "$secure/runtime" "$secure/output"
-export TMPDIR="$secure/tmp" XDG_RUNTIME_DIR="$secure/runtime"
+rehearsal_root=$(mktemp -d "$HOME/.hlr.XXXXXX")
+test "$(findmnt -n -T "$rehearsal_root" -o SOURCE)" = "$(findmnt -n -T "$secure" -o SOURCE)"
+install -d -m 0700 "$rehearsal_root/tmp" "$rehearsal_root/runtime" "$secure/output"
+export TMPDIR="$rehearsal_root/tmp" XDG_RUNTIME_DIR="$rehearsal_root/runtime"
 export HISTFILE=/dev/null PYTHON_HISTORY=/dev/null
-export secure
+export secure rehearsal_root
 cd "$secure"
 unshare --user --map-root-user --net -- sh -eu -c \
   'ip link set lo up; test -z "$(ip route show default)"; test -z "$(ip -6 route show default)"; ip -j link | jq -e '\''all(.[]; .ifname == "lo")'\''; exec "$@"' sh \
@@ -492,9 +498,13 @@ nas.wait_for_unit("nfs-server")
 machine.start()
 machine.wait_for_unit("multi-user.target")
 for node in (nas, machine):
+    # Restricted QEMU networking still advertises an IPv6 NAT default route.
+    # Disable its eth0 interface; eth1 is the private inter-VM rehearsal LAN.
+    node.succeed("systemctl stop dhcpcd; ip link set eth0 down; ip -4 route flush default; ip -6 route flush default")
     node.succeed("ip -br addr; ip route; ip -6 route; df -B1 /var/lib")
     node.succeed("test -z \"$(ip route show default)\" && test -z \"$(ip -6 route show default)\"")
-    node.fail("timeout 5 curl -fsS --connect-timeout 3 https://id.minastas.xyz")
+    node.succeed("command -v timeout; command -v bash")
+    node.fail("timeout 5 bash -c 'exec 3<>/dev/tcp/10.15.4.101/2049'")
 machine.succeed("systemctl stop podman-immich podman-immich-ml podman-mealie podman-tuwunel")
 for unit in ("podman-immich", "podman-immich-ml", "podman-mealie", "podman-tuwunel", "tailscaled", "comin", "cloudflared", "hookshot"):
     machine.fail(f"systemctl is-active --quiet {unit}")
@@ -615,7 +625,8 @@ before transfers; TMPDIR alone is not proof. Transfers are bounded.
 import os, signal, subprocess
 secure = os.environ["secure"]
 exchange = str(machine.shared_dir)
-assert os.path.commonpath((os.path.realpath(exchange), os.path.realpath(secure))) == os.path.realpath(secure)
+rehearsal_root = os.environ["rehearsal_root"]
+assert os.path.commonpath((os.path.realpath(exchange), os.path.realpath(rehearsal_root))) == os.path.realpath(rehearsal_root)
 subprocess.run(["findmnt", "-T", exchange], check=True)
 subprocess.run(["df", "-B1", exchange, secure], check=True)
 # copy_from_host has NO timeout parameter. Bound the whole host/API operation.

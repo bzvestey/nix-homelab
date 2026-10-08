@@ -311,7 +311,7 @@ case "$kind" in
       : "${library_max_bytes:?approved measured budget}" "${library_max_entries:?}"
       max_bytes=$library_max_bytes; max_entries=$library_max_entries
     fi
-    "$runtime_python" -I - "$plain" "$max_bytes" "$max_entries" <<'PY'
+    "$runtime_python" -I - "$plain" "$max_bytes" "$max_entries" "$kind" <<'PY'
 import re, sys, tarfile
 limit, entries = int(sys.argv[2]), int(sys.argv[3])
 seen, total = set(), 0
@@ -324,7 +324,8 @@ with tarfile.open(sys.argv[1], 'r:') as archive:
         else:
             if name.startswith('./'): name = name[2:]
             if member.isdir() and name.endswith('/'): name = name[:-1]
-            assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/-]*', name)
+            # State is normalized under state/; preserve legitimate root dotfiles.
+            assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/-]*', 'state/' + name if sys.argv[4] == 'state' else name)
             assert all(part not in ('', '.', '..') for part in name.split('/'))
         assert name not in seen
         seen.add(name)

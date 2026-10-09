@@ -41,7 +41,7 @@ let
         macAddress = "9c:bf:0d:00:23:fe";
       };
       installDisk = {
-        byId = "UNRESOLVED";
+        byId = "/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_2TB_S59CNM0W713317D_1";
         model = "Samsung SSD 970 EVO Plus 2TB";
         serial = "S59CNM0W713317D";
         sectors = 3907029168;

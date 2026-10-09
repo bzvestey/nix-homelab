@@ -1,4 +1,8 @@
-{ pkgs, disko }:
+{
+  pkgs,
+  disko,
+  images,
+}:
 let
   canonicalDevice = "/dev/nvme0n1";
   actualDiskConfig = import ../installers/framework-disk-layout.nix { device = canonicalDevice; };
@@ -160,6 +164,11 @@ let
     gpuPciId = "8086:0000";
   };
 in
+assert pkgs.lib.assertMsg (pkgs.lib.all (host: images.${host}.isoName == "${host}-bootstrap.iso") [
+  "hl-node-02"
+  "hl-node-03"
+  "hl-node-04"
+]) "Framework ISO builder filenames must match the host-specific artifact contract";
 pkgs.runCommand "installer-safety-tests"
   {
     nativeBuildInputs = [

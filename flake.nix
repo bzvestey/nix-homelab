@@ -288,7 +288,7 @@
               }
             ];
           installers = import ./checks/installers.nix {
-            inherit disko;
+            inherit disko images;
             pkgs = nixpkgs.legacyPackages.${system};
           };
           storage = import ./checks/storage.nix {

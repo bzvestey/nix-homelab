@@ -35,7 +35,7 @@ let
 in
 {
   imports = [ (modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix") ];
-  image.fileName = lib.mkForce "${targetHost}-bootstrap.iso";
+  image.baseName = lib.mkForce "${targetHost}-bootstrap";
   environment.systemPackages = [ installer ];
   services.openssh.enable = true;
   networking.hostName = "${targetHost}-installer";

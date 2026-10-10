@@ -7,6 +7,13 @@ in
     ./disk-config.nix
     ./bootstrap.nix
   ];
+  # RTL8156B USB NICs require rtl_nic/rtl8156b-2.fw for correct PHY setup.
+  hardware.enableRedistributableFirmware = true;
+  sops.secrets.tailscale-auth-key = {
+    sopsFile = ../../secrets/hosts/hl-node-02/bootstrap.yaml;
+    mode = "0400";
+    restartUnits = [ "tailscaled-autoconnect.service" ];
+  };
   services.fleet.immich.librarySource = "10.15.4.101:/mnt/spinners-1/kube-store/immich";
   services.fleet.forgejo-runner = {
     enable = true;

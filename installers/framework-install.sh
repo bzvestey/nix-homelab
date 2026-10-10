@@ -22,6 +22,13 @@ token=$(@bash@ @guard@ @guardArgs@ "$typed_host")
 IFS='|' read -r stable_id canonical parent_major_minor model serial sectors <<<"$token"
 [[ "$canonical" =~ ^@canonicalDevRoot@/nvme[0-9]+n[1-9][0-9]*$ ]] || refuse "unsupported canonical device path"
 
+# Serialize installers, not udev: flock on the disk itself inhibits udev's
+# shared disk lock and deadlocks Disko's partition-event settle operations.
+install -d -m 0700 @runRoot@/framework-installer-locks
+umask 077
+exec {installer_lock_fd}>"@runRoot@/framework-installer-locks/$parent_major_minor.lock"
+@flock@ -n -x "$installer_lock_fd" || refuse "another installer holds this device's installation lock"
+
 work=@workDir@
 key="$work/recovery.key"
 success=false
@@ -32,7 +39,7 @@ cleanup() {
   set +e
   unmount_status=0
   if [ "$disko_started" = true ]; then
-    @disko@ --argstr device "$bound_device" --mode umount @diskConfig@ >/dev/null 2>&1 || unmount_status=$?
+    @disko@ --argstr device "$bound_device" --mode unmount @diskConfig@ || unmount_status=$?
   fi
   bind_unmount_status=0
   if [ "${device_bound:-false}" = true ]; then
@@ -41,7 +48,7 @@ cleanup() {
   if [ -e "$key" ]; then @shred@ -u "$key" 2>/dev/null || rm -f "$key"; fi
   rmdir "$work" 2>/dev/null || true
   if [ "$unmount_status" -ne 0 ]; then
-    echo "TARGET UNMOUNT FAILED (status $unmount_status); do not reboot or remove media; manually inspect /mnt and run Disko umount" >&2
+    echo "TARGET UNMOUNT FAILED (status $unmount_status); do not reboot or remove media; manually inspect /mnt and run Disko unmount" >&2
     [ "$status" -ne 0 ] || status=$unmount_status
   elif [ "$bind_unmount_status" -ne 0 ]; then
     echo "DEVICE BIND UNMOUNT FAILED (status $bind_unmount_status); installer namespace cleanup is incomplete" >&2
@@ -69,7 +76,6 @@ IFS= read -r escrowed <@ttyIn@
 
 @udevadm@ settle
 exec {device_fd}<"$canonical"
-@flock@ -x "$device_fd"
 device_fd_path="/proc/$$/fd/$device_fd"
 boundary_token=$(@bash@ @guard@ @guardArgs@ "$typed_host")
 [ "$boundary_token" = "$token" ] || refuse "device identity changed at destruction boundary"

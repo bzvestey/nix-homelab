@@ -65,7 +65,8 @@ let
         jq -e '
           .keys == [
             "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-            "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
+            "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec",
+            "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
           ]
           and .creation_rules == [
             {
@@ -74,6 +75,15 @@ let
                 "age": [
                   "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
                   "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
+                ]
+              }]
+            },
+            {
+              "path_regex": "secrets/hosts/hl-node-02/.*\\.yaml$",
+              "key_groups": [{
+                "age": [
+                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+                  "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
                 ]
               }]
             },
@@ -89,7 +99,10 @@ let
             {
               "path_regex": "secrets/framework-runners/.*\\.yaml$",
               "key_groups": [{
-                "age": ["age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz"]
+                "age": [
+                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+                  "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
+                ]
               }]
             }
           ]
@@ -116,6 +129,15 @@ let
             "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
           ]
         ' <<<"$bootstrap_json"
+        framework_bootstrap_json=$(yq --output-format=json '.' ${../secrets/hosts/hl-node-02/bootstrap.yaml})
+        jq -e '
+          (keys | sort) == ["sops", "tailscale-auth-key"]
+          and (.["tailscale-auth-key"] | startswith("ENC[AES256_GCM,"))
+          and [.sops.age[].recipient] == [
+            "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
+            "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
+          ]
+        ' <<<"$framework_bootstrap_json"
         touch $out
       '';
 

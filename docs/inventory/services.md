@@ -65,46 +65,43 @@
       "architecture": "x86_64-linux",
       "measuredFreeBytes": {
         "status": "blocked",
-        "reason": "Kubernetes allocatable ephemeral storage is not current filesystem free space",
-        "collectionCommand": "findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib 2>/dev/null || df -B1 --output=source,target,avail / /var/lib"
+        "reason": "The future NixOS destination filesystems are not created; installer tmpfs free bytes and whole-disk capacity are not destination free space",
+        "collectionCommand": "After separately authorized bootstrap installation, run findmnt -bno SOURCE,TARGET,FSTYPE,AVAIL / /var/lib and df -B1 --output=source,target,avail / /var/lib on the installed host"
       },
       "hardware": {
         "installDisk": {
-          "status": "blocked",
-          "reason": "model, serial, and capacity were observed, but /dev/disk/by-id was not exposed",
-          "collectionCommand": "ls -l /dev/disk/by-id; lsblk --json -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,TYPE,MOUNTPOINTS",
-          "partialObservation": {
-            "model": "Samsung SSD 970 EVO Plus 2TB",
-            "serial": "S59CNM0W713317D",
-            "capacityBytes": 2000398934016,
-            "stableId": "hl-node-02:nvme0n1:S59CNM0W713317D",
-            "observedAt": "2026-10-02",
-            "evidence": {
-              "type": "command-output",
-              "command": "block-device-sysfs",
-              "scope": "kubernetes-node/hl-node-02/sysfs/block/nvme0n1"
-            }
+          "status": "observed",
+          "model": "Samsung SSD 970 EVO Plus 2TB",
+          "serial": "S59CNM0W713317D",
+          "capacityBytes": 2000398934016,
+          "byIdPath": "/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_2TB_S59CNM0W713317D_1",
+          "stableId": "/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_2TB_S59CNM0W713317D_1",
+          "observedAt": "2026-10-10",
+          "evidence": {
+            "type": "command-output",
+            "command": "lsblk-json",
+            "scope": "live-installer/hl-node-02/by-id-link-and-lsblk-json/nvme0n1"
           }
         },
         "nic": {
           "status": "observed",
           "members": [
             {
-              "interface": "enp0s13f0u1",
+              "interface": "lan0",
               "macAddress": "9c:bf:0d:00:23:fe"
             },
             {
-              "interface": "enp0s13f0u2",
+              "interface": "lan1",
               "macAddress": "9c:bf:0d:00:25:5d"
             }
           ],
           "addressKind": "permanent",
           "stableId": "9c:bf:0d:00:23:fe+9c:bf:0d:00:25:5d",
-          "observedAt": "2026-10-09",
+          "observedAt": "2026-10-10",
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "live-installer/hl-node-02/bond-permanent-hw-address-and-unbonded-sysfs-addr-assign-type-0"
+            "scope": "live-installer/hl-node-02/stable-names-and-ethtool-permanent-mac"
           }
         },
         "gpu": {
@@ -112,11 +109,11 @@
           "pciId": "8086:9a49",
           "deviceAddress": "0000:00:02.0",
           "stableId": "0000:00:02.0:8086:9a49",
-          "observedAt": "2026-10-02",
+          "observedAt": "2026-10-10",
           "evidence": {
             "type": "command-output",
             "command": "pci-sysfs",
-            "scope": "kubernetes-node/hl-node-02/sysfs/bus/pci/devices/0000:00:02.0"
+            "scope": "live-installer/hl-node-02/sysfs/bus/pci/devices/0000:00:02.0"
           }
         }
       },

@@ -36,9 +36,13 @@ let
             ;;
           stat)
             [ "$(cat "$state/type")" = block ] || exit 1
-            case "''${*: -1}" in
-              *p1|*/fd/11) [ -e "$state/child-swap" ] && echo '103 9' || echo '103 1' ;;
-              *p2|*/fd/12) echo '103 2' ;;
+            path=''${*: -1}
+            case "$path" in
+              */fd/*) path=$(${pkgs.coreutils}/bin/readlink -f "$path") ;;
+            esac
+            case "$path" in
+              *p1) [ -e "$state/child-swap" ] && echo '103 9' || echo '103 1' ;;
+              *p2) echo '103 2' ;;
               *) [ -e "$state/bound" ] && [ -e "$state/bound-mismatch" ] && echo '8 0' || cat "$state/hex_major_minor" ;;
             esac
             ;;
@@ -52,10 +56,20 @@ let
             touch "$state/bound"
             ;;
           umount) rm -f "$state/bound" ;;
-          udevadm|flock|post-disko) ;;
+          udevadm|post-disko) ;;
           secure-boot-state) echo DISABLED ;;
           disko)
-            [ -e "$state/unmount-fails" ] && [[ "$*" == *'--mode umount'* ]] && exit 7
+            case "$*" in
+              *'--mode disko'*|*'--mode unmount'*) ;;
+              *) echo 'unsupported Disko mode' >&2; exit 1 ;;
+            esac
+            # Model udev's whole-disk shared flock with the real locking primitive.
+            # An installer-held exclusive device flock prevents event processing.
+            ${pkgs.util-linux}/bin/flock -s -n "$state/dev/nvme0n1" true || {
+              echo 'udev cannot process the locked disk' >&2
+              exit 8
+            }
+            [ -e "$state/unmount-fails" ] && [[ "$*" == *'--mode unmount'* ]] && exit 7
             true
             ;;
           lsblk)
@@ -84,7 +98,7 @@ let
     unshare = tool "unshare";
     mount = tool "mount";
     umount = tool "umount";
-    flock = tool "flock";
+    flock = "${pkgs.util-linux}/bin/flock";
     disko = tool "disko";
     lsblk = tool "lsblk";
     cryptenroll = tool "systemd-cryptenroll";
@@ -195,6 +209,7 @@ pkgs.runCommand "installer-safety-tests"
       pkgs.bash
       pkgs.coreutils
       pkgs.gnugrep
+      pkgs.util-linux
     ];
   }
   ''

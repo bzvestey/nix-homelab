@@ -64,11 +64,18 @@ rollback/address-release plan. No evacuation commands are authorized here.
 2. Independently verify Framework disk/NIC/GPU identities and installation
    readiness. Use `docs/runbooks/install-framework.md` only after separate
    installer/destructive approval. No reboot or installer is part of Task 13.
+   For an empty bootstrap-only installation, first run
+   `nix run .#bootstrap-readiness-hl-node-02` and complete the separate live
+   evacuation/backup, physical-media/network, escrow and approval gates in
+   that runbook. Its success does not clear production restore or activation.
 3. Measure the source Immich database independently from its library, the
    Mealie database/state, and Tuwunel RocksDB. Record current destination
-   `df -B1`/`findmnt` evidence and 25% headroom. The old combined Immich byte
-   total is invalid for new local sizing. `nix run .#inventory-readiness` must
-   pass before a physical migration; existing typed blockers remain gates.
+   `df -B1`/`findmnt` evidence and 25% headroom after bootstrap has created the
+   installed destination filesystems. The old combined Immich byte total is
+   invalid for new local sizing. `nix run .#inventory-readiness` must pass
+   before production data restore or workload activation; existing capacity,
+   backup/restore and database typed blockers remain gates. ISO tmpfs and disk
+   capacity are not measured destination free space.
 4. Enroll the genuine host recipient only with separate authorization, while
    retaining bootstrap masks and the production-NFS exclusion. Supply
    root-only runtime files `/run/secrets/immich.env` (`DB_PASSWORD`),
@@ -102,6 +109,12 @@ diffs and publish signed enrollment changes that **retain bootstrap policy**.
 | Fleet backups | `/run/secrets/restic-repository`, `/run/secrets/restic-password` (or reviewed configured paths) |
 | Tailscale | Credential at the effective configured auth-key runtime path; verify before enrollment |
 | Forgejo runner | Separately approved `framework-runners` credential mapping; runner remains masked |
+
+The bootstrap host maps `secrets/hosts/hl-node-02/bootstrap.yaml`'s encrypted
+`tailscale-auth-key` to `/run/secrets/tailscale-auth-key`, root-only mode 0400,
+and restarts native Tailscale autoconnect on rotation. Deployment must prove
+decryption and enrollment without printing the credential. This file does not
+provide application, backup or runner credentials or authorize their activation.
 
 The application mappings must be implemented and reviewed in sops-nix before
 enrollment; this table is not evidence that encrypted files or declarations

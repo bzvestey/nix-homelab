@@ -211,6 +211,17 @@
       });
 
       apps = forAllSystems (system: {
+        bootstrap-readiness-hl-node-02 = {
+          type = "app";
+          program = toString (
+            nixpkgs.legacyPackages.${system}.writeShellScript "bootstrap-readiness-hl-node-02" ''
+              set -eu
+              test -e ${self.checks.${system}.hl-node-02-bootstrap-readiness}
+              echo 'Repository bootstrap checks passed for hl-node-02; not production readiness or destructive authorization.'
+              echo 'Still required: fresh physical/source/backup evidence, signed CI-cleared media, recovery-key escrow and separate installation approval.'
+            ''
+          );
+        };
         inventory-readiness = {
           type = "app";
           program = toString (
@@ -326,6 +337,16 @@
           inventory = import ./checks/inventory.nix {
             inherit (nixpkgs) lib;
             pkgs = nixpkgs.legacyPackages.${system};
+          };
+          hl-node-02-bootstrap-readiness = import ./checks/hl-node-02-bootstrap-readiness.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+            host = nixosConfigurations.hl-node-02.config;
+            node = fleetTopology.nodes.hl-node-02;
+          };
+          bootstrap-readiness-fixtures = import ./checks/bootstrap-readiness-fixtures.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+            host = nixosConfigurations.hl-node-02.config;
+            node = fleetTopology.nodes.hl-node-02;
           };
           inventory-fixtures =
             let

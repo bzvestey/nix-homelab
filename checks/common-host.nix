@@ -189,6 +189,17 @@ let
     assert
       hostname != "hl-node-00"
       || config.fleet.backup.s3CredentialsFile == "/run/secrets/restic-s3-credentials";
+    assert
+      hostname != "hl-node-02"
+      || (
+        config.sops.secrets ? "tailscale-auth-key"
+        && config.sops.secrets.tailscale-auth-key.sopsFile == ../secrets/hosts/hl-node-02/bootstrap.yaml
+        && config.sops.secrets.tailscale-auth-key.path == "/run/secrets/tailscale-auth-key"
+        && config.sops.secrets.tailscale-auth-key.mode == "0400"
+        && config.sops.secrets.tailscale-auth-key.uid == 0
+        && config.services.tailscale.authKeyFile == config.sops.secrets.tailscale-auth-key.path
+        && builtins.elem "tailscaled-autoconnect.service" config.sops.secrets.tailscale-auth-key.restartUnits
+      );
     assert hostname != "hl-node-01" || !(config.sops.secrets ? "cloudflared-tunnel.json");
     assert config.networking.firewall.enable;
     assert config.networking.nftables.enable;
@@ -385,6 +396,10 @@ assert telemetryIdentityWiringValid;
 assert productionTelemetryWiringValid;
 assert deployedCominPackage.system == pkgs.stdenv.hostPlatform.system;
 pkgs.runCommand "common-host" { nativeBuildInputs = [ pkgs.expect ]; } ''
+  # RTL8156B adapters must have their firmware available at boot, not merely
+  # report carrier with an unpatched PHY and incorrect duplex information.
+  test -s ${nixosConfigurations.hl-node-02.config.hardware.firmware}/lib/firmware/rtl_nic/rtl8156b-2.fw.zst
+
   test -e ${cominExecutableTests}
 
   if printf 'hl-node-00\n' | ${telemetryInitializer}/bin/initialize-telemetry-ssd >initializer-output 2>&1; then

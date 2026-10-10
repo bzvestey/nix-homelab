@@ -51,6 +51,16 @@ printf '9c:bf:0d:00:25:5d\n' >"$state/sys/class/net/lan1/address"
 printf 'hl-node-02\n' | "$INSTALL_01" >"$state/acceptance" 2>&1
 grep -q 'Installation complete' "$state/acceptance"
 
+# A competing installer must refuse before generating a key or touching Disko,
+# while the disk remains available for udev's shared flock during installation.
+setup_host hl-node-02; : >"$state/log"
+exec 9>"$state/run/framework-installer-locks/259:0.lock"
+flock -x 9
+if printf 'hl-node-02\n' | "$INSTALL_01" >"$state/refusal" 2>&1; then exit 1; fi
+assert_no_destruction
+test ! -s "$state/output"
+exec 9>&-
+
 for spec in hl-node-02:$INSTALL_01 hl-node-03:$INSTALL_02 hl-node-04:$INSTALL_03; do
   host=${spec%%:*}; entry=${spec#*:}; setup_host "$host"; : >"$state/log"
   printf '%s\n' "$host" | "$entry" >"$state/acceptance" 2>&1

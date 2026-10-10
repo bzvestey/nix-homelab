@@ -61,6 +61,7 @@ let
       diskSerial
       (toString diskSectors)
     ];
+    inherit runRoot;
     workDir = "${runRoot}/framework-installer";
     shred = command "shred" "${pkgs.coreutils}/bin/shred";
     stat = command "stat" "${pkgs.coreutils}/bin/stat";

@@ -1,11 +1,11 @@
 keys:
   - &administrator age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz
   - &hl-node-00 age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec
+  - &hl-node-02 age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh
 
 # Enrollment adds public host recipients here, using the exact anchor printed
 # by fleet-enroll. Never add private keys or generated credentials.
 #   - &hl-node-01 age1...
-#   - &hl-node-02 age1...
 #   - &hl-node-03 age1...
 #   - &hl-node-04 age1...
 
@@ -14,6 +14,10 @@ creation_rules:
   - path_regex: secrets/hosts/hl-node-00/.*\.yaml$
     key_groups:
       - age: [*administrator, *hl-node-00]
+
+  - path_regex: secrets/hosts/hl-node-02/.*\.yaml$
+    key_groups:
+      - age: [*administrator, *hl-node-02]
 
   # - path_regex: secrets/hosts/hl-node-01/.*\.yaml$
   #   key_groups:
@@ -29,4 +33,4 @@ creation_rules:
   # Framework hosts. Add their anchors after enrollment.
   - path_regex: secrets/framework-runners/.*\.yaml$
     key_groups:
-      - age: [*administrator]
+      - age: [*administrator, *hl-node-02]

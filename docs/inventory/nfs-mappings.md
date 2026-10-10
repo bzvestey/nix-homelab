@@ -8,7 +8,12 @@ on local filesystems.
 | --- | --- | --- | --- | --- | --- |
 | `shared-video-library` | `10.15.4.101:/mnt/spinners-1/videos` | `/mnt/bulk/videos` | `hl-node-03`, `hl-node-04` | bulk, shared-retained | Deluge, Jellyfin, Radarr, SABnzbd, Sonarr, Whisparr |
 | `kavita-library` | `10.15.4.101:/mnt/spinners-1/Computer/books` | `/mnt/bulk/books` | `hl-node-03` | bulk, shared-retained | Kavita |
-| `immich-library` | `10.15.4.101:/mnt/spinners-1/kube-store/immich` | `/mnt/bulk/immich` | `hl-node-02` | bulk, shared-retained | Immich server |
+| `immich-library` | `nas.tailbc181.ts.net:/mnt/spinners-1/kube-store/immich` | `/mnt/bulk/immich` | `hl-node-02` | bulk, shared-retained | Immich server |
+
+Immich uses the NAS Tailscale endpoint (`100.102.187.89`), with hl-node-02's
+Tailscale address (`100.72.191.107`) authorized on the existing export. The
+dataset and export path are unchanged. Bootstrap still disables all production
+NFS mounts; this endpoint selection does not authorize mounting or activation.
 
 The source facts come from the read-only legacy OpenTofu configuration:
 `opentofu/modules/pv/main.tf` identifies `tns-1` as the TrueNAS server and

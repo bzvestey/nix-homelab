@@ -138,7 +138,9 @@ VectorChord index and application migrations before acceptance. Mealie retains
 PG17/pg_trgm 1.6. Reject a restore that changes these contracts without proof.
 
 The eventual production Immich upload library is an NFS4.1 hard mount from
-`10.15.4.101:/mnt/spinners-1/kube-store/immich` to `/mnt/bulk/immich`.
+`nas.tailbc181.ts.net:/mnt/spinners-1/kube-store/immich` to `/mnt/bulk/immich`
+over Tailscale. The existing export authorizes hl-node-02's Tailscale address,
+`100.72.191.107`; preserve its LAN authorizations and dataset path.
 This production mount/automount must be absent throughout bootstrap and isolated
 restore; use only an approved snapshot-derived isolated library for rehearsal.
 An unavailable startup mount blocks the server; stopping the mount stops only

@@ -14,7 +14,7 @@ in
     mode = "0400";
     restartUnits = [ "tailscaled-autoconnect.service" ];
   };
-  services.fleet.immich.librarySource = "10.15.4.101:/mnt/spinners-1/kube-store/immich";
+  services.fleet.immich.librarySource = "nas.tailbc181.ts.net:/mnt/spinners-1/kube-store/immich";
   services.fleet.forgejo-runner = {
     enable = true;
     uuid = "f1e34f88-7906-4da2-a237-9dc46c7d7802";

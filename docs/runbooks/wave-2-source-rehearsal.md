@@ -410,42 +410,45 @@ bounded archive extraction and repeats grammar/type/required-path checks.
 
 ## 5. Read-only preparation: evaluate/build driver only
 
-Root nixpkgs_2 is pinned to `c59305bab2065cfecc4944690d9eedbb56f3a9fa`.
-Reuse the two-node check with its supported `.extend` API; do not invoke its
-synthetic `testScript`. This expression was parent-evaluated to
-`/nix/store/y37azaqlk43pzsy1b19hvfg49m34i8wb-nixos-test-driver-hl-node-02-services.drv`.
-Re-evaluate at the reviewed revision; builds may fetch public dependencies but
+The `hl-node-02-rehearsal-driver` package reuses the two-node check through its
+supported `.extend` API. It preserves the pinned applications, uses a 64 GiB
+application disk and 128 GiB rehearsal NAS disk, restricts guest networking and
+disables backup timers. Do not invoke its synthetic `testScript`.
+Evaluate/build at the reviewed revision; builds may fetch public dependencies but
 must happen **before** any private data enters the offline environment.
 
 ```bash
-nix eval --impure --raw --expr '
-let f = builtins.getFlake (toString ./.);
-    t = f.checks.x86_64-linux.hl-node-02-services;
-in (t.extend { modules = [ ({ lib, ... }: {
-  nodes.machine = {
-    virtualisation.diskSize = lib.mkForce 65536;
-    virtualisation.restrictNetwork = true;
-    systemd.timers = lib.genAttrs [
-      "fleet-backup-immich-db" "fleet-backup-mealie-db"
-      "fleet-backup-mealie-state" "fleet-backup-tuwunel-state"
-      "fleet-backup-check"
-    ] (_: { enable = lib.mkForce false; });
-  };
-  nodes.nas = {
-    virtualisation.diskSize = lib.mkForce 131072;
-    virtualisation.restrictNetwork = true;
-  };
-}) ]; }).driver.drvPath'
-```
-
-Build that **driver derivation only**, not the check/testcase:
-
-```bash
-set -euo pipefail
-: "${driver_drv:?full reviewed driver derivation path}"
-driver=$(nix build --no-link --print-out-paths "$driver_drv^out")
+nix eval --raw .#hl-node-02-rehearsal-driver.drvPath
+driver=$(nix build --no-link --print-out-paths .#hl-node-02-rehearsal-driver)
 test -x "$driver/bin/nixos-test-driver"
 ```
+
+This builds **only the driver**, not a test execution. Building it does not
+authorize VM launch, private-data transfer or restore.
+
+After separate launch approval, the guarded entrypoint is:
+
+```bash
+nix run .#hl-node-02-rehearsal -- "$secure"
+```
+
+`secure` must be an existing canonical absolute directory, owned by the caller,
+without group/other access, on a block filesystem with an active encrypted
+mapping directly above a single partition/disk chain. RAID, LVM, branching,
+plain and unknown ancestry are conservatively refused, even if one branch is
+encrypted. It must have a short path (at most 42 characters) for QEMU sockets.
+The launcher checks KVM access, places private temporary/runtime/output files on
+that filesystem and enters a network namespace without uplinks/default routes.
+It disables the pinned driver's cwd `.nixos-test-history` through a `/dev/null`
+symlink and configures IPython history as disabled with an in-memory database
+in a fresh private profile (environment `PYTHON_HISTORY` alone is insufficient).
+Cleanup unlinks only these launcher-owned controls and attempts `rmdir` of
+empty runtime directories even after namespace setup failure; nonempty guest
+files/output/evidence are never recursively removed.
+It retains nonempty runtime for review/recovery. Build success and these
+launcher guards do not establish guest isolation: perform all section 6 guest
+interface, route, service and timer checks before transferring any private data.
+Use only the guarded launcher; do not bypass its storage/history guards.
 
 Before sensitive input, freshly prove capacity for library plus local state,
 archives, restic repository, protective backups, output and at least 25%
@@ -463,8 +466,9 @@ No production payload is a Nix input or a `writeText` value.
 
 ## 6. Authorized offline runtime bootstrap
 
-Use a private user+network namespace with no uplink/default routes. Keep cwd,
-TMPDIR, XDG_RUNTIME_DIR, REPL history and output on approved encrypted scratch.
+The guarded launcher creates a private user+network namespace with no
+uplink/default routes. Keep cwd, TMPDIR, XDG_RUNTIME_DIR and output on approved
+encrypted scratch; persistent REPL history is disabled.
 No production NFS, tailnet, comin or cloudflared; block actual OIDC, client and
 federation outbound. Verify isolation before transferring real data, including
 guest routes/interface reachability and effective timer/service configuration.
@@ -473,21 +477,9 @@ the longer capture path exceeds Linux's Unix-socket limit when QEMU appends
 its VM/virtiofs socket directories. Record this additional scratch location
 and include it in capacity accounting and eventual plaintext cleanup.
 
-```bash
-set -euo pipefail
-umask 077
-: "${secure:?}" "${driver:?}"
-rehearsal_root=$(mktemp -d "$HOME/.hlr.XXXXXX")
-test "$(findmnt -n -T "$rehearsal_root" -o SOURCE)" = "$(findmnt -n -T "$secure" -o SOURCE)"
-install -d -m 0700 "$rehearsal_root/tmp" "$rehearsal_root/runtime" "$secure/output"
-export TMPDIR="$rehearsal_root/tmp" XDG_RUNTIME_DIR="$rehearsal_root/runtime"
-export HISTFILE=/dev/null PYTHON_HISTORY=/dev/null
-export secure rehearsal_root
-cd "$secure"
-unshare --user --map-root-user --net -- sh -eu -c \
-  'ip link set lo up; test -z "$(ip route show default)"; test -z "$(ip -6 route show default)"; ip -j link | jq -e '\''all(.[]; .ifname == "lo")'\''; exec "$@"' sh \
-  "$driver/bin/nixos-test-driver" --interactive -o "$secure/output"
-```
+Launch once using section 5's guarded command after separate authorization.
+It exports `secure` and `rehearsal_root` for the REPL operations below. The
+printed runtime location is also part of private capacity/retention accounting.
 
 At the driver REPL use only manual operations; **never** `test_script()` or
 `run_tests()`. Start sequentially:

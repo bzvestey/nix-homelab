@@ -6,17 +6,32 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      checks: ${{ steps.select.outputs.checks }}
+      closures: ${{ steps.select.outputs.closures }}
+      has_checks: ${{ steps.select.outputs.has_checks }}
+      has_closures: ${{ steps.select.outputs.has_closures }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test CI selection
+        run: python3 .github/tests/ci-scope.py
+      - id: select
+        name: Select affected validation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/ci-scope.py --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT"
+
   checks:
+    needs: scope
+    if: needs.scope.outputs.has_checks == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            architecture: x86_64-linux
-          - runner: ubuntu-24.04-arm
-            architecture: aarch64-linux
+      matrix: ${{ fromJSON(needs.scope.outputs.checks) }}
     name: ${{ matrix.architecture }} checks (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:
@@ -99,20 +114,11 @@ jobs:
           fi
 
   host-closures:
+    needs: scope
+    if: needs.scope.outputs.has_closures == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            host: hl-node-02
-          - runner: ubuntu-24.04
-            host: hl-node-03
-          - runner: ubuntu-24.04
-            host: hl-node-04
-          - runner: ubuntu-24.04-arm
-            host: hl-node-00
-          - runner: ubuntu-24.04-arm
-            host: hl-node-01
+      matrix: ${{ fromJSON(needs.scope.outputs.closures) }}
     name: ${{ matrix.host }} closure (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:

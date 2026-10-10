@@ -116,11 +116,53 @@ and restarts native Tailscale autoconnect on rotation. Deployment must prove
 decryption and enrollment without printing the credential. This file does not
 provide application, backup or runner credentials or authorize their activation.
 
-The application mappings must be implemented and reviewed in sops-nix before
-enrollment; this table is not evidence that encrypted files or declarations
-already exist. Prove decryption without displaying values, preserve mode 0600
-and restricted parents, and confirm masks remain effective after activation.
-Secret availability is not permission to start consumers or run backups.
+`hosts/hl-node-02/application-secrets.nix` provides dormant sops-nix mappings.
+It is **not imported by the default host**, which remains Tailscale-only.
+After separate credential-enrollment approval, preserve the approved source
+identities and review actual encrypted
+`secrets/hosts/hl-node-02/applications.yaml` under the existing
+administrator-plus-host SOPS rule. Do not create placeholder production
+ciphertext or generate replacement identities. Backup repository/password and
+S3 access require a separately reviewed destination; do not assume the
+observability host's repository or password is suitable.
+
+Only then may a separately reviewed host revision import
+`./application-secrets.nix` and supply the required module argument
+`_module.args.hlNode02ApplicationSecretsFile = ../../secrets/hosts/hl-node-02/applications.yaml;`
+from the host directory. The module has no fallback file and makes no service
+enable overrides or restart requests. Retain bootstrap masks and NFS exclusion
+in that revision; runner enrollment remains separate.
+
+| Required SOPS key | Runtime destination |
+| --- | --- |
+| `immich-env` | `/run/secrets/immich.env` |
+| `mealie-env` | `/run/secrets/mealie.env` |
+| `tuwunel-config` | `/run/secrets/tuwunel.toml` |
+| `restic-repository` | `/run/secrets/restic-repository` |
+| `restic-password` | `/run/secrets/restic-password` |
+| `restic-s3-credentials` | `/run/secrets/restic-s3-credentials` |
+
+All six files are `root:root`, mode `0600`, with empty `restartUnits`.
+`fleet.backup.s3CredentialsFile` uses the last runtime path as the AWS shared
+credentials file, not credential environment overrides. Supply a valid reviewed
+shared-credentials file, not just an access-key value.
+
+The pinned sops-nix policy manages `/run/secrets` as a symlink into
+`/run/secrets.d`; the mountpoint and generation directories are `root:keys`,
+mode `0751`, not `0700`. Users outside the `keys` group can traverse known
+paths but cannot list these directories; non-root users cannot read the
+root-owned `0600` files. Do not chmod/chown this
+shared directory to make it root-only; that may break other secret consumers.
+Verify directory/symlink ownership and target file permissions on the installed
+host under separate authorization, without displaying values.
+
+The bootstrap check evaluates the complete prospective host with synthetic
+encrypted input and separately tests masks with fixture runtime credentials.
+SOPS file validation is disabled only in that mapping evaluation to avoid
+building fixtures during evaluation; this is **not decryption coverage** or
+evidence of enrollment. Prove real decryption without displaying values and
+confirm masks remain effective after secret installation. Secret availability
+is not permission to start consumers or run backups.
 
 ## Placement and compatibility
 

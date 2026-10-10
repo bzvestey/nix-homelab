@@ -188,6 +188,41 @@
         else
           mkFrameworkImage nodeId
       );
+      rehearsalDriver =
+        (self.checks.x86_64-linux.hl-node-02-services.extend {
+          modules = [
+            (
+              { lib, ... }:
+              {
+                nodes.machine = {
+                  virtualisation.diskSize = lib.mkForce 65536;
+                  virtualisation.restrictNetwork = true;
+                  systemd.timers =
+                    lib.genAttrs
+                      [
+                        "fleet-backup-immich-db"
+                        "fleet-backup-mealie-db"
+                        "fleet-backup-mealie-state"
+                        "fleet-backup-tuwunel-state"
+                        "fleet-backup-check"
+                      ]
+                      (_: {
+                        enable = lib.mkForce false;
+                      });
+                };
+                nodes.nas = {
+                  virtualisation.diskSize = lib.mkForce 131072;
+                  virtualisation.restrictNetwork = true;
+                };
+              }
+            )
+          ];
+        }).driver;
+      rehearsalLauncher =
+        nixpkgs.legacyPackages.x86_64-linux.callPackage ./packages/hl-node-02-rehearsal.nix
+          {
+            driver = rehearsalDriver;
+          };
     in
     {
       inherit images nixosConfigurations;
@@ -198,53 +233,72 @@
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
-      packages = forAllSystems (system: {
-        inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
-        comin = cominPackage system;
-        fleet-enroll = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-enroll.nix { };
-        fleet-restore = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-restore.nix {
-          jobs = { };
-          repositoryFile = "/run/secrets/restic-repository";
-          passwordFile = "/run/secrets/restic-password";
-        };
-        initialize-telemetry-ssd = mkTelemetryInitializer system;
-      });
+      packages = forAllSystems (
+        system:
+        {
+          inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
+          comin = cominPackage system;
+          fleet-enroll = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-enroll.nix { };
+          fleet-restore = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-restore.nix {
+            jobs = { };
+            repositoryFile = "/run/secrets/restic-repository";
+            passwordFile = "/run/secrets/restic-password";
+          };
+          initialize-telemetry-ssd = mkTelemetryInitializer system;
+        }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          hl-node-02-rehearsal-driver = rehearsalDriver;
+        }
+      );
 
-      apps = forAllSystems (system: {
-        bootstrap-readiness-hl-node-02 = {
-          type = "app";
-          program = toString (
-            nixpkgs.legacyPackages.${system}.writeShellScript "bootstrap-readiness-hl-node-02" ''
-              set -eu
-              test -e ${self.checks.${system}.hl-node-02-bootstrap-readiness}
-              echo 'Repository bootstrap checks passed for hl-node-02; not production readiness or destructive authorization.'
-              echo 'Still required: fresh physical/source/backup evidence, signed CI-cleared media, recovery-key escrow and separate installation approval.'
-            ''
-          );
-        };
-        inventory-readiness = {
-          type = "app";
-          program = toString (
-            nixpkgs.legacyPackages.${system}.writeShellScript "inventory-readiness" ''
-              exec nix build --impure --expr '
-                let
-                  flake = builtins.getFlake "${self}";
-                in
-                import ${self}/checks/inventory.nix {
-                  inherit (flake.inputs.nixpkgs) lib;
-                  pkgs = flake.inputs.nixpkgs.legacyPackages.${system};
-                  inventoryFile = ${self}/docs/inventory/services.md;
-                  readiness = true;
-                }
-              '
-            ''
-          );
-        };
-      });
+      apps = forAllSystems (
+        system:
+        {
+          bootstrap-readiness-hl-node-02 = {
+            type = "app";
+            program = toString (
+              nixpkgs.legacyPackages.${system}.writeShellScript "bootstrap-readiness-hl-node-02" ''
+                set -eu
+                test -e ${self.checks.${system}.hl-node-02-bootstrap-readiness}
+                echo 'Repository bootstrap checks passed for hl-node-02; not production readiness or destructive authorization.'
+                echo 'Still required: fresh physical/source/backup evidence, signed CI-cleared media, recovery-key escrow and separate installation approval.'
+              ''
+            );
+          };
+          inventory-readiness = {
+            type = "app";
+            program = toString (
+              nixpkgs.legacyPackages.${system}.writeShellScript "inventory-readiness" ''
+                exec nix build --impure --expr '
+                  let
+                    flake = builtins.getFlake "${self}";
+                  in
+                  import ${self}/checks/inventory.nix {
+                    inherit (flake.inputs.nixpkgs) lib;
+                    pkgs = flake.inputs.nixpkgs.legacyPackages.${system};
+                    inventoryFile = ${self}/docs/inventory/services.md;
+                    readiness = true;
+                  }
+                '
+              ''
+            );
+          };
+        }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          hl-node-02-rehearsal = {
+            type = "app";
+            program = "${rehearsalLauncher}/bin/hl-node-02-rehearsal";
+            meta.description = "Guarded offline hl-node-02 restore rehearsal; separate launch approval required";
+          };
+        }
+      );
 
       checks = forAllSystems (
         system:
         nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          rehearsal-launcher = import ./checks/rehearsal-launcher.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
           framework-network = import ./checks/framework-network.nix {
             inherit disko fleetTopology;
             pkgs = nixpkgs.legacyPackages.${system};
@@ -258,6 +312,16 @@
           };
         }
         // {
+          ci-scope =
+            nixpkgs.legacyPackages.${system}.runCommand "ci-scope-tests"
+              {
+                nativeBuildInputs = [ nixpkgs.legacyPackages.${system}.python3 ];
+              }
+              ''
+                export PYTHONDONTWRITEBYTECODE=1
+                python3 ${self}/.github/tests/ci-scope.py
+                touch $out
+              '';
           no-legacy-hostnames = nixpkgs.legacyPackages.${system}.runCommand "no-legacy-hostnames" { } ''
             ${nixpkgs.legacyPackages.${system}.bash}/bin/bash ${./checks/no-legacy-hostnames.sh} ${self}
             touch $out

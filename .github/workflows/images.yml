@@ -3,20 +3,50 @@ name: images
 on:
   pull_request:
   push:
-
-permissions:
-  contents: read
-
-jobs:
-  framework:
-    name: Framework bootstrap image (${{ matrix.host }})
-    strategy:
-      fail-fast: false
-      matrix:
-        host:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: Canonical host image to build
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - hl-node-00
+          - hl-node-01
           - hl-node-02
           - hl-node-03
           - hl-node-04
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      framework_images: ${{ steps.select.outputs.framework_images }}
+      pi_images: ${{ steps.select.outputs.pi_images }}
+      has_framework_images: ${{ steps.select.outputs.has_framework_images }}
+      has_pi_images: ${{ steps.select.outputs.has_pi_images }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test CI selection
+        run: python3 .github/tests/ci-scope.py
+      - id: select
+        name: Select affected images
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/ci-scope.py --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT"
+
+  framework:
+    needs: scope
+    if: needs.scope.outputs.has_framework_images == 'true'
+    name: Framework bootstrap image (${{ matrix.host }})
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.scope.outputs.framework_images) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -44,13 +74,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   raspberry-pi:
+    needs: scope
+    if: needs.scope.outputs.has_pi_images == 'true'
     name: Raspberry Pi image (${{ matrix.host }})
     strategy:
       fail-fast: false
-      matrix:
-        host:
-          - hl-node-00
-          - hl-node-01
+      matrix: ${{ fromJSON(needs.scope.outputs.pi_images) }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4

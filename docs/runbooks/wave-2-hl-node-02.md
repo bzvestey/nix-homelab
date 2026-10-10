@@ -116,22 +116,20 @@ and restarts native Tailscale autoconnect on rotation. Deployment must prove
 decryption and enrollment without printing the credential. This file does not
 provide application, backup or runner credentials or authorize their activation.
 
-`hosts/hl-node-02/application-secrets.nix` provides dormant sops-nix mappings.
-It is **not imported by the default host**, which remains Tailscale-only.
-After separate credential-enrollment approval, preserve the approved source
-identities and review actual encrypted
-`secrets/hosts/hl-node-02/applications.yaml` under the existing
-administrator-plus-host SOPS rule. Do not create placeholder production
-ciphertext or generate replacement identities. Backup repository/password and
-S3 access require a separately reviewed destination; do not assume the
-observability host's repository or password is suitable.
-
-Only then may a separately reviewed host revision import
-`./application-secrets.nix` and supply the required module argument
+This preparation revision imports `hosts/hl-node-02/application-secrets.nix`
+in the default host and supplies the required module argument
 `_module.args.hlNode02ApplicationSecretsFile = ../../secrets/hosts/hl-node-02/applications.yaml;`
-from the host directory. The module has no fallback file and makes no service
-enable overrides or restart requests. Retain bootstrap masks and NFS exclusion
-in that revision; runner enrollment remains separate.
+from the host directory. The existing six-entry ciphertext uses the
+administrator-plus-genuine-host SOPS rule; administrator and genuine-host
+decryption/MAC verification has been recorded without displaying values.
+No ciphertext or source identities are replaced by this wiring change.
+The module has no fallback file and makes no service enable overrides or
+restart requests. All bootstrap masks and the production-NFS exclusion remain.
+Publishing this revision, deploying it, installing runtime secrets and activating
+consumers each remain separately approval-gated; local wiring is not any of
+those actions. Runner enrollment remains separate. Backup destination access
+and initialization must follow their separately reviewed approval; do not assume
+the observability host's repository or password is suitable.
 
 | Required SOPS key | Runtime destination |
 | --- | --- |
@@ -156,8 +154,11 @@ shared directory to make it root-only; that may break other secret consumers.
 Verify directory/symlink ownership and target file permissions on the installed
 host under separate authorization, without displaying values.
 
-The bootstrap check evaluates the complete prospective host with synthetic
-encrypted input and separately tests masks with fixture runtime credentials.
+The bootstrap check requires all seven secrets in the actual default host,
+including the six application/backup mappings from the correct ciphertext and
+the backup shared-credentials path. It also evaluates the complete host's
+default imports with a forced disposable synthetic encrypted input, and
+separately tests masks with fixture runtime credentials.
 SOPS file validation is disabled only in that mapping evaluation to avoid
 building fixtures during evaluation; this is **not decryption coverage** or
 evidence of enrollment. Prove real decryption without displaying values and

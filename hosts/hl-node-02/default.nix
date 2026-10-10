@@ -6,7 +6,9 @@ in
   imports = [
     ./disk-config.nix
     ./bootstrap.nix
+    ./application-secrets.nix
   ];
+  _module.args.hlNode02ApplicationSecretsFile = ../../secrets/hosts/hl-node-02/applications.yaml;
   # RTL8156B USB NICs require rtl_nic/rtl8156b-2.fw for correct PHY setup.
   hardware.enableRedistributableFirmware = true;
   sops.secrets.tailscale-auth-key = {

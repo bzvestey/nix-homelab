@@ -41,9 +41,8 @@ let
     # extendModules retains the complete host, including its sops-nix import.
     (nixosConfigurations.hl-node-02.extendModules {
       modules = [
-        ../hosts/hl-node-02/application-secrets.nix
         {
-          _module.args.hlNode02ApplicationSecretsFile = "${applicationFixture}/applications.yaml";
+          _module.args.hlNode02ApplicationSecretsFile = lib.mkForce "${applicationFixture}/applications.yaml";
           # Evaluation checks mappings, not decryption; avoid import-from-derivation.
           sops.validateSopsFiles = lib.mkForce false;
         }
@@ -74,8 +73,26 @@ let
   };
 in
 assert lib.assertMsg (
-  builtins.attrNames host.sops.secrets == [ "tailscale-auth-key" ]
-) "hl-node-02 bootstrap: default host must remain Tailscale-only";
+  builtins.attrNames host.sops.secrets
+  == builtins.attrNames (applicationPaths // { tailscale-auth-key = null; })
+) "hl-node-02 bootstrap: default host must integrate all seven secrets";
+assert lib.assertMsg (lib.all
+  (
+    name:
+    let
+      secret = host.sops.secrets.${name};
+    in
+    secret.key == name
+    && secret.path == applicationPaths.${name}
+    && secret.owner == "root"
+    && secret.group == "root"
+    && secret.mode == "0600"
+    && secret.restartUnits == [ ]
+    && toString secret.sopsFile == toString ../secrets/hosts/hl-node-02/applications.yaml
+  )
+  (builtins.attrNames applicationPaths)
+) "hl-node-02 bootstrap: default application secret mappings and ciphertext source";
+assert host.fleet.backup.s3CredentialsFile == "/run/secrets/restic-s3-credentials";
 assert lib.assertMsg (lib.all
   (
     name:

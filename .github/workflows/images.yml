@@ -51,6 +51,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+        with:
+          use-gha-cache: true
+          use-flakehub: false
       - name: Test Framework artifact packaging
         run: bash .github/tests/framework-packaging.sh
       - name: Check installers
@@ -84,6 +88,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+        with:
+          use-gha-cache: true
+          use-flakehub: false
       - name: Build ${{ matrix.host }} image
         run: |
           set -o pipefail

@@ -35,13 +35,13 @@ let
       imageType = "framework";
       nic = {
         members = [
-          "enp0s13f0u1"
-          "enp0s13f0u2"
+          "lan0"
+          "lan1"
         ];
         macAddress = "9c:bf:0d:00:23:fe";
         permanentMacAddresses = {
-          enp0s13f0u1 = "9c:bf:0d:00:23:fe";
-          enp0s13f0u2 = "9c:bf:0d:00:25:5d";
+          lan0 = "9c:bf:0d:00:23:fe";
+          lan1 = "9c:bf:0d:00:25:5d";
         };
       };
       installDisk = {

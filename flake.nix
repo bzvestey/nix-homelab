@@ -234,6 +234,10 @@
       checks = forAllSystems (
         system:
         nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          framework-network = import ./checks/framework-network.nix {
+            inherit disko fleetTopology;
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
           hl-node-02-services = import ./checks/hl-node-02-services.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };

@@ -1,4 +1,4 @@
-{ fleetTopology, ... }:
+{ lib, fleetTopology, ... }:
 let
   nic = fleetTopology.nodes.hl-node-02.nic;
 in
@@ -24,6 +24,19 @@ in
     };
   };
   systemd.network = {
+    links = lib.mapAttrs' (
+      member: mac:
+      lib.nameValuePair "10-${member}" {
+        matchConfig = {
+          PermanentMACAddress = mac;
+          Kind = "!*";
+        };
+        linkConfig = {
+          Name = member;
+          NamePolicy = "";
+        };
+      }
+    ) nic.permanentMacAddresses;
     netdevs."10-bond0" = {
       netdevConfig = {
         Kind = "bond";
@@ -38,15 +51,15 @@ in
     networks = {
       "10-member-1" = {
         matchConfig = {
-          Name = "enp0s13f0u1";
-          PermanentMACAddress = nic.permanentMacAddresses.enp0s13f0u1;
+          Name = "lan0";
+          PermanentMACAddress = nic.permanentMacAddresses.lan0;
         };
         networkConfig.Bond = "bond0";
       };
       "10-member-2" = {
         matchConfig = {
-          Name = "enp0s13f0u2";
-          PermanentMACAddress = nic.permanentMacAddresses.enp0s13f0u2;
+          Name = "lan1";
+          PermanentMACAddress = nic.permanentMacAddresses.lan1;
         };
         networkConfig.Bond = "bond0";
       };

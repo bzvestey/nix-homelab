@@ -108,12 +108,12 @@ let
       serial = "S59CNM0W713317D";
       sectors = 3907029168;
       members = [
-        "enp0s13f0u1"
-        "enp0s13f0u2"
+        "lan0"
+        "lan1"
       ];
       permanentMacs = {
-        enp0s13f0u1 = "9c:bf:0d:00:23:fe";
-        enp0s13f0u2 = "9c:bf:0d:00:25:5d";
+        lan0 = "9c:bf:0d:00:23:fe";
+        lan1 = "9c:bf:0d:00:25:5d";
       };
       gpu = "8086:9a49";
     };
@@ -205,13 +205,13 @@ pkgs.runCommand "installer-safety-tests"
       installer "hl-node-02" { nicPermanentMacs = { }; }
     }/bin/install-hl-node-02
     export INSTALL_MISSING=${
-      installer "hl-node-02" { nicPermanentMacs.enp0s13f0u1 = "9c:bf:0d:00:23:fe"; }
+      installer "hl-node-02" { nicPermanentMacs.lan0 = "9c:bf:0d:00:23:fe"; }
     }/bin/install-hl-node-02
     export INSTALL_UNRESOLVED=${
       installer "hl-node-02" {
         nicPermanentMacs = {
-          enp0s13f0u1 = "9c:bf:0d:00:23:fe";
-          enp0s13f0u2 = "UNRESOLVED";
+          lan0 = "9c:bf:0d:00:23:fe";
+          lan1 = "UNRESOLVED";
         };
       }
     }/bin/install-hl-node-02

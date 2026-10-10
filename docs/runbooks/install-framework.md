@@ -9,21 +9,34 @@ Read-only Talos inspection of `minastas-home-cluster-w1` (`10.15.4.5`) on Octobe
 Live installer inspection on October 9, 2026 verified hl-node-02's permanent
 MACs as `enp0s13f0u1 = 9c:bf:0d:00:23:fe` and
 `enp0s13f0u2 = 9c:bf:0d:00:25:5d`. The older inventory captured both current
-addresses after bonding, not two identical hardware identities. The corrected
-host and ISO use permanent-MAC selectors and active-backup bonding with 100 ms
-link monitoring. Networkd alone manages the ISO's static networking; the minimal
+addresses after bonding, not two identical hardware identities. These path names
+describe that observation, not stable identities. On the corrected host and ISO,
+physical-interface `.link` rules assign `lan0` to permanent MAC
+`9c:bf:0d:00:23:fe` and `lan1` to `9c:bf:0d:00:25:5d`, regardless of USB
+controller/port enumeration. Network matching and installer preflight use those
+stable names and still require the exact permanent MACs. The installer must
+refuse if either stable name is absent or has a different permanent identity;
+do not bypass its checks or substitute an adapter. The USB hub's separate
+Ethernet NIC is not an enrolled member and stays outside the bond.
+The bond uses active-backup mode with 100 ms link monitoring.
+Networkd alone manages the ISO's static networking; the minimal
 live image's NetworkManager is disabled to prevent competing DHCP configuration.
 hl-node-03/04 permanent MACs remain unverified; their installers refuse even if
 disk identity is later resolved. Their existing unverified boot selectors are
 retained until measured, not reclassified as permanent hardware observations.
 
-The old hl-node-02 ISO that boots successfully still has incorrect NIC matching
-and preflight checks. Do not bypass them or run its installer. Publish the
-reviewed correction, obtain a new CI-cleared revision-bound artifact and repeat
-the checksum/media handoff before installation. An adapter disappeared during
-the physical boot test and returned after reseating; the hardware/driver cause
-remains unproven. Recheck stability and perform physical failover acceptance
-on the corrected media; successful reseating is not long-term reliability proof.
+The previously flashed hl-node-02 ISO still requires historical USB-path names
+in addition to permanent MACs. During its physical boot test the `23:fe` adapter
+enumerated as `enp0s20f0u1` on USB 2.0 instead of `enp0s13f0u1`; the operator
+confirmed it had not moved. Requiring the old name excluded it from the bond.
+The reason for USB 2.0 enumeration remains unproven; stable naming does not
+repair or prove USB 3.x performance. Do not bypass preflight or run that
+installer. Publish the reviewed stable-name correction, obtain a new CI-cleared
+revision-bound artifact and repeat the checksum/media handoff before installation.
+An adapter also disappeared during an earlier test and returned after reseating;
+its hardware/driver cause remains unproven. Recheck stability, USB bus speeds
+and physical failover on corrected media. A successful simulated VM failover
+does not establish physical adapter reliability.
 
 ## Bootstrap-only publication and media handoff
 

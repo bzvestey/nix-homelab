@@ -20,7 +20,7 @@ setup_host() {
   printf '24 1 0:20 / / rw,relatime shared:1 - ext4 /dev/root rw\n25 24 0:5 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw\n' >"$state/proc/self/mountinfo"
   rm -rf "$state/sys/class/net"; mkdir -p "$state/sys/class/net"
   case "$host" in
-    hl-node-02) model='Samsung SSD 970 EVO Plus 2TB'; serial=S59CNM0W713317D; sectors=3907029168; members='enp0s13f0u1 enp0s13f0u2'; mac=9c:bf:0d:00:23:fe; gpu=9a49 ;;
+    hl-node-02) model='Samsung SSD 970 EVO Plus 2TB'; serial=S59CNM0W713317D; sectors=3907029168; members='lan0 lan1'; mac=9c:bf:0d:00:23:fe; gpu=9a49 ;;
     hl-node-03) model='Samsung SSD 980 1TB'; serial=S64ANS0RB36721W; sectors=1953525168; members='enp0s13f0u3 enp0s13f0u4'; mac=02:00:00:00:03:01; gpu=4626 ;;
     hl-node-04) model='Samsung SSD 980 1TB'; serial=S64ANL0T801753P; sectors=1953525168; members='enp0s13f0u3 enp0s13f0u4'; mac=02:00:00:00:04:01; gpu=9a49 ;;
   esac
@@ -47,7 +47,7 @@ setup_host() {
 assert_no_destruction() { ! grep -Eq 'disko:|systemd-cryptenroll:' "$state/log"; }
 # Permanent identities must work both before and after bonding rewrites addresses.
 setup_host hl-node-02; : >"$state/log"
-printf '9c:bf:0d:00:25:5d\n' >"$state/sys/class/net/enp0s13f0u2/address"
+printf '9c:bf:0d:00:25:5d\n' >"$state/sys/class/net/lan1/address"
 printf 'hl-node-02\n' | "$INSTALL_01" >"$state/acceptance" 2>&1
 grep -q 'Installation complete' "$state/acceptance"
 
@@ -72,11 +72,11 @@ done
 for fault in wrong missing unavailable empty malformed; do
   setup_host hl-node-02; : >"$state/log"
   case "$fault" in
-    wrong) printf '02:00:00:00:00:ff\n' >"$state/sys/class/net/enp0s13f0u2/permanent-address" ;;
-    missing) rm "$state/sys/class/net/enp0s13f0u2/permanent-address" ;;
+    wrong) printf '02:00:00:00:00:ff\n' >"$state/sys/class/net/lan1/permanent-address" ;;
+    missing) rm "$state/sys/class/net/lan1/permanent-address" ;;
     unavailable) touch "$state/ethtool-fails" ;;
-    empty) : >"$state/sys/class/net/enp0s13f0u2/permanent-address" ;;
-    malformed) printf 'UNRESOLVED\n' >"$state/sys/class/net/enp0s13f0u2/permanent-address" ;;
+    empty) : >"$state/sys/class/net/lan1/permanent-address" ;;
+    malformed) printf 'UNRESOLVED\n' >"$state/sys/class/net/lan1/permanent-address" ;;
   esac
   if printf 'hl-node-02\n' | "$INSTALL_01" >"$state/refusal" 2>&1; then exit 1; fi
   test -s "$state/refusal"
@@ -107,7 +107,7 @@ assert_no_destruction; ! grep -q '^mount:' "$state/log"; rm "$state/propagation-
 setup_host hl-node-02; : >"$state/log"; export FIXTURE_UID=1000
 if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction; unset FIXTURE_UID
-setup_host hl-node-02; rm "$state/sys/class/net/enp0s13f0u1/address"; : >"$state/log"
+setup_host hl-node-02; rm "$state/sys/class/net/lan0/address"; : >"$state/log"
 if printf 'hl-node-02\n' | "$INSTALL_01"; then exit 1; fi
 assert_no_destruction
 setup_host hl-node-02; printf '0xffff\n' >"$state/sys/bus/pci/devices/0000:00:02.0/device"; : >"$state/log"

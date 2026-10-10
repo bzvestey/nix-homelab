@@ -43,6 +43,19 @@ in
   # Minimal installation media enables NetworkManager; networkd owns these static links.
   networking.networkmanager.enable = lib.mkForce false;
   systemd.network = {
+    links = lib.mapAttrs' (
+      member: mac:
+      lib.nameValuePair "10-${member}" {
+        matchConfig = {
+          PermanentMACAddress = mac;
+          Kind = "!*";
+        };
+        linkConfig = {
+          Name = member;
+          NamePolicy = "";
+        };
+      }
+    ) nicPermanentMacs;
     netdevs."10-bond0" = {
       netdevConfig = {
         Kind = "bond";

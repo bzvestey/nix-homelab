@@ -54,11 +54,11 @@ let
       address = "10.15.4.5/24";
       networks = {
         "10-member-1" = {
-          Name = "enp0s13f0u1";
+          Name = "lan0";
           PermanentMACAddress = "9c:bf:0d:00:23:fe";
         };
         "10-member-2" = {
-          Name = "enp0s13f0u2";
+          Name = "lan1";
           PermanentMACAddress = "9c:bf:0d:00:25:5d";
         };
         "20-bond0".Name = "bond0";

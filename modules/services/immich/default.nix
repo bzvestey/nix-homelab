@@ -84,7 +84,7 @@ in
       backend = "podman";
       containers = {
         immich = {
-          image = "ghcr.io/immich-app/immich-server@sha256:79cc1623323d5894922686d8743b4780181428f98eecbfb58ce12c41ef02d1ea";
+          image = "ghcr.io/immich-app/immich-server@sha256:db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1";
           environmentFiles = [ cfg.environmentFile ];
           environment = {
             DB_HOSTNAME = "127.0.0.1";
@@ -101,7 +101,7 @@ in
           extraOptions = [ "--network=host" ];
         };
         immich-ml = {
-          image = "ghcr.io/immich-app/immich-machine-learning@sha256:60dfcf266a9ef3b7376f5678e8c980d4fb61db5fc48c078fe8a326ab1535d60d";
+          image = "ghcr.io/immich-app/immich-machine-learning@sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed";
           environment = {
             IMMICH_HOST = "127.0.0.1";
             TRANSFORMERS_CACHE = "/cache";

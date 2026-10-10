@@ -15,20 +15,20 @@ let
   images = {
     immich =
       image "ghcr.io/immich-app/immich-server"
-        "sha256:79cc1623323d5894922686d8743b4780181428f98eecbfb58ce12c41ef02d1ea"
-        "sha256-ThzH2Ucww1a3EYQ3vf9a0CzT3OtxYRQknQmyJJrxoBg=";
+        "sha256:db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1"
+        "sha256-vfmirPNuTIzuTJTGscFEhgY3SmOpNWdzx6n1GNXSv6o=";
     immich-ml =
       image "ghcr.io/immich-app/immich-machine-learning"
-        "sha256:60dfcf266a9ef3b7376f5678e8c980d4fb61db5fc48c078fe8a326ab1535d60d"
-        "sha256-xqII+awa+ke8whXhVTDgWMghHgzHkHLq2d1kMXUkQQ0=";
+        "sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed"
+        "sha256-S8N7eycF9DBY8atYDPzgLhHk2AsIGpyQURs2QZs6YOQ=";
     mealie =
       image "ghcr.io/mealie-recipes/mealie"
         "sha256:8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688"
         "sha256-vu6yi+A/a6K/E13RzgjvvOqvrk7KsM5TDgRFl7Ps7zA=";
     tuwunel =
       image "docker.io/jevolk/tuwunel"
-        "sha256:678b7f5350e06a41614444497c587da9dddf66767e4068a27480402f3c1367d0"
-        "sha256-cb/haDoOaM3IuRoQrw++plMc/Vbj/CrunuNeajRXKTQ=";
+        "sha256:0e86c6164d6c9f5b60291938eb61ad8395021c37fe58d47a963ea7edddbedaec"
+        "sha256-5jMDWOTu1PvsLX+cVdiPkHexoyp/Cp+RMxlnOGK02m8=";
   };
   pg16 = import ../packages/immich-postgresql.nix { inherit pkgs; };
   tuwunelConfig = pkgs.writeText "tuwunel-fixture.toml" ''

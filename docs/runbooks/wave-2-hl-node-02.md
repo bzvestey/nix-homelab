@@ -84,10 +84,15 @@ rollback/address-release plan. No evacuation commands are authorized here.
    through the fleet secret-management policy. Missing files deliberately
    leave applications/databases stopped. Do not create plaintext substitutes.
 5. Preserve these exact application pins:
-   - Immich server: `79cc1623323d5894922686d8743b4780181428f98eecbfb58ce12c41ef02d1ea`.
-   - Immich ML: `60dfcf266a9ef3b7376f5678e8c980d4fb61db5fc48c078fe8a326ab1535d60d`.
+   - Immich server v3.3.1: `db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1`.
+   - Immich ML v3.3.1: `513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed`.
    - Mealie: `8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688`.
-   - Tuwunel: `678b7f5350e06a41614444497c587da9dddf66767e4068a27480402f3c1367d0`.
+   - Tuwunel 1.9.4: `0e86c6164d6c9f5b60291938eb61ad8395021c37fe58d47a963ea7edddbedaec`.
+   Recheck running source image IDs before capture and after recovery, resolving
+   multi-architecture indices to platform manifests before comparing them.
+   Floating source tags can change on pod restart without an OpenTofu apply.
+   Freeze them to the running digests only with separate source-change approval;
+   a changed version requires compatibility review and a fresh final capture.
 
 ### Secret enrollment mapping (separate approval)
 

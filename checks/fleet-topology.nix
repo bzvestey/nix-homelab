@@ -39,6 +39,10 @@ let
           "enp0s13f0u2"
         ];
         macAddress = "9c:bf:0d:00:23:fe";
+        permanentMacAddresses = {
+          enp0s13f0u1 = "9c:bf:0d:00:23:fe";
+          enp0s13f0u2 = "9c:bf:0d:00:25:5d";
+        };
       };
       installDisk = {
         byId = "/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_2TB_S59CNM0W713317D_1";

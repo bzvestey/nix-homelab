@@ -11,6 +11,7 @@
   diskSectors,
   nicMembers,
   nicMac,
+  nicPermanentMacs,
   address,
   gpuPciId,
   ...
@@ -27,7 +28,7 @@ let
       diskSerial
       diskSectors
       nicMembers
-      nicMac
+      nicPermanentMacs
       gpuPciId
       ;
     diskoPackage = disko.packages.${pkgs.stdenv.hostPlatform.system}.disko;
@@ -39,10 +40,19 @@ in
   environment.systemPackages = [ installer ];
   services.openssh.enable = true;
   networking.hostName = "${targetHost}-installer";
+  # Minimal installation media enables NetworkManager; networkd owns these static links.
+  networking.networkmanager.enable = lib.mkForce false;
   systemd.network = {
-    netdevs."10-bond0".netdevConfig = {
-      Kind = "bond";
-      Name = "bond0";
+    netdevs."10-bond0" = {
+      netdevConfig = {
+        Kind = "bond";
+        Name = "bond0";
+        MACAddress = nicMac;
+      };
+      bondConfig = {
+        Mode = "active-backup";
+        MIIMonitorSec = "100ms";
+      };
     };
     networks =
       lib.listToAttrs (
@@ -51,8 +61,14 @@ in
           value = {
             matchConfig = {
               Name = member;
-              MACAddress = nicMac;
-            };
+            }
+            // (
+              if nicPermanentMacs ? ${member} then
+                { PermanentMACAddress = nicPermanentMacs.${member}; }
+              else
+                # Preserve unverified hosts' boot networking; their installer refuses.
+                { MACAddress = nicMac; }
+            );
             networkConfig.Bond = "bond0";
           };
         }) nicMembers

@@ -9,7 +9,7 @@
   diskSerial,
   diskSectors,
   nicMembers,
-  nicMac,
+  nicPermanentMacs ? { },
   gpuPciId,
   commands ? { },
   roots ? { },
@@ -85,10 +85,16 @@ let
   };
   inner = pkgs.writeShellScript "install-${targetHost}-inner" ''
     set -euo pipefail
-    for member in ${lib.escapeShellArgs nicMembers}; do
+    ${lib.concatMapStringsSep "\n" (member: ''
+      member=${lib.escapeShellArg member}
+      expected=${lib.escapeShellArg (nicPermanentMacs.${member} or "")}
+      [ -n "$expected" ] && [ "$expected" != UNRESOLVED ] || { echo "unverified permanent MAC for $member" >&2; exit 1; }
       [ -r "${sysRoot}/class/net/$member/address" ] || { echo "missing NIC member $member" >&2; exit 1; }
-      [ "$(cat "${sysRoot}/class/net/$member/address")" = "${nicMac}" ] || { echo "MAC mismatch on $member" >&2; exit 1; }
-    done
+      evidence=$(${command "ethtool" "${pkgs.ethtool}/bin/ethtool"} -P "$member") || { echo "permanent MAC unavailable for $member" >&2; exit 1; }
+      [[ "$evidence" =~ ^Permanent\ address:\ ([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || { echo "invalid permanent MAC evidence for $member" >&2; exit 1; }
+      permanent=''${evidence#Permanent address: }
+      [ "''${permanent,,}" = "''${expected,,}" ] || { echo "permanent MAC mismatch on $member" >&2; exit 1; }
+    '') nicMembers}
     gpu=$(printf '%s' '${gpuPciId}' | tr '[:upper:]' '[:lower:]')
     vendor=''${gpu%:*}; product=''${gpu#*:}
     grep -Fqx "0x$vendor" "${sysRoot}/bus/pci/devices/0000:00:02.0/vendor" || { echo "GPU vendor mismatch" >&2; exit 1; }

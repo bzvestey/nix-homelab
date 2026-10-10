@@ -95,15 +95,16 @@
             },
             {
               "interface": "enp0s13f0u2",
-              "macAddress": "9c:bf:0d:00:23:fe"
+              "macAddress": "9c:bf:0d:00:25:5d"
             }
           ],
-          "stableId": "9c:bf:0d:00:23:fe",
-          "observedAt": "2026-10-02",
+          "addressKind": "permanent",
+          "stableId": "9c:bf:0d:00:23:fe+9c:bf:0d:00:25:5d",
+          "observedAt": "2026-10-09",
           "evidence": {
             "type": "command-output",
             "command": "network-sysfs",
-            "scope": "kubernetes-node/hl-node-02/sysfs/class/net"
+            "scope": "live-installer/hl-node-02/bond-permanent-hw-address-and-unbonded-sysfs-addr-assign-type-0"
           }
         },
         "gpu": {

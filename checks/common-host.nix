@@ -55,11 +55,11 @@ let
       networks = {
         "10-member-1" = {
           Name = "enp0s13f0u1";
-          MACAddress = "9c:bf:0d:00:23:fe";
+          PermanentMACAddress = "9c:bf:0d:00:23:fe";
         };
         "10-member-2" = {
           Name = "enp0s13f0u2";
-          MACAddress = "9c:bf:0d:00:23:fe";
+          PermanentMACAddress = "9c:bf:0d:00:25:5d";
         };
         "20-bond0".Name = "bond0";
       };
@@ -147,6 +147,13 @@ let
     assert config.networking.hosts."10.15.4.6" == [ "observability" ];
     assert networkAddresses == [ facts.address ];
     assert selectorsValid;
+    assert
+      hostname != "hl-node-02"
+      ||
+        config.systemd.network.netdevs."10-bond0".bondConfig == {
+          Mode = "active-backup";
+          MIIMonitorSec = "100ms";
+        };
     assert config.services.openssh.enable;
     assert config.services.openssh.settings.PasswordAuthentication == false;
     assert config.services.openssh.settings.KbdInteractiveAuthentication == false;

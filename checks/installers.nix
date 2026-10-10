@@ -19,6 +19,12 @@ let
     name=''${name#*-fixture-}
         echo "$name:$*" >>"$state/log"
         case "$name" in
+          ethtool)
+            [ "$1" = -P ] || exit 2
+            [ ! -e "$state/ethtool-fails" ] || exit 1
+            printf 'Permanent address: '
+            cat "$state/sys/class/net/$2/permanent-address"
+            ;;
           id) echo "''${FIXTURE_UID:-0}" ;;
           guard-log) ;;
           readlink)
@@ -70,6 +76,7 @@ let
   commands = {
     bash = "${pkgs.bash}/bin/bash";
     id = tool "id";
+    ethtool = tool "ethtool";
     logGuard = tool "guard-log";
     readlink = tool "readlink";
     stat = tool "stat";
@@ -104,7 +111,10 @@ let
         "enp0s13f0u1"
         "enp0s13f0u2"
       ];
-      mac = "9c:bf:0d:00:23:fe";
+      permanentMacs = {
+        enp0s13f0u1 = "9c:bf:0d:00:23:fe";
+        enp0s13f0u2 = "9c:bf:0d:00:25:5d";
+      };
       gpu = "8086:9a49";
     };
     hl-node-03 = {
@@ -115,7 +125,11 @@ let
         "enp0s13f0u3"
         "enp0s13f0u4"
       ];
-      mac = "9c:bf:0d:00:0d:3c";
+      # Synthetic test identities, not measured production hardware.
+      permanentMacs = {
+        enp0s13f0u3 = "02:00:00:00:03:01";
+        enp0s13f0u4 = "02:00:00:00:03:02";
+      };
       gpu = "8086:4626";
     };
     hl-node-04 = {
@@ -126,29 +140,36 @@ let
         "enp0s13f0u3"
         "enp0s13f0u4"
       ];
-      mac = "9c:bf:0d:00:20:37";
+      # Synthetic test identities, not measured production hardware.
+      permanentMacs = {
+        enp0s13f0u3 = "02:00:00:00:04:01";
+        enp0s13f0u4 = "02:00:00:00:04:02";
+      };
       gpu = "8086:9a49";
     };
   };
   installer =
-    host:
+    host: overrides:
     let
       f = facts.${host};
     in
-    import ../installers/framework-installer.nix {
-      inherit pkgs commands roots;
-      inherit (pkgs) lib;
-      diskoPackage = pkgs.disko or pkgs.hello;
-      targetHost = host;
-      targetSystem = "/nix/store/test-system";
-      diskById = "/build/fixture/dev/disk/by-id/nvme-Samsung";
-      diskModel = f.model;
-      diskSerial = f.serial;
-      diskSectors = f.sectors;
-      nicMembers = f.members;
-      nicMac = f.mac;
-      gpuPciId = f.gpu;
-    };
+    import ../installers/framework-installer.nix (
+      {
+        inherit pkgs commands roots;
+        inherit (pkgs) lib;
+        diskoPackage = pkgs.disko or pkgs.hello;
+        targetHost = host;
+        targetSystem = "/nix/store/test-system";
+        diskById = "/build/fixture/dev/disk/by-id/nvme-Samsung";
+        diskModel = f.model;
+        diskSerial = f.serial;
+        diskSectors = f.sectors;
+        nicMembers = f.members;
+        nicPermanentMacs = f.permanentMacs;
+        gpuPciId = f.gpu;
+      }
+      // overrides
+    );
   productionInstaller = import ../installers/framework-installer.nix {
     inherit pkgs;
     inherit (pkgs) lib;
@@ -160,7 +181,6 @@ let
     diskSerial = "serial";
     diskSectors = 1;
     nicMembers = [ "eth0" ];
-    nicMac = "00:00:00:00:00:00";
     gpuPciId = "8086:0000";
   };
 in
@@ -178,9 +198,23 @@ pkgs.runCommand "installer-safety-tests"
     ];
   }
   ''
-    export INSTALL_01=${installer "hl-node-02"}/bin/install-hl-node-02
-    export INSTALL_02=${installer "hl-node-03"}/bin/install-hl-node-03
-    export INSTALL_03=${installer "hl-node-04"}/bin/install-hl-node-04
+    export INSTALL_01=${installer "hl-node-02" { }}/bin/install-hl-node-02
+    export INSTALL_02=${installer "hl-node-03" { }}/bin/install-hl-node-03
+    export INSTALL_03=${installer "hl-node-04" { }}/bin/install-hl-node-04
+    export INSTALL_UNVERIFIED=${
+      installer "hl-node-02" { nicPermanentMacs = { }; }
+    }/bin/install-hl-node-02
+    export INSTALL_MISSING=${
+      installer "hl-node-02" { nicPermanentMacs.enp0s13f0u1 = "9c:bf:0d:00:23:fe"; }
+    }/bin/install-hl-node-02
+    export INSTALL_UNRESOLVED=${
+      installer "hl-node-02" {
+        nicPermanentMacs = {
+          enp0s13f0u1 = "9c:bf:0d:00:23:fe";
+          enp0s13f0u2 = "UNRESOLVED";
+        };
+      }
+    }/bin/install-hl-node-02
     export PROD_01=${productionInstaller}
     test -s ${evaluatedDiskConfig}
     bash ${./installer-safety-tests.sh}

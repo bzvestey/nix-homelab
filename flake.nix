@@ -123,6 +123,7 @@
         diskSectors = node.installDisk.sectors;
         nicMembers = node.nic.members;
         nicMac = node.nic.macAddress;
+        nicPermanentMacs = node.nic.permanentMacAddresses or { };
         inherit (node) gpuPciId address;
       }) (nixpkgs.lib.filterAttrs (_: node: node.hardwareClass == "framework") fleetTopology.nodes);
       mkFrameworkImage =

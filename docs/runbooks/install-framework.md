@@ -2,9 +2,28 @@
 
 ## Safety boundary
 
-The three ISOs are host-specific. Published artifacts built before the hl-node-02 disk-identity update still contain `UNRESOLVED` and refuse installation; rebuild after publishing the verified facts. hl-node-03 and hl-node-04 identities remain unresolved. The installer requires the exact by-id link to resolve to a whole block device whose canonical path, decimal major/minor number, model, serial, and 512-byte sector count all match. Its tiny outer entrypoint always enters a fresh mount namespace with recursively private propagation before executing the store-path installer. The inner installer verifies from `/proc/self/mountinfo` that `/` and every mounted `/dev` hierarchy lack shared or slave propagation before authorization, settles udev, and holds the verified device FD open under an exclusive lock. Inside that namespace only, it bind-mounts the held device onto its exact `/dev/nvmeXnY` canonical node, revalidates the bound node's decimal major/minor, and gives Disko that pinned canonical path. Both named NIC members and the integrated GPU must also match the recorded facts.
+The three ISOs are host-specific. Published artifacts built before the hl-node-02 disk-identity update still contain `UNRESOLVED` and refuse installation; rebuild after publishing the verified facts. hl-node-03 and hl-node-04 identities remain unresolved. The installer requires the exact by-id link to resolve to a whole block device whose canonical path, decimal major/minor number, model, serial, and 512-byte sector count all match. Its tiny outer entrypoint always enters a fresh mount namespace with recursively private propagation before executing the store-path installer. The inner installer verifies from `/proc/self/mountinfo` that `/` and every mounted `/dev` hierarchy lack shared or slave propagation before authorization, settles udev, and holds the verified device FD open under an exclusive lock. Inside that namespace only, it bind-mounts the held device onto its exact `/dev/nvmeXnY` canonical node, revalidates the bound node's decimal major/minor, and gives Disko that pinned canonical path. Both named NIC members' permanent hardware MACs (from `ethtool -P`) and the integrated GPU must also match verified facts; a bond-shared current MAC is not physical identity evidence. Missing or unverified permanent MACs refuse installation.
 
 Read-only Talos inspection of `minastas-home-cluster-w1` (`10.15.4.5`) on October 9, 2026 UTC observed `/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_2TB_S59CNM0W713317D_1 -> ../../nvme0n1`. The disk resource and sysfs independently confirm model `Samsung SSD 970 EVO Plus 2TB`, serial `S59CNM0W713317D`, 3,907,029,168 512-byte sectors, and current device number `259:0`. The earlier assessment incorrectly treated these links as unavailable; they were also present in the saved disk-resource capture. `lib/fleet-topology.nix` now pins the observed namespace-qualified link for hl-node-02. This required no reboot or disk write and does not authorize installation. Revalidate the link, disk/NIC/GPU facts and mount state on the installation media before destructive authorization; never infer a link from a serial or fabricate physical evidence. Do not install if it is absent or inconsistent.
+
+Live installer inspection on October 9, 2026 verified hl-node-02's permanent
+MACs as `enp0s13f0u1 = 9c:bf:0d:00:23:fe` and
+`enp0s13f0u2 = 9c:bf:0d:00:25:5d`. The older inventory captured both current
+addresses after bonding, not two identical hardware identities. The corrected
+host and ISO use permanent-MAC selectors and active-backup bonding with 100 ms
+link monitoring. Networkd alone manages the ISO's static networking; the minimal
+live image's NetworkManager is disabled to prevent competing DHCP configuration.
+hl-node-03/04 permanent MACs remain unverified; their installers refuse even if
+disk identity is later resolved. Their existing unverified boot selectors are
+retained until measured, not reclassified as permanent hardware observations.
+
+The old hl-node-02 ISO that boots successfully still has incorrect NIC matching
+and preflight checks. Do not bypass them or run its installer. Publish the
+reviewed correction, obtain a new CI-cleared revision-bound artifact and repeat
+the checksum/media handoff before installation. An adapter disappeared during
+the physical boot test and returned after reseating; the hardware/driver cause
+remains unproven. Recheck stability and perform physical failover acceptance
+on the corrected media; successful reseating is not long-term reliability proof.
 
 ## Bootstrap-only publication and media handoff
 

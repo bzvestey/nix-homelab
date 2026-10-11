@@ -4,6 +4,12 @@ Placement is hl-node-01 for the six lightweight apps and Cloudflare;
 hl-node-03 for Jellyfin/Kavita/Vikunja; hl-node-04 for media automation.
 Each Framework retains one runner. Manyfold is excluded.
 
+Pocket ID and Mailrise now temporarily run on hl-node-03, alongside its
+storage applications and the second Cloudflare connector. The normal hl-node-03
+output includes this handoff; `hl-node-03-staging` is its compatibility alias,
+not a separate deployment that Comin can overwrite. The four other future Pi
+applications remain deferred until hl-node-01.
+
 ## Build once, install separately
 
 The `images` workflow's `host=remaining` selection builds only 01, 03 and 04,
@@ -70,11 +76,14 @@ registration identity, rather than creating a second runner with the same UUID.
    Tailscale and Garage credentials. Grant NAS exports to its actual Tailscale
    address. Restore Jellyfin/Kavita config and Vikunja files/database using the
    storage runbook; preserve numeric ownership and restore attestations.
-3. Use the prebuilt 03-staging configuration to host the future Pi apps before
+3. Use the prebuilt 03-staging configuration to host Pocket ID and Mailrise before
    removing the last Kubernetes worker. Restore their local state and migrate
    their identities with exactly one writer. Move Cloudflare outside Kubernetes.
    The staging connector routes Pocket ID to 10.15.4.7:8080. Update the other
-   connector's Pocket ID origin to the same target at that cutover.
+   connector's Pocket ID origin to the same target at that cutover. Also update
+   the existing Cloudflare-managed tunnel configuration: local connector files
+   alone do not replace its Kubernetes origin. Preserve unrelated managed routes.
+   The origin firewall temporarily allows the hl-node-03 connector (10.15.4.7).
 4. Finish the separately prepared Forgejo/Foundry/Knot/PDS migrations to 02
    before evacuating the last worker; existing Immich/Mealie/Matrix stay enabled.
    Do not remove the source databases merely because their apps are stopped.
@@ -82,10 +91,11 @@ registration identity, rather than creating a second runner with the same UUID.
    automation state; mount existing videos/downloads/publications exports.
    Check Gluetun connectivity and disconnect behavior before starting Deluge.
 6. Install 01 last. Stop the staged apps/identities on 03, capture fresh state,
-   restore onto 01 and move their identities. Change both Cloudflare connectors'
-   Pocket ID origin to 10.15.4.4:8080. Only then remove the staging configuration
-   from 03. The shared route table intentionally still points to the current
-   source until this separately authorized migration changes it.
+   restore onto 01 and move their identities; restore the four deferred apps
+   from their stopped Kubernetes sources. Change both Cloudflare connectors'
+   Pocket ID origin and the managed tunnel route to 10.15.4.4:8080. Only then
+   remove the staging configuration from 03 and its temporary origin-firewall
+   allowance. The shared route table currently points to hl-node-03.
 
 ## Activation and restore boundaries
 

@@ -9,7 +9,7 @@ in
   hardware.enableRedistributableFirmware = true;
   services.fleet.forgejo-runner = {
     enable = true;
-    uuid = "e9842b40-7feb-4fe9-b81c-4ebed7016304";
+    uuid = "456e3c18-a5e5-4869-9906-a7d65d2eb2a2";
   };
   boot = {
     loader = {

@@ -14,12 +14,17 @@ UUIDs are identities, not SSH keys or age recipients:
 | --- | --- | --- |
 | hl-node-02 | f1e34f88-7906-4da2-a237-9dc46c7d7802 | /run/secrets/forgejo-runner-hl-node-02 |
 | hl-node-03 | d590a8c1-c6d3-4fdc-b11f-6a57978e78ec | /run/secrets/forgejo-runner-hl-node-03 |
-| hl-node-04 | e9842b40-7feb-4fe9-b81c-4ebed7016304 | /run/secrets/forgejo-runner-hl-node-04 |
+| hl-node-04 | 456e3c18-a5e5-4869-9906-a7d65d2eb2a2 | /run/secrets/forgejo-runner-hl-node-04 |
 
 hl-node-03 preserves existing Forgejo runner ID 3, server display name
 `k8s-minastas-home-cluster-w2`, and its original token. Its UUID was verified
 from the stopped source's `.runner` file during migration; do not provision a
 replacement registration using the earlier preparation-only UUID.
+
+hl-node-04 similarly preserves runner ID 4, display name
+`k8s-minastas-home-cluster-w3`, and UUID verified in the stopped source's
+registration during preparation. The registration is encrypted in the
+administrator's capture escrow; do not register a replacement runner.
 
 All three production runners advertise exactly:
 `ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-latest`.

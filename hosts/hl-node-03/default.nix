@@ -5,7 +5,28 @@ in
 {
   imports = [
     ./disk-config.nix
+    ../../modules/services/lightweight-applications.nix
   ];
+  # Temporary home for the last live Kubernetes applications until hl-node-01
+  # is installed. Keep this in the normal output so Comin preserves the handoff.
+  services.fleet.lightweightApplications = {
+    enable = true;
+    applications = [
+      "pocket-id"
+      "mailrise"
+    ];
+  };
+  fleet.cloudflared = {
+    enable = true;
+    routes = import ../../lib/public-ingress-routes.nix;
+  };
+  fleet.preparedApplications.extraSecretPaths = [ "/run/secrets/cloudflared-tunnel.json" ];
+  fleet.tailscaleServiceProxy.proxies.mailrise = {
+    hostname = "mailrise.tailbc181.ts.net";
+    tcpForwards."25" = "127.0.0.1:8025";
+    seedStateFile = "/run/secrets/tailscale-mailrise-state.json";
+    port = 42100;
+  };
   hardware.enableRedistributableFirmware = true;
   sops.secrets =
     lib.genAttrs

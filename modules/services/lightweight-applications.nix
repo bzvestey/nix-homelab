@@ -98,6 +98,7 @@ let
       };
     };
   };
+  selectedApps = lib.getAttrs cfg.applications apps;
   runtimePath =
     default:
     lib.mkOption {
@@ -115,11 +116,22 @@ in
 {
   options.services.fleet.lightweightApplications = {
     enable = lib.mkEnableOption "source-pinned local lightweight applications";
+    applications = lib.mkOption {
+      type = lib.types.listOf (lib.types.enum (lib.attrNames apps));
+      default = lib.attrNames apps;
+      description = "Applications hosted here; temporary handoffs can select only the services being moved.";
+    };
     environmentFiles = lib.genAttrs (lib.attrNames apps) (name: runtimePath "/run/secrets/${name}.env");
     donetickConfigFile = runtimePath "/run/secrets/donetick-selfhosted.yaml";
     mailriseConfigFile = runtimePath "/run/secrets/mailrise.conf";
   };
   config = lib.mkIf cfg.enable {
+    # A custom DNS-enabled Podman network may use podman1 (or later), while
+    # NixOS opens resolver access only on the default podman0 interface.
+    networking.firewall.extraInputRules = ''
+      iifname "podman*" udp dport 53 accept comment "Podman bridge DNS"
+      iifname "podman*" tcp dport 53 accept comment "Podman bridge DNS"
+    '';
     virtualisation.oci-containers = {
       backend = "podman";
       containers = lib.mapAttrs (
@@ -140,7 +152,7 @@ in
             "/etc/mailrise.conf"
           ];
         }
-      ) apps;
+      ) selectedApps;
     };
     systemd.services =
       lib.mapAttrs' (
@@ -154,7 +166,7 @@ in
           ++ lib.optional (name == "donetick") cfg.donetickConfigFile
           ++ lib.optional (name == "mailrise") cfg.mailriseConfigFile;
         }
-      ) apps
+      ) selectedApps
       // {
         fleet-lightweight-network = {
           description = "DNS-enabled private bridge for lightweight applications";
@@ -170,9 +182,9 @@ in
       };
     systemd.tmpfiles.rules =
       (map (name: "d /var/lib/${name} 0750 ${owner name} ${owner name} -") (
-        lib.remove "mailrise" (lib.attrNames apps)
+        lib.remove "mailrise" (lib.attrNames selectedApps)
       ))
-      ++ [
+      ++ lib.optionals (builtins.hasAttr "wallos" selectedApps) [
         "d /var/lib/wallos/db 0750 82 82 -"
         "d /var/lib/wallos/logos 0750 82 82 -"
       ];
@@ -182,7 +194,7 @@ in
         inherit (app) hostname;
         upstream = "http://127.0.0.1:${toString app.port}";
         exposure = if name == "pocket-id" then "public" else "tailnet";
-      }) (lib.filterAttrs (name: _: name != "mailrise") apps);
+      }) (lib.filterAttrs (name: _: name != "mailrise") selectedApps);
       backup.jobs = lib.mapAttrs' (
         name: app:
         lib.nameValuePair "${name}-state" (
@@ -198,7 +210,7 @@ in
             backupClass = "database";
           }
         )
-      ) (lib.filterAttrs (name: _: name != "mailrise") apps);
+      ) (lib.filterAttrs (name: _: name != "mailrise") selectedApps);
     };
   };
 }

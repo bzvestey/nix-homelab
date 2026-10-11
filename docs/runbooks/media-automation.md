@@ -90,6 +90,9 @@ Use `fleet-restore <name>-state --rehearsal` before final restore; final restore
 must be coordinated with stopped source writers and enrolled secrets. Verify
 publication pipeline executable requirements after the restrictive restore.
 
+Sonarr's stopped-source capture measured about 1.58 GiB. Its backup payload
+bound is 4 GiB so the default 1 GiB limit does not reject the existing state.
+
 ## Networking and acceptance (isolated target only)
 
 Preserved tailnet hostnames route through fleet ingress: deluge:8112,

@@ -75,7 +75,13 @@ in
         sopsFile = cfg.secretsFile;
         inherit path;
         mode = "0400";
-        uid = if lib.hasPrefix "/run/secrets/publication-manager/" path then 1000 else 0;
+        uid =
+          if lib.hasPrefix "/run/secrets/publication-manager/" path then
+            1000
+          else if path == "/run/secrets/mailrise.conf" then
+            999
+          else
+            0;
         restartUnits = [ ];
       }) cfg.secretPaths
     );

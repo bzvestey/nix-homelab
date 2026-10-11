@@ -8,6 +8,8 @@ service identities remain mandatory integration prerequisites before activation.
 For temporary x86 hosting import the service module (not the role, which also
 enables Cloudflare) and explicitly enable it. Use private local state directories.
 Both x86-64 and ARM64 select their platform from the same immutable image index.
+`applications` defaults to all six apps; temporary hl-node-03 selects only
+`pocket-id` and `mailrise`, excluding the other apps' routes, secrets and backups.
 
 ## Runtime configuration (no values in Nix)
 
@@ -46,6 +48,10 @@ The sole necessary service-address adaptation is `email.host: mailrise` and
 Mailrise retains its wildcard routing, title template, original notification
 destination and listen port 8025. Deliver both rendered files through encrypted
 secret management, with permissions readable by the container process.
+The pinned Mailrise image runs as UID 999; its enrolled configuration is owned
+by 999 with mode 0400, not made world-readable. Custom Podman bridges also need
+host resolver access on UDP/TCP 53; the module permits this on `podman*` interfaces
+instead of assuming the first bridge is always `podman0`.
 
 Homarr retains OIDC-only login, issuer/logout URLs, automatic login, groups
 attribute and scope, client name and 30d session expiry. Kubernetes integration

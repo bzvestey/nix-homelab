@@ -1,7 +1,7 @@
 [
   {
     hostname = "id.minastas.xyz";
-    origin = "http://10.15.4.9:8080";
+    origin = "http://10.15.4.7:8080";
     hostHeader = "id.minastas.xyz";
   }
   {

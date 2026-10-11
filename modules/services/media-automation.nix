@@ -249,6 +249,10 @@ in
               mode = "0600";
               directoryMode = "0700";
             }
+            // lib.optionalAttrs (name == "sonarr") {
+              # Existing state is about 1.58 GiB; retain headroom for growth.
+              maxPayloadBytes = 4294967296;
+            }
             // lib.optionalAttrs (name == "deluge") {
               serviceUnits = [
                 "podman-deluge.service"

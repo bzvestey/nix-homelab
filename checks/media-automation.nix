@@ -81,6 +81,8 @@ assert lib.all (
   && containers.${name}.environmentFiles == [ "/run/secrets/${name}.env" ]
   && lib.hasInfix "systemctl stop" job.createCommand
 ) apps;
+# The stopped-source Sonarr archive measured about 1.58 GiB at migration.
+assert config.fleet.backup.jobs.sonarr-state.maxPayloadBytes >= 1698247656;
 assert lib.all (name: lib.hasInfix "@sha256:" containers.${name}.image) (
   apps
   ++ [

@@ -26,8 +26,16 @@ let
   c01 = nixosConfigurations.hl-node-01.config;
   c04 = nixosConfigurations.hl-node-04.config;
   c02 = preparedConfigurations.hl-node-02-remaining.config;
+  c03 = preparedConfigurations.hl-node-03-staging.config;
 in
 assert lib.all quarantined (builtins.attrValues bootstrapConfigurations);
+assert builtins.hasAttr "pocket-id" c03.virtualisation.oci-containers.containers;
+assert builtins.hasAttr "mailrise" c03.virtualisation.oci-containers.containers;
+assert !(builtins.hasAttr "homarr" c03.virtualisation.oci-containers.containers);
+assert !(builtins.hasAttr "homarr-state" c03.fleet.backup.jobs);
+assert !(builtins.hasAttr "tailscale-homarr-state-json" c03.fleet.preparedApplications.secretPaths);
+assert c03.sops.secrets.mailrise-conf.uid == 999;
+assert c03.sops.secrets.mailrise-conf.mode == "0400";
 assert c01.fleet.tailscaleServiceProxy.proxies.mailrise.tcpForwards."25" == "127.0.0.1:8025";
 assert
   c04.fleet.tailscaleServiceProxy.proxies.deluge-direct.tcpForwards."58846" == "127.0.0.1:58846";

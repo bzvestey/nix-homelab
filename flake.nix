@@ -129,33 +129,7 @@
       );
       preparedConfigurations = {
         hl-node-02-remaining = nixosConfigurations.hl-node-02;
-        hl-node-03-staging = nixosConfigurations.hl-node-03.extendModules {
-          modules = [
-            ./modules/services/lightweight-applications.nix
-            {
-              services.fleet.lightweightApplications.enable = true;
-              fleet = {
-                preparedApplications.extraSecretPaths = [ "/run/secrets/cloudflared-tunnel.json" ];
-                cloudflared = {
-                  enable = true;
-                  routes = map (
-                    route:
-                    if route.hostname == "id.minastas.xyz" then
-                      route // { origin = "http://10.15.4.7:8080"; }
-                    else
-                      route
-                  ) (import ./lib/public-ingress-routes.nix);
-                };
-                tailscaleServiceProxy.proxies.mailrise = {
-                  hostname = "mailrise.tailbc181.ts.net";
-                  tcpForwards."25" = "127.0.0.1:8025";
-                  seedStateFile = "/run/secrets/tailscale-mailrise-state.json";
-                  port = 42100;
-                };
-              };
-            }
-          ];
-        };
+        hl-node-03-staging = nixosConfigurations.hl-node-03;
       };
       forAllSystems = nixpkgs.lib.genAttrs [
         "aarch64-linux"

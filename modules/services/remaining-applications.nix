@@ -110,6 +110,27 @@ in
                     frequency = "hourly";
                     backupClass = "database";
                   }
+              // lib.optionalAttrs (name == "foundry") {
+                # Installed modules contain spaces and relative symlinks. Keep
+                # the full 4.5 GB installation inside one bounded tar payload.
+                maxPayloadBytes = 16 * 1024 * 1024 * 1024;
+                requiredPaths = [ "state.tar" ];
+                createCommand = ''
+                  active=0
+                  if ${pkgs.systemd}/bin/systemctl is-active --quiet podman-foundry.service; then active=1; fi
+                  ${pkgs.systemd}/bin/systemctl stop podman-foundry.service
+                  trap 'if [ "$active" = 1 ]; then ${pkgs.systemd}/bin/systemctl start podman-foundry.service; fi' EXIT
+                  ${pkgs.gnutar}/bin/tar -C /var/lib/foundry -cpf "$FLEET_BACKUP_STAGING_DIR/state.tar" .
+                '';
+                restoreCommand = ''
+                  ${pkgs.coreutils}/bin/mkdir -p /var/lib/foundry
+                  ${pkgs.findutils}/bin/find /var/lib/foundry -mindepth 1 -maxdepth 1 -exec ${pkgs.coreutils}/bin/rm -rf -- {} +
+                  ${pkgs.gnutar}/bin/tar -C /var/lib/foundry -xpf "$FLEET_RESTORE_SOURCE_DIR/state.tar"
+                '';
+                rehearsalCommand = ''
+                  ${pkgs.gnutar}/bin/tar -tf "$FLEET_RESTORE_SOURCE_DIR/state.tar" >/dev/null
+                '';
+              }
             )
           ) names
         )

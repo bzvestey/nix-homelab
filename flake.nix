@@ -128,53 +128,7 @@
         }
       );
       preparedConfigurations = {
-        hl-node-02-remaining = nixosConfigurations.hl-node-02.extendModules {
-          modules = [
-            ./modules/services/remaining-applications.nix
-            {
-              services.fleet.remainingApplications.enable = true;
-              fleet = {
-                preparedApplications = {
-                  enable = true;
-                  extraSecretPaths = [
-                    "/run/secrets/remaining-applications-registry.json"
-                  ];
-                  existingIdentityHostnames = [
-                    "immich.tailbc181.ts.net"
-                    "mealie.tailbc181.ts.net"
-                  ];
-                  manageIdentityBackups = false;
-                  existingSecretPaths = [
-                    "/run/secrets/immich.env"
-                    "/run/secrets/mealie.env"
-                    "/run/secrets/tuwunel.toml"
-                    "/run/secrets/tailscale-auth-key"
-                    "/run/secrets/restic-repository"
-                    "/run/secrets/restic-password"
-                    "/run/secrets/restic-s3-credentials"
-                    "/run/secrets/tailscale-immich-state"
-                    "/run/secrets/tailscale-mealie-state"
-                    "/run/secrets/forgejo-runner-hl-node-02"
-                  ];
-                };
-                tailscaleServiceProxy.proxies = {
-                  git-ssh = {
-                    hostname = "git-ssh.tailbc181.ts.net";
-                    tcpForwards."22" = "127.0.0.1:2222";
-                    seedStateFile = "/run/secrets/tailscale-git-ssh-state.json";
-                    port = 42101;
-                  };
-                  knot-ssh = {
-                    hostname = "knot-ssh.tailbc181.ts.net";
-                    tcpForwards."22" = "127.0.0.1:2223";
-                    seedStateFile = "/run/secrets/tailscale-knot-ssh-state.json";
-                    port = 42102;
-                  };
-                };
-              };
-            }
-          ];
-        };
+        hl-node-02-remaining = nixosConfigurations.hl-node-02;
         hl-node-03-staging = nixosConfigurations.hl-node-03.extendModules {
           modules = [
             ./modules/services/lightweight-applications.nix

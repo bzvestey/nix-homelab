@@ -1,14 +1,60 @@
-# Remaining node-02 prerequisites (prepared, not activated)
+# Remaining node-02 applications
 
 The only opt-in is `services.fleet.remainingApplications.enable` (default
-false). Import `modules/services/remaining-applications.nix` in the future
-activation configuration, not the current host. No host/role import is added
-here. Existing Immich, Mealie and Matrix are unchanged. Container units are
+false). Node02's cutover module now imports and enables it, enrolling
+`secrets/hosts/hl-node-02/remaining-applications.yaml`. Bootstrap still excludes
+the cutover module. Existing Immich, Mealie and Matrix are unchanged. Container units are
 `podman-{forgejo,foundry,tangled-knot,tranquil-pds}.service`; each requires its
 runtime environment and `/var/lib/<name>/.restored`. Write that marker only
 after the operator has validated final state, identities and database restore.
 The marker is included in subsequent state backups. It is not permission to
 run a second writer. PostgreSQL can initialize separately for offline restore.
+
+## Live cutover: 2026-10-11
+
+Forgejo, Foundry, Knot and PDS have been imported and started on node02.
+All four original Kubernetes Deployments are at zero replicas, as are their
+three old Tailscale proxy StatefulSets. The old Forgejo runner DaemonSet is
+unschedulable and has no Pods.
+The surviving Kubernetes databases and NAS datasets are retained for rollback;
+do not delete them during the remaining fleet migration.
+
+- Complete stopped-state archives, PG18 logical dumps, original credentials and
+  identities are encrypted for the administrator and node02. Local captures are
+  under `~/.local/state/nix-homelab/captures/remaining-node02-20261011T162600Z`;
+  the host copy is `/var/lib/hlr/remaining-node02`. No new NAS snapshot was
+  created. Read-only NFS3 mounts were used only for this import and removed;
+  the permanent Immich library mount remains NFS4.1 over Tailscale.
+- Every public-schema table's row count and canonical row-content hash matched
+  between the stopped source and restored Forgejo/PDS databases before startup.
+  Foundry's complete installed application/data and Knot's config/keys were
+  restored. Knot's trusted proxy was narrowed from the Kubernetes subnet to
+  the observed Podman gateway `10.88.0.1/32`.
+- Git's existing HTTPS/SSH identities and Knot's SSH identity now run natively.
+  The five Foundry/Knot/PDS public host rules point to `10.15.4.5:8080`; other
+  Cloudflare rules were preserved. The shared connector remains on the source
+  worker until the planned Cloudflare migration.
+- All nine new backup jobs completed successfully. Database and Foundry backup
+  restore rehearsals completed without replacing live data. Automatic timers
+  are active. Foundry uses a 16 GiB-bounded `state.tar` payload, preserving its
+  approximately 4.5 GB installation, filenames with spaces and relative
+  symlinks. Its restore rehearsal also checks the inner tar archive.
+- HTTP health probes succeeded through the public/tailnet origins. SSH host
+  fingerprints are preserved. The native node02 runner is connected using its
+  original UUID; its server-side display name still reflects the old worker.
+  Interactive OIDC login, repository/LFS operations and Foundry world loading
+  remain user acceptance checks, not claims made by health probes.
+
+Argo application/ApplicationSet reconciliation, the Tailscale operator and the
+Cloudflare ingress controller are intentionally paused for the remaining
+maintenance migration. Do not restart them against legacy declarations that
+would recreate retired writers, identities or old tunnel routes. Existing
+connector and non-migrated workloads continue running.
+
+Native recovery uses `fleet-restore <job> --rehearsal` first, then the documented
+confirmed restore. Restore paired Forgejo/PDS database and state only with their
+writers stopped; never start Kubernetes and native copies together. The
+prerequisite details below describe the original capture/import contract.
 
 ## Observed sources and immutable versions
 
@@ -70,9 +116,8 @@ app config. Do not bootstrap users or re-register auth providers/runners.
 
 ## Final capture and restore mapping (operator cutover only)
 
-Preparation has not stopped, activated or deployed anything. At the approved
-cutover, first prevent source restart/reconciliation, stop each application
-writer, then capture complete directories (including hidden files, SQLite
+At each approved cutover, first prevent source restart/reconciliation, stop each
+application writer, then capture complete directories (including hidden files, SQLite
 WAL/journals, keys and app config), and take logical PG18 custom-format dumps.
 Keep an encrypted rollback capture before mutating targets. Never start a
 target until the source writer and duplicate Tailscale identity are offline.

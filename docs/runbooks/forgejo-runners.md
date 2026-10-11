@@ -1,8 +1,8 @@
 # Framework Forgejo Actions runners
 
-This configuration is **not production enrollment**. No Framework SSH/age
-recipients or encrypted runner tokens have been created. Bootstrap remains
-usable: a runner with no credential file is skipped by a systemd condition.
+hl-node-02 and hl-node-03 are enrolled with encrypted runner credentials;
+hl-node-04 remains preparation-only. Bootstrap remains usable: a runner with
+no credential file is skipped by a systemd condition.
 
 ## Identities and prerequisites
 
@@ -13,8 +13,13 @@ UUIDs are identities, not SSH keys or age recipients:
 | Host / server runner name | Assigned UUID | Runtime token file |
 | --- | --- | --- |
 | hl-node-02 | f1e34f88-7906-4da2-a237-9dc46c7d7802 | /run/secrets/forgejo-runner-hl-node-02 |
-| hl-node-03 | 21f9ccab-5418-4bdb-bc74-021effc3dc03 | /run/secrets/forgejo-runner-hl-node-03 |
+| hl-node-03 | d590a8c1-c6d3-4fdc-b11f-6a57978e78ec | /run/secrets/forgejo-runner-hl-node-03 |
 | hl-node-04 | e9842b40-7feb-4fe9-b81c-4ebed7016304 | /run/secrets/forgejo-runner-hl-node-04 |
+
+hl-node-03 preserves existing Forgejo runner ID 3, server display name
+`k8s-minastas-home-cluster-w2`, and its original token. Its UUID was verified
+from the stopped source's `.runner` file during migration; do not provision a
+replacement registration using the earlier preparation-only UUID.
 
 All three production runners advertise exactly:
 `ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-latest`.

@@ -1,9 +1,16 @@
-# Storage applications: hl-node-03 preparation
+# Storage applications: hl-node-03
 
-Preparation only: no source stops, new writers or deployment were performed.
+The preparation contract below is now deployed on hl-node-03. Jellyfin, Kavita
+and Vikunja respond through their preserved Tailscale service identities;
+their Kubernetes writers remain stopped. Bulk libraries remain on the same
+NAS exports, accessed over Tailscale. Application state is local on the
+encrypted data volume. Kavita's existing historical backups were retained.
+Vikunja's logical restore preserved 1,257 tasks and two users; native PG17 uses
+`127.0.0.1:5434` (Vikunja takes the port in its host setting).
+
 `services.fleet.storageApplications.enable` defaults to false; the storage role
-imports and enables it. Shared bootstrap masking, secret enrollment and service
-Tailscale identities remain integration tasks. Never start both source and target.
+imports and enables it. Bootstrap masks the applications until secret enrollment
+and restore. Never start both source and target.
 
 ## Read-only source evidence (2026-10-11)
 
@@ -36,7 +43,7 @@ only `/run/secrets/...`. Enroll via the shared SOPS policy, never Nix literals.
 | `jellyfinEnvironmentFile` `/run/secrets/jellyfin.env` | root-readable Podman env file; enroll any original integration overrides. An empty env file is allowed because identities/credentials are restored inside `/config`. |
 | `kavitaEnvironmentFile` `/run/secrets/kavita.env` | same; original auth/SMTP configuration and keys are in restored `/config`. |
 | `vikunjaEnvironmentFile` `/run/secrets/vikunja.env` | root-readable env file with nonempty `VIKUNJA_DATABASE_PASSWORD` and `VIKUNJA_AUTH_OPENID_PROVIDERS_POCKETID_CLIENTSECRET`; also preserve any original JWT/service secrets if configured. PG service user `postgres-vikunja` receives this through systemd EnvironmentFile, not by reading it directly. |
-| `vikunjaConfigFile` `/run/secrets/vikunja-config.yml` | full original ConfigMap YAML plus enrolled OIDC secret in `auth.openid.providers.PocketID.clientsecret`; readable by UID 1000, preferably root:storage-apps 0440. Preserve provider structure exactly; don't rely solely on nested env override behavior. |
+| `vikunjaConfigFile` `/run/secrets/vikunja-config.yml` | full original ConfigMap YAML plus enrolled OIDC secret in `auth.openid.providers.PocketID.clientsecret`; owned by UID 1000 with mode 0400. The image's UID does not imply GID 1000. Preserve provider structure exactly; don't rely solely on nested env override behavior. |
 
 Vikunja must retain local login disabled, OpenID enabled, provider `PocketID`,
 authurl `https://id.minastas.xyz`, clientid
@@ -108,7 +115,7 @@ for `jellyfin-state` and `kavita-state` hourly, database alert class, and
 `vikunja-files` daily. `vikunja-db` is hourly PG17 logical `app` dump with scratch
 database rehearsal, preserving app ownership on real restore. Coordinate final
 Vikunja files/dump capture with its writer stopped for cross-resource consistency.
-Payload bounds are 32 GiB Jellyfin, 16 GiB Kavita/files; DB uses shared 1 GiB
+Payload bounds are 32 GiB Jellyfin, 128 GiB Kavita, 16 GiB Vikunja files; DB uses shared 1 GiB
 default. Measure final sizes before activation and adjust bounds if needed.
 Runtime YAML/env files and Tailscale identities require separate encrypted
 escrow/enrollment; they are intentionally not in app-state backup payloads.
@@ -124,8 +131,11 @@ evaluation. Public contract check (no broad fleet build):
 nix eval --impure --expr 'let f=builtins.getFlake (toString ./.); in import ./checks/storage-applications.nix { host=f.nixosConfigurations.hl-node-03.extendModules { modules=[]; }; inherit (f.inputs.nixpkgs) lib; }'
 ```
 
-Validation performed: contract initially failed because all three applications
+Preparation validation: contract initially failed because all three applications
 were missing, then passed after implementation. Target extended-flake evaluation
 returned zero failed NixOS assertions and a toplevel derivation; disabled-module
 evaluation verified default false and absence of Jellyfin. `nixfmt --check`
-passed for the owned Nix files. No full build or live runtime tests were run.
+passed for the owned Nix files. Migration subsequently built and switched the
+actual hl-node-03 configuration and checked all three loopback and tailnet HTTP
+endpoints. User acceptance of OIDC, mail delivery and hardware transcoding
+remains separate from these health checks.

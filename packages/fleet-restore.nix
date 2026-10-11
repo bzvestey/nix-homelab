@@ -81,7 +81,7 @@ let
         rel=''${entry#"$root"/}
         case "$rel" in *$'\n'*) echo "unsafe payload path contains newline" >&2; return 1;; esac
         case "$rel" in ""|/*|*//*|.|..|*/./*|*/../*|./*|../*|*/.|*/..) echo "unsafe payload path: $rel" >&2; return 1;; esac
-        printf '%s' "$rel" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || { echo "unsafe payload path: $rel" >&2; return 1; }
+        ! printf '%s' "$rel" | LC_ALL=C grep -q '[[:cntrl:]]' || { echo "unsafe payload path: $rel" >&2; return 1; }
         [ ! -L "$entry" ] || { echo "unsupported payload symlink: $rel" >&2; return 1; }
         if [ -f "$entry" ]; then
           [ "$(stat -c %h "$entry")" -eq 1 ] || { echo "unsupported multiply-linked payload file: $rel" >&2; return 1; }
@@ -101,9 +101,9 @@ let
       while IFS= read -r member; do
         case "$member" in ./) continue;; ./?*) rel=''${member#./};; *) echo "unsafe archive member: $member" >&2; return 1;; esac
         case "$rel" in /*|*//*|.|..|*/./*|*/../*|../*|*/.|*/..) echo "unsafe archive member: $member" >&2; return 1;; esac
-        printf '%s' "$rel" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || { echo "unsafe archive member: $member" >&2; return 1; }
-      done < <(tar -tf "$archive")
-      tar --numeric-owner -tvf "$archive" | awk -v max="$max_payload_bytes" '
+        ! printf '%s' "$rel" | LC_ALL=C grep -q '[[:cntrl:]]' || { echo "unsafe archive member: $member" >&2; return 1; }
+      done < <(tar --quoting-style=literal -tf "$archive")
+      tar --quoting-style=literal --numeric-owner -tvf "$archive" | awk -v max="$max_payload_bytes" '
         BEGIN { total=0; count=0 }
         $1 ~ /^-/ { count++; if ($3 > max || total > max - $3) exit 1; total += $3; next }
         $1 ~ /^d/ { count++; next }

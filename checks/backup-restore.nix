@@ -236,6 +236,23 @@ let
       requiredPaths = [ "payload/data" ];
       rehearsalCommand = "cp -a $FLEET_RESTORE_SOURCE_DIR/. ${root}/observed-beta/";
     };
+    linked =
+      jobs.files
+      //
+        (import ../lib/application-backups.nix {
+          pkgs = pkgs // {
+            systemd = fakeSystemd;
+          };
+          inherit (pkgs) lib;
+        }).state
+          {
+            name = "linked";
+            path = "${root}/real-source-linked";
+            healthCheckCommand = "true";
+          }
+      // {
+        rehearsalCommand = "cp -a $FLEET_RESTORE_SOURCE_DIR/state/. ${root}/observed-linked/";
+      };
   };
   realTools = pkgs.callPackage ../packages/fleet-restore.nix {
     jobs = realJobs;
@@ -426,6 +443,7 @@ pkgs.runCommand "backup-restore-tests"
         mkdir -p ${root}/real-source-{alpha,beta}/payload
         printf alpha >${root}/real-source-alpha/payload/data
         printf beta >${root}/real-source-beta/payload/data
+        printf metadata >"${root}/real-source-alpha/payload/Studio Comet (été) & friends.json"
         chmod 0641 ${root}/real-source-alpha/payload/data
         printf %s ${root}/real-repo >${root}/real-repository
         printf secret >${root}/real-password
@@ -438,6 +456,7 @@ pkgs.runCommand "backup-restore-tests"
         beta_id=$(${pkgs.restic}/bin/restic snapshots --json --tag fleet-job=beta | ${pkgs.jq}/bin/jq -r '.[0].id')
         ${realTools}/bin/fleet-restore alpha --rehearsal
         test "$(cat ${root}/observed-alpha/payload/data)" = alpha
+        test "$(cat "${root}/observed-alpha/payload/Studio Comet (été) & friends.json")" = metadata
         test "$(stat -c %a ${root}/observed-alpha/payload/data)" = 641
         ${realTools}/bin/fleet-restore beta --rehearsal
         test "$(cat ${root}/observed-beta/payload/data)" = beta
@@ -445,6 +464,16 @@ pkgs.runCommand "backup-restore-tests"
         ${realTools}/bin/fleet-restore alpha --snapshot "$alpha_id" --rehearsal
         test "$(${pkgs.restic}/bin/restic snapshots --json --tag fleet-job=alpha | ${pkgs.jq}/bin/jq length)" -eq 1
         test "$(${pkgs.restic}/bin/restic snapshots --json --tag fleet-job=beta | ${pkgs.jq}/bin/jq length)" -eq 1
+
+        # State exports preserve hard-linked content as independent regular files.
+        mkdir -p ${root}/real-source-linked
+        printf linked-content >${root}/real-source-linked/data
+        ln ${root}/real-source-linked/data ${root}/real-source-linked/link
+        ${realTools}/bin/fleet-backup-run linked
+        ${realTools}/bin/fleet-restore linked --rehearsal
+        test "$(cat ${root}/observed-linked/data)" = linked-content
+        test "$(cat ${root}/observed-linked/link)" = linked-content
+        test "$(stat -c %h ${root}/observed-linked/data)" -eq 1
 
         # Staging accepts exactly the entry types restore accepts.
         for kind in symlink hardlink fifo newline; do

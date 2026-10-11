@@ -12,7 +12,7 @@ assert lib.assertMsg (builtins.all (name: builtins.hasAttr name containers) [
 assert containers.jellyfin.ports == [ "127.0.0.1:8096:8096" ];
 assert containers.kavita.ports == [ "127.0.0.1:5000:5000" ];
 assert containers.vikunja.environment.VIKUNJA_SERVICE_INTERFACE == "127.0.0.1:3456";
-assert containers.vikunja.environment.VIKUNJA_DATABASE_HOST == "127.0.0.1";
+assert containers.vikunja.environment.VIKUNJA_DATABASE_HOST == "127.0.0.1:5434";
 assert builtins.elem "/mnt/bulk/videos:/data:ro" containers.jellyfin.volumes;
 assert builtins.elem "/mnt/bulk/books:/data/books:ro" containers.kavita.volumes;
 assert builtins.elem "/mnt/bulk/syncthing:/data/syncthing:ro" containers.kavita.volumes;

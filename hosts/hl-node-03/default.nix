@@ -7,9 +7,36 @@ in
     ./disk-config.nix
   ];
   hardware.enableRedistributableFirmware = true;
+  sops.secrets =
+    lib.genAttrs
+      [
+        "tailscale-auth-key"
+        "restic-repository"
+        "restic-password"
+        "restic-s3-credentials"
+      ]
+      (_: {
+        sopsFile = ../../secrets/hosts/hl-node-03/bootstrap.yaml;
+        mode = "0400";
+        restartUnits = [ ];
+      })
+    // {
+      vikunja-config-yml = {
+        mode = lib.mkForce "0400";
+        uid = lib.mkForce 1000;
+      };
+    };
+  fleet.preparedApplications.existingSecretPaths = [
+    "/run/secrets/tailscale-auth-key"
+    "/run/secrets/restic-repository"
+    "/run/secrets/restic-password"
+    "/run/secrets/restic-s3-credentials"
+  ];
+  fleet.preparedApplications.secretsFile = ../../secrets/hosts/hl-node-03/applications.yaml;
+  fleet.comin.enableMirror = false;
   services.fleet.forgejo-runner = {
     enable = true;
-    uuid = "21f9ccab-5418-4bdb-bc74-021effc3dc03";
+    uuid = "d590a8c1-c6d3-4fdc-b11f-6a57978e78ec";
   };
   boot = {
     loader = {

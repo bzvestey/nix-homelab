@@ -123,8 +123,7 @@ in
           environmentFiles = [ cfg.vikunjaEnvironmentFile ];
           environment = {
             VIKUNJA_DATABASE_TYPE = "postgres";
-            VIKUNJA_DATABASE_HOST = "127.0.0.1";
-            VIKUNJA_DATABASE_PORT = "5434";
+            VIKUNJA_DATABASE_HOST = "127.0.0.1:5434";
             VIKUNJA_DATABASE_DATABASE = "app";
             VIKUNJA_DATABASE_USER = "app";
             VIKUNJA_DATABASE_NAME = "vikunja";
@@ -180,7 +179,7 @@ in
         kavita-state = (state "kavita" "/var/lib/kavita" 5000 "/") // {
           frequency = "hourly";
           backupClass = "database";
-          maxPayloadBytes = 17179869184;
+          maxPayloadBytes = 137438953472;
         };
         vikunja-files = (state "vikunja" "/var/lib/vikunja" 3456 "/api/v1/info") // {
           maxPayloadBytes = 17179869184;

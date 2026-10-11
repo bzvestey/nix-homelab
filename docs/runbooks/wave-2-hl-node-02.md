@@ -2,14 +2,45 @@
 
 This is an approval-gated migration procedure, not authorization to install,
 enroll, write to Kubernetes, change public routes, or delete source data.
-Keep source Kubernetes configuration read-only. Never put passwords, client
-secrets, registration tokens, or decrypted TOML in command arguments or logs.
+Outside owner-approved maintenance operations, keep source Kubernetes
+configuration read-only. Never put passwords, client secrets, registration
+tokens, or decrypted TOML in command arguments or logs.
 
 Task 14 preparation is documented in the approval-gated
 [source export and offline real-data rehearsal procedure](wave-2-source-rehearsal.md).
 It does not authorize source maintenance or certify a production restore.
 
-## Approved handoff scope and source evacuation gate
+## Current cutover status — 2026-10-11
+
+The owner approved direct activation during maintenance, prioritizing backups,
+snapshots and single-writer ownership over exhaustive pre-cutover acceptance.
+Immich/server+ML, Mealie and Tuwunel now run on hl-node-02. Their Kubernetes
+deployments remain at zero replicas; both source PostgreSQL clusters, PVCs and
+immutable NAS snapshots are retained. Final encrypted dumps were captured at
+05:44 UTC and restored; database counts matched before application startup.
+Mealie and Matrix filesystem state came from the matching snapshots. Immich
+uses the same live NFS library, not a copied library. All four native backup
+jobs completed successfully and their automatic timers are active.
+
+Existing HTTPS names and OIDC callbacks are preserved through a temporary
+ingress bridge: selectorless source Services have manually managed EndpointSlices
+named `<service>-hl-node-02`, pointing at 10.15.4.5:8080. Existing Tailscale and
+Cloudflare ingress proxies remain in Kubernetes, but no migrated application
+runs there. `hosts/hl-node-02/cutover.nix` configures the Caddy origins and limits
+access to existing Kubernetes nodes/pod networks. Comin and the Forgejo runner
+remain masked; local deployment is active, repository publication is pending.
+Do not run an OpenTofu apply that restores old selectors or application replicas.
+
+For rollback, retain the captured original Service definitions and source data.
+Stop new application writers before restoring old routing/source deployments.
+If the new services have accepted writes, capture and reconcile that new state
+first; restarting stale source databases alone would lose those changes.
+
+## Historical bootstrap and source evacuation procedure
+
+The following sections retain the original installation/pre-cutover procedure.
+The current status and owner-approved scope above supersede their outstanding
+readiness statements for this already-installed host.
 
 The offline real-data rehearsal has passed. That evidence does not authorize
 evacuation, installation, enrollment or production changes. External Pocket ID
@@ -17,10 +48,12 @@ OIDC, Matrix client/federation, existing-session continuity and route gates,
 plus fresh final source captures, remain outstanding. Retain private rehearsal
 evidence and immutable captures; do not treat them as fresh cutover backups.
 
-Install **bootstrap-only**, not a shadow workload host. The default host imports
-`hosts/hl-node-02/bootstrap.nix`: workload/database/runner/Caddy and backup units
-are masked, production NFS is removed, and SSH, telemetry, enrollment tools and
-signed comin remain. Follow [Framework installation](install-framework.md) for
+Install **bootstrap-only**, not a shadow workload host. Installer images and
+bootstrap checks use the separate `hosts/hl-node-02/bootstrap.nix` policy:
+workload/database/runner/Caddy and backup units are masked, production NFS is
+removed, and SSH, telemetry, enrollment tools and signed comin remain. The
+active runtime default now imports `cutover.nix` instead. Follow
+[Framework installation](install-framework.md) for
 hardware capture, downloadable ISO/checksum/revision provenance, escrow and TPM
 safety. Before boot, publish the signed, CI-cleared bootstrap policy on comin's
 switch branch; `fleet.comin.enableMirror = false` selects GitHub only until safe
@@ -278,3 +311,58 @@ Caddy route, NFS mount and backup destination/timer. Preserve single-writer
 ownership throughout cutover; runner activation remains independently gated.
 Keep source PVCs, snapshots, prior signed generation and rollback access until
 separate retirement approval. No activation or retirement is authorized here.
+
+## Activated migration state (2026-10-11)
+
+The operator authorized maintenance cutover and confirmed Immich, Mealie and
+Matrix work on hl-node-02. Their native services and local PostgreSQL databases
+are now active, with Immich continuing to use the existing NAS library over
+Tailscale NFS. No library transfer was required.
+
+Final source capture ID is
+`20261011T054352Z-d5faac4b-3cd6-4181-93a7-4b1bc7d06f97`.
+Matching `migration-<capture-id>` snapshots protect
+`spinners-1/kube-store/immich`, `spinners-1/kube-store/mealie` and
+`flash-1/kube-store/tuwunel`. Keep these, the encrypted capture, source PVCs
+and source database volumes for rollback; none were deleted.
+
+Immich and Mealie's existing Tailscale identities now run as independent
+`tailscale-immich` and `tailscale-mealie` services on hl-node-02. Their DNS names,
+node IDs and addresses remain unchanged. Runtime SOPS seeds are only installed
+when persistent state is absent; daemon-updated state is never overwritten.
+Daily `tailscale-immich-state` and `tailscale-mealie-state` jobs back up their
+state through the same encrypted repository and `fleet-restore` interface.
+The containing filesystem is LUKS-encrypted; portable identity state is not
+additionally bound to this machine's TPM.
+
+The source Tailscale Ingresses were detached with their operator stopped and
+their finalizers bypassed, so the existing tailnet nodes were not deleted.
+The operator is running again for the remaining services. The old proxy
+StatefulSets remain scaled to zero with their Secrets retained. Do not restart
+them while native proxies own those identities.
+
+Matrix's shared Cloudflare connector now routes directly to
+`http://10.15.4.5:8080`, using the existing Ingress with the
+`tuwunel-native` ExternalName backend. Its retired Hookshot path was removed.
+The shared connector/controller still run on source worker w3 for other
+services; migrate that shared infrastructure before evacuating w3. Temporary
+native EndpointSlices for all three applications were removed, and all three
+external endpoints returned HTTP 200 afterward.
+
+The old Immich, machine-learning, Mealie, Tuwunel and Hookshot deployments
+remain at zero replicas. Both source CNPG clusters are hibernated, retaining
+their PVCs. Legacy OpenTofu variables reflect these settings and the Matrix
+route; they have not been applied to OpenTofu state. Do not run old Ansible
+configuration that would resurrect these workloads or proxy identities.
+
+The native Forgejo runner reuses evacuated w1's runner UUID and token. It is
+online with capacity one and container-only execution; Forgejo still displays
+the original `k8s-minastas-home-cluster-w1` registration name. The other source
+runners remain on w2/w3 until those hosts migrate.
+
+The deployed generation persists across reboot. During the handoff Comin was
+temporarily masked to prevent the older published main configuration replacing
+it. Publish the completed signed main revision before enabling Comin and
+switching to the final generation. The default configuration enables Comin;
+the stale mirror remains disabled. This handoff does not require another
+application restore or installer build.

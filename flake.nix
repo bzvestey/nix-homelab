@@ -112,6 +112,14 @@
           modules = modulesForNode nodeId node;
         }
       ) fleetTopology.nodes;
+      hlNode02Bootstrap = nixosConfigurations.hl-node-02.extendModules {
+        modules = [
+          {
+            disabledModules = [ ./hosts/hl-node-02/cutover.nix ];
+            imports = [ ./hosts/hl-node-02/bootstrap.nix ];
+          }
+        ];
+      };
       forAllSystems = nixpkgs.lib.genAttrs [
         "aarch64-linux"
         "x86_64-linux"
@@ -132,7 +140,9 @@
           system = "x86_64-linux";
           specialArgs = frameworkFacts.${targetHost} // {
             inherit disko targetHost;
-            targetSystem = nixosConfigurations.${targetHost}.config.system.build.toplevel;
+            targetSystem =
+              (if targetHost == "hl-node-02" then hlNode02Bootstrap else nixosConfigurations.${targetHost})
+              .config.system.build.toplevel;
           };
           modules = [
             comin.nixosModules.comin
@@ -307,7 +317,10 @@
             pkgs = nixpkgs.legacyPackages.${system};
           };
           hl-node-02-bootstrap = import ./checks/hl-node-02-bootstrap.nix {
-            inherit comin nixosConfigurations;
+            inherit comin;
+            nixosConfigurations = nixosConfigurations // {
+              hl-node-02 = hlNode02Bootstrap;
+            };
             pkgs = nixpkgs.legacyPackages.${system};
           };
         }
@@ -404,12 +417,12 @@
           };
           hl-node-02-bootstrap-readiness = import ./checks/hl-node-02-bootstrap-readiness.nix {
             pkgs = nixpkgs.legacyPackages.${system};
-            host = nixosConfigurations.hl-node-02.config;
+            host = hlNode02Bootstrap.config;
             node = fleetTopology.nodes.hl-node-02;
           };
           bootstrap-readiness-fixtures = import ./checks/bootstrap-readiness-fixtures.nix {
             pkgs = nixpkgs.legacyPackages.${system};
-            host = nixosConfigurations.hl-node-02.config;
+            host = hlNode02Bootstrap.config;
             node = fleetTopology.nodes.hl-node-02;
           };
           inventory-fixtures =

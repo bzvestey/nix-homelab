@@ -58,7 +58,8 @@ in
         where = mount.target;
         wantedBy = [ "multi-user.target" ];
         automountConfig = {
-          TimeoutIdleSec = "10min";
+          # Idle expiry would stop services bound to this mount.
+          TimeoutIdleSec = if mount.dependentUnits == [ ] then "10min" else "0";
           DirectoryMode = "0555";
         };
       }) mounts;

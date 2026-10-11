@@ -5,7 +5,7 @@ in
 {
   imports = [
     ./disk-config.nix
-    ./bootstrap.nix
+    ./cutover.nix
     ./application-secrets.nix
   ];
   _module.args.hlNode02ApplicationSecretsFile = ../../secrets/hosts/hl-node-02/applications.yaml;
@@ -19,7 +19,7 @@ in
   services.fleet.immich.librarySource = "nas.tailbc181.ts.net:/mnt/spinners-1/kube-store/immich";
   services.fleet.forgejo-runner = {
     enable = true;
-    uuid = "f1e34f88-7906-4da2-a237-9dc46c7d7802";
+    uuid = "dcdbaac7-b338-463d-addd-46b1b40c16fb";
   };
   boot = {
     loader = {

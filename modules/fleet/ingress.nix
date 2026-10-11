@@ -8,6 +8,12 @@ let
   cfg = config.fleet.ingress;
   publicRoutes = builtins.filter (route: route.exposure == "public") cfg.routes;
   tailnetRoutes = builtins.filter (route: route.exposure == "tailnet") cfg.routes;
+  proxyHostnames = map (proxy: proxy.hostname) (
+    lib.attrValues config.fleet.tailscaleServiceProxy.proxies
+  );
+  caddyTailnetRoutes = lib.filter (
+    route: !(builtins.elem route.hostname proxyHostnames)
+  ) tailnetRoutes;
   hostnames = map (route: route.hostname) cfg.routes;
   duplicates = lib.filter (hostname: lib.count (candidate: candidate == hostname) hostnames > 1) (
     lib.unique hostnames
@@ -48,10 +54,12 @@ let
       admin 127.0.0.1:2019
     }
     ${lib.concatMapStringsSep "\n" mkPublicSite publicRoutes}
-    ${lib.concatMapStringsSep "\n" mkTailnetSite tailnetRoutes}
+    ${lib.concatMapStringsSep "\n" mkTailnetSite caddyTailnetRoutes}
   '';
 in
 {
+  imports = [ ./tailscale-service-proxy.nix ];
+
   options.fleet.ingress = {
     routes = lib.mkOption {
       type = lib.types.listOf routeType;
@@ -120,7 +128,7 @@ in
         ${lib.optionalString (publicRoutes != [ ]) ''
           iifname "${cfg.lanInterface}" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport ${toString cfg.publicPort} accept comment "cloudflared origins"
         ''}
-        ${lib.optionalString (tailnetRoutes != [ ]) ''
+        ${lib.optionalString (caddyTailnetRoutes != [ ]) ''
           iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"
         ''}
       '';

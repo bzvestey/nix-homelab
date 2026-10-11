@@ -10,10 +10,8 @@ let
   );
 in
 {
-  # Keep workload/restore definitions, but credentials alone must not activate
-  # them. Remove this import only as part of an approved activation change.
+  # Installer/bootstrap policy remains safe before an approved restore.
   fleet.storage.nfsMounts = lib.mkForce { };
-  # An older mirror must not replace this policy with production-enabled main.
   fleet.comin.enableMirror = false;
   systemd.services =
     lib.genAttrs

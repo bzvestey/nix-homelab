@@ -38,6 +38,10 @@ pkgs.testers.runNixOSTest {
         target = "/mnt/bulk/test#data";
         dependentUnits = [ "storage-fixture" ];
       };
+      fleet.storage.nfsMounts.ondemand = {
+        source = "server:/srv/export";
+        target = "/mnt/bulk/ondemand";
+      };
       systemd.services.storage-fixture = {
         wantedBy = [ "storage-test.target" ];
         serviceConfig = {
@@ -63,6 +67,12 @@ pkgs.testers.runNixOSTest {
     client.succeed("systemctl cat 'mnt-bulk-test\\x23data.mount'")
     client.succeed("systemctl cat storage-fixture.service | grep -F 'After=mnt-bulk-test.mount mnt-bulk-test\\x23data.mount'")
     client.succeed("systemctl cat storage-fixture.service | grep -F 'BindsTo=mnt-bulk-test.mount mnt-bulk-test\\x23data.mount'")
+
+    # Idle expiry must not stop a mount-bound service. Ordinary on-demand
+    # mounts still expire; explicit unmount propagation is exercised below.
+    client.succeed("test $(systemctl show mnt-bulk-test.automount -p TimeoutIdleUSec --value) = infinity")
+    client.succeed("test $(systemctl show 'mnt-bulk-test\\x23data.automount' -p TimeoutIdleUSec --value) = infinity")
+    client.succeed("test $(systemctl show mnt-bulk-ondemand.automount -p TimeoutIdleUSec --value) = 10min")
 
     # Cleanup is timer-driven and can only prune old images, never other
     # Podman resources through the broad `system prune` command.

@@ -50,18 +50,20 @@
       path,
       owner ? "root",
       group ? "root",
+      serviceUnit ? "podman-${name}.service",
       healthCheckCommand,
     }:
     {
       frequency = "daily";
       paths = [ path ];
       requiredPaths = [ "state" ];
-      serviceUnits = [ "podman-${name}.service" ];
+      serviceUnits = [ serviceUnit ];
       createCommand = ''
+        unit=${lib.escapeShellArg serviceUnit}
         active=0
-        if ${pkgs.systemd}/bin/systemctl is-active --quiet podman-${name}.service; then active=1; fi
-        ${pkgs.systemd}/bin/systemctl stop podman-${name}.service
-        trap 'if [ "$active" = 1 ]; then ${pkgs.systemd}/bin/systemctl start podman-${name}.service; fi' EXIT
+        if ${pkgs.systemd}/bin/systemctl is-active --quiet "$unit"; then active=1; fi
+        ${pkgs.systemd}/bin/systemctl stop "$unit"
+        trap 'if [ "$active" = 1 ]; then ${pkgs.systemd}/bin/systemctl start "$unit"; fi' EXIT
         ${pkgs.coreutils}/bin/cp -a ${lib.escapeShellArg path} "$FLEET_BACKUP_STAGING_DIR/state"
       '';
       restoreCommand = ''

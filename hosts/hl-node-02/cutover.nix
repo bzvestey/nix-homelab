@@ -9,7 +9,6 @@ let
 in
 {
   # Keep the stale fallback disabled until the completed policy is mirrored.
-  fleet.comin.enableMirror = false;
   sops.secrets =
     lib.genAttrs
       [
@@ -22,35 +21,38 @@ in
         mode = "0600";
         restartUnits = [ ];
       });
-  fleet.tailscaleServiceProxy.proxies = {
-    immich = {
-      upstream = "http://127.0.0.1:2283";
-      hostname = "immich.tailbc181.ts.net";
-      seedStateFile = config.sops.secrets.tailscale-immich-state.path;
-      port = 41642;
+  fleet = {
+    comin.enableMirror = false;
+    tailscaleServiceProxy.proxies = {
+      immich = {
+        upstream = "http://127.0.0.1:2283";
+        hostname = "immich.tailbc181.ts.net";
+        seedStateFile = config.sops.secrets.tailscale-immich-state.path;
+        port = 41642;
+      };
+      mealie = {
+        upstream = "http://127.0.0.1:9000";
+        hostname = "mealie.tailbc181.ts.net";
+        seedStateFile = config.sops.secrets.tailscale-mealie-state.path;
+        port = 41643;
+      };
     };
-    mealie = {
-      upstream = "http://127.0.0.1:9000";
-      hostname = "mealie.tailbc181.ts.net";
-      seedStateFile = config.sops.secrets.tailscale-mealie-state.path;
-      port = 41643;
-    };
+    backup.jobs = lib.mapAttrs' (
+      name: proxy:
+      lib.nameValuePair "tailscale-${name}-state" (
+        backups.state {
+          name = "tailscale-${name}";
+          path = "/var/lib/tailscale-${name}";
+          serviceUnit = "tailscale-${name}.service";
+          healthCheckCommand = ''
+            ${lib.getExe pkgs.tailscale} --socket=/run/tailscale-${name}/tailscaled.sock status --json --peers=false |
+              ${lib.getExe pkgs.jq} -e --arg hostname ${lib.escapeShellArg proxy.hostname} \
+                '.BackendState == "Running" and (.Self.DNSName | rtrimstr(".")) == $hostname' >/dev/null
+          '';
+        }
+      )
+    ) config.fleet.tailscaleServiceProxy.proxies;
   };
-  fleet.backup.jobs = lib.mapAttrs' (
-    name: proxy:
-    lib.nameValuePair "tailscale-${name}-state" (
-      backups.state {
-        name = "tailscale-${name}";
-        path = "/var/lib/tailscale-${name}";
-        serviceUnit = "tailscale-${name}.service";
-        healthCheckCommand = ''
-          ${lib.getExe pkgs.tailscale} --socket=/run/tailscale-${name}/tailscaled.sock status --json --peers=false |
-            ${lib.getExe pkgs.jq} -e --arg hostname ${lib.escapeShellArg proxy.hostname} \
-              '.BackendState == "Running" and (.Self.DNSName | rtrimstr(".")) == $hostname' >/dev/null
-        '';
-      }
-    )
-  ) config.fleet.tailscaleServiceProxy.proxies;
 
   # Shared Cloudflare connectors remain on the surviving source worker until
   # their own migration. Matrix traffic goes directly to the native origin.

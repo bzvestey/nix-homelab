@@ -54,6 +54,7 @@
         sops-nix.nixosModules.sops
         correctedCominModule
         ./modules/fleet/secrets.nix
+        ./modules/fleet/prepared-applications.nix
         ./modules/fleet/podman.nix
         ./modules/fleet/storage.nix
         ./modules/fleet/backup.nix
@@ -120,6 +121,88 @@
           }
         ];
       };
+      bootstrapConfigurations = nixpkgs.lib.genAttrs [ "hl-node-01" "hl-node-03" "hl-node-04" ] (
+        name:
+        nixosConfigurations.${name}.extendModules {
+          modules = [ ./modules/fleet/bootstrap.nix ];
+        }
+      );
+      preparedConfigurations = {
+        hl-node-02-remaining = nixosConfigurations.hl-node-02.extendModules {
+          modules = [
+            ./modules/services/remaining-applications.nix
+            {
+              services.fleet.remainingApplications.enable = true;
+              fleet = {
+                preparedApplications = {
+                  enable = true;
+                  extraSecretPaths = [
+                    "/run/secrets/remaining-applications-registry.json"
+                  ];
+                  existingIdentityHostnames = [
+                    "immich.tailbc181.ts.net"
+                    "mealie.tailbc181.ts.net"
+                  ];
+                  manageIdentityBackups = false;
+                  existingSecretPaths = [
+                    "/run/secrets/immich.env"
+                    "/run/secrets/mealie.env"
+                    "/run/secrets/tuwunel.toml"
+                    "/run/secrets/tailscale-auth-key"
+                    "/run/secrets/restic-repository"
+                    "/run/secrets/restic-password"
+                    "/run/secrets/restic-s3-credentials"
+                    "/run/secrets/tailscale-immich-state"
+                    "/run/secrets/tailscale-mealie-state"
+                    "/run/secrets/forgejo-runner-hl-node-02"
+                  ];
+                };
+                tailscaleServiceProxy.proxies = {
+                  git-ssh = {
+                    hostname = "git-ssh.tailbc181.ts.net";
+                    tcpForwards."22" = "127.0.0.1:2222";
+                    seedStateFile = "/run/secrets/tailscale-git-ssh-state.json";
+                    port = 42101;
+                  };
+                  knot-ssh = {
+                    hostname = "knot-ssh.tailbc181.ts.net";
+                    tcpForwards."22" = "127.0.0.1:2223";
+                    seedStateFile = "/run/secrets/tailscale-knot-ssh-state.json";
+                    port = 42102;
+                  };
+                };
+              };
+            }
+          ];
+        };
+        hl-node-03-staging = nixosConfigurations.hl-node-03.extendModules {
+          modules = [
+            ./modules/services/lightweight-applications.nix
+            {
+              services.fleet.lightweightApplications.enable = true;
+              fleet = {
+                preparedApplications.extraSecretPaths = [ "/run/secrets/cloudflared-tunnel.json" ];
+                cloudflared = {
+                  enable = true;
+                  routes = map (
+                    route:
+                    if route.hostname == "id.minastas.xyz" then
+                      route // { origin = "http://10.15.4.7:8080"; }
+                    else
+                      route
+                  ) (import ./lib/public-ingress-routes.nix);
+                };
+                tailscaleServiceProxy.proxies.mailrise = {
+                  hostname = "mailrise.tailbc181.ts.net";
+                  tcpForwards."25" = "127.0.0.1:8025";
+                  seedStateFile = "/run/secrets/tailscale-mailrise-state.json";
+                  port = 42100;
+                };
+              };
+            }
+          ];
+        };
+      };
       forAllSystems = nixpkgs.lib.genAttrs [
         "aarch64-linux"
         "x86_64-linux"
@@ -141,7 +224,7 @@
           specialArgs = frameworkFacts.${targetHost} // {
             inherit disko targetHost;
             targetSystem =
-              (if targetHost == "hl-node-02" then hlNode02Bootstrap else nixosConfigurations.${targetHost})
+              (if targetHost == "hl-node-02" then hlNode02Bootstrap else bootstrapConfigurations.${targetHost})
               .config.system.build.toplevel;
           };
           modules = [
@@ -179,6 +262,7 @@
           inherit (node) system;
           hostname = targetHost;
           modules = modulesForNode targetHost node ++ [
+            (if targetHost == "hl-node-01" then ./modules/fleet/bootstrap.nix else { })
             {
               _module.args = {
                 inherit targetHost;
@@ -236,6 +320,7 @@
     in
     {
       inherit images nixosConfigurations;
+      inherit bootstrapConfigurations preparedConfigurations;
 
       lib = {
         inherit fleetTopology mkFleetTopology mkHost;
@@ -325,6 +410,31 @@
           };
         }
         // {
+          remaining-batch = import ./checks/remaining-batch.nix {
+            inherit bootstrapConfigurations nixosConfigurations preparedConfigurations;
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          remaining-services =
+            let
+              inherit (nixpkgs) lib;
+              storage = import ./checks/storage-applications.nix {
+                host = nixosConfigurations.hl-node-03;
+                inherit lib;
+              };
+              lightweight = import ./checks/lightweight-applications.nix {
+                config = nixosConfigurations.hl-node-01.config;
+                inherit lib;
+              };
+              media = import ./checks/media-automation.nix {
+                config = nixosConfigurations.hl-node-04.config;
+                inherit lib;
+              };
+              remaining = import ./checks/remaining-applications.nix {
+                configuration = preparedConfigurations.hl-node-02-remaining;
+              };
+            in
+            assert storage && lightweight && media && remaining;
+            nixpkgs.legacyPackages.${system}.runCommand "remaining-services" { } "touch $out";
           ci-scope =
             nixpkgs.legacyPackages.${system}.runCommand "ci-scope-tests"
               {

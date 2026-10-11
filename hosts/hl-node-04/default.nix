@@ -1,8 +1,12 @@
-{ ... }:
+{ lib, fleetTopology, ... }:
+let
+  nic = fleetTopology.nodes.hl-node-04.nic;
+in
 {
   imports = [
     ./disk-config.nix
   ];
+  hardware.enableRedistributableFirmware = true;
   services.fleet.forgejo-runner = {
     enable = true;
     uuid = "e9842b40-7feb-4fe9-b81c-4ebed7016304";
@@ -19,22 +23,42 @@
     };
   };
   systemd.network = {
-    netdevs."10-bond0".netdevConfig = {
-      Kind = "bond";
-      Name = "bond0";
+    links = lib.mapAttrs' (
+      member: mac:
+      lib.nameValuePair "10-${member}" {
+        matchConfig = {
+          PermanentMACAddress = mac;
+          Kind = "!*";
+        };
+        linkConfig = {
+          Name = member;
+          NamePolicy = "";
+        };
+      }
+    ) nic.permanentMacAddresses;
+    netdevs."10-bond0" = {
+      netdevConfig = {
+        Kind = "bond";
+        Name = "bond0";
+        MACAddress = nic.macAddress;
+      };
+      bondConfig = {
+        Mode = "active-backup";
+        MIIMonitorSec = "100ms";
+      };
     };
     networks = {
       "10-member-1" = {
         matchConfig = {
-          Name = "enp0s13f0u3";
-          MACAddress = "9c:bf:0d:00:20:37";
+          Name = "lan0";
+          PermanentMACAddress = nic.permanentMacAddresses.lan0;
         };
         networkConfig.Bond = "bond0";
       };
       "10-member-2" = {
         matchConfig = {
-          Name = "enp0s13f0u4";
-          MACAddress = "9c:bf:0d:00:20:37";
+          Name = "lan1";
+          PermanentMACAddress = nic.permanentMacAddresses.lan1;
         };
         networkConfig.Bond = "bond0";
       };

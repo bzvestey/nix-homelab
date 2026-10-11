@@ -12,8 +12,14 @@ let
   proxyType = lib.types.submodule {
     options = {
       upstream = lib.mkOption {
-        type = lib.types.strMatching "^http://(127\\.0\\.0\\.1|localhost):[0-9]+$";
+        type = lib.types.nullOr (lib.types.strMatching "^http://(127\\.0\\.0\\.1|localhost):[0-9]+$");
+        default = null;
         description = "Host-loopback HTTP application URL, reached by userspace Serve's system dialer.";
+      };
+      tcpForwards = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.strMatching "^127\\.0\\.0\\.1:[0-9]+$");
+        default = { };
+        description = "Tailnet TCP listener port to host-loopback destination, preserving SMTP/SSH identities.";
       };
       hostname = lib.mkOption {
         type = lib.types.strMatching "^[a-z0-9][a-z0-9.-]*\\.ts\\.net$";
@@ -80,7 +86,15 @@ let
                 echo 'Migrated identity DNS name mismatch; refusing to configure Serve.' >&2
                 exit 1
               fi
-              exec ${lib.getExe' pkgs.coreutils "timeout"} --kill-after=2s 20s ${cli} serve --bg --yes --https=443 ${lib.escapeShellArg proxy.upstream}
+              ${lib.optionalString (proxy.upstream != null) ''
+                ${lib.getExe' pkgs.coreutils "timeout"} --kill-after=2s 20s ${cli} serve --bg --yes --https=443 ${lib.escapeShellArg proxy.upstream}
+              ''}
+              ${lib.concatStringsSep "\n" (
+                lib.mapAttrsToList (port: destination: ''
+                  ${lib.getExe' pkgs.coreutils "timeout"} --kill-after=2s 20s ${cli} serve --bg --yes --tcp=${lib.escapeShellArg port} tcp://${lib.escapeShellArg destination}
+                '') proxy.tcpForwards
+              )}
+              exit 0
             fi
           fi
           ${lib.getExe' pkgs.coreutils "sleep"} 1
@@ -132,6 +146,20 @@ in
 
   config = lib.mkIf (cfg.proxies != { }) {
     assertions = [
+      {
+        assertion = lib.all (
+          proxy:
+          (proxy.upstream != null || proxy.tcpForwards != { })
+          && lib.all (
+            port:
+            builtins.match "[0-9]+" port != null
+            && lib.toInt port > 0
+            && lib.toInt port <= 65535
+            && !(proxy.upstream != null && lib.toInt port == 443)
+          ) (builtins.attrNames proxy.tcpForwards)
+        ) proxies;
+        message = "A migrated identity needs HTTP or valid TCP forwards; TCP cannot conflict with HTTPS port 443.";
+      }
       {
         assertion = lib.all (name: builtins.match "[a-z0-9][a-z0-9-]*" name != null) (
           builtins.attrNames cfg.proxies

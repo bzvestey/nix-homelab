@@ -28,19 +28,21 @@ pkgs.testers.runNixOSTest {
         };
       };
 
-      fleet.storage.nfsMounts.test = {
-        source = "server:/srv/export";
-        target = "/mnt/bulk/test";
-        dependentUnits = [ "storage-fixture" ];
-      };
-      fleet.storage.nfsMounts.escaped = {
-        source = "server:/srv/export";
-        target = "/mnt/bulk/test#data";
-        dependentUnits = [ "storage-fixture" ];
-      };
-      fleet.storage.nfsMounts.ondemand = {
-        source = "server:/srv/export";
-        target = "/mnt/bulk/ondemand";
+      fleet.storage.nfsMounts = {
+        test = {
+          source = "server:/srv/export";
+          target = "/mnt/bulk/test";
+          dependentUnits = [ "storage-fixture" ];
+        };
+        escaped = {
+          source = "server:/srv/export";
+          target = "/mnt/bulk/test#data";
+          dependentUnits = [ "storage-fixture" ];
+        };
+        ondemand = {
+          source = "server:/srv/export";
+          target = "/mnt/bulk/ondemand";
+        };
       };
       systemd.services.storage-fixture = {
         wantedBy = [ "storage-test.target" ];

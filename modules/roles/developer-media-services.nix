@@ -1,9 +1,18 @@
 _: {
+  imports = [ ../services/media-automation.nix ];
+  services.fleet.mediaAutomation.enable = true;
   fleet = {
-    telemetry.enable = true;
-    storage.nfsMounts.videos = {
-      source = "10.15.4.101:/mnt/spinners-1/videos";
-      target = "/mnt/bulk/videos";
+    preparedApplications = {
+      enable = true;
+      extraSecretPaths = [ "/run/secrets/publication-manager-registry.json" ];
     };
+    tailscaleServiceProxy.proxies.deluge-direct = {
+      hostname = "deluge-direct.tailbc181.ts.net";
+      upstream = "http://127.0.0.1:8112";
+      tcpForwards."58846" = "127.0.0.1:58846";
+      seedStateFile = "/run/secrets/tailscale-deluge-direct-state.json";
+      port = 42100;
+    };
+    telemetry.enable = true;
   };
 }

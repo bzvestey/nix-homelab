@@ -158,3 +158,9 @@ jobs:
               '${{ matrix.host }}' "$diagnostic"
             exit "$status"
           fi
+      - name: Prebuild remaining node-02 applications
+        if: matrix.host == 'hl-node-02'
+        run: nix build .#preparedConfigurations.hl-node-02-remaining.config.system.build.toplevel --no-link
+      - name: Prebuild temporary lightweight hosting
+        if: matrix.host == 'hl-node-03'
+        run: nix build .#preparedConfigurations.hl-node-03-staging.config.system.build.toplevel --no-link

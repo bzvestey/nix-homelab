@@ -12,6 +12,7 @@ on:
         type: choice
         options:
           - all
+          - remaining
           - hl-node-00
           - hl-node-01
           - hl-node-02
@@ -118,27 +119,27 @@ jobs:
               '${{ matrix.host }}' "$diagnostic"
             exit "$status"
           fi
-      - name: Prepare observability image artifact
-        if: matrix.host == 'hl-node-00'
+      - name: Prepare Raspberry Pi bootstrap artifact
         run: |
           set -euo pipefail
-          output=$(readlink -f result-hl-node-00)
+          host='${{ matrix.host }}'
+          output=$(readlink -f "result-$host")
           mapfile -t images < <(find "$output" -type f -name '*.img.zst' -print)
           test "${#images[@]}" -eq 1
           mkdir artifact
           cp -- "${images[0]}" artifact/
           image="artifact/$(basename "${images[0]}")"
-          (cd artifact && sha256sum "$(basename "$image")" > hl-node-00.sha256)
+          (cd artifact && sha256sum "$(basename "$image")" > "$host.sha256")
           {
             printf 'git_commit=%s\n' "$GITHUB_SHA"
             printf 'nix_output=%s\n' "$output"
             printf 'image_store_path=%s\n' "${images[0]}"
-          } > artifact/hl-node-00.manifest
-      - name: Upload observability image artifact
-        if: matrix.host == 'hl-node-00'
+            printf 'installation_ready=false\n'
+          } > "artifact/$host.manifest"
+      - name: Upload Raspberry Pi bootstrap artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hl-node-00-${{ github.sha }}
+          name: ${{ matrix.host }}-${{ github.sha }}
           path: artifact/
           if-no-files-found: error
           retention-days: 7

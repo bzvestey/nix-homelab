@@ -122,9 +122,9 @@ def main():
         event = json.load(stream)
     if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch':
         host = event.get('inputs', {}).get('host', 'all')
-        if host != 'all' and host not in HOSTS:
+        if host not in ('all', 'remaining') and host not in HOSTS:
             parser.error('invalid image host')
-        selected = HOSTS if host == 'all' else [host]
+        selected = HOSTS if host == 'all' else (['hl-node-01', 'hl-node-03', 'hl-node-04'] if host == 'remaining' else [host])
         result = matrices([], set(selected) & set(FRAMEWORK), set(selected) & set(PI))
     else:
         result = select_scope(*discover(event, github_get))

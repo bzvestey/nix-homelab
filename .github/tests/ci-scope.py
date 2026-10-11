@@ -192,6 +192,7 @@ class ScopeTests(unittest.TestCase):
             event, output = Path(tmp) / 'event.json', Path(tmp) / 'output'
             contracts = {
                 'all': expected(framework=FRAMEWORK, pi=PI),
+                'remaining': expected(framework=[{'host': 'hl-node-03'}, {'host': 'hl-node-04'}], pi=[{'host': 'hl-node-01'}]),
                 'hl-node-00': expected(pi=[{'host': 'hl-node-00'}]),
                 'hl-node-01': expected(pi=[{'host': 'hl-node-01'}]),
                 'hl-node-02': expected(framework=[{'host': 'hl-node-02'}]),

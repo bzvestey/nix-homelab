@@ -59,13 +59,17 @@ let
       imageType = "framework";
       nic = {
         members = [
-          "enp0s13f0u3"
-          "enp0s13f0u4"
+          "lan0"
+          "lan1"
         ];
         macAddress = "9c:bf:0d:00:0d:3c";
+        permanentMacAddresses = {
+          lan0 = "9c:bf:0d:00:0d:3c";
+          lan1 = "9c:bf:0d:00:0d:4f";
+        };
       };
       installDisk = {
-        byId = "UNRESOLVED";
+        byId = "/dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S64ANS0RB36721W_1";
         model = "Samsung SSD 980 1TB";
         serial = "S64ANS0RB36721W";
         sectors = 1953525168;
@@ -79,13 +83,17 @@ let
       imageType = "framework";
       nic = {
         members = [
-          "enp0s13f0u3"
-          "enp0s13f0u4"
+          "lan0"
+          "lan1"
         ];
         macAddress = "9c:bf:0d:00:20:37";
+        permanentMacAddresses = {
+          lan0 = "9c:bf:0d:00:20:37";
+          lan1 = "9c:bf:0d:00:20:36";
+        };
       };
       installDisk = {
-        byId = "UNRESOLVED";
+        byId = "/dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S64ANL0T801753P_1";
         model = "Samsung SSD 980 1TB";
         serial = "S64ANL0T801753P";
         sectors = 1953525168;

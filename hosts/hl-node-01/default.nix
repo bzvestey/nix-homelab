@@ -1,4 +1,5 @@
 _: {
+  fleet.ingress.lanInterface = "end0";
   systemd.network.networks."20-lan" = {
     matchConfig = {
       Name = "end0";

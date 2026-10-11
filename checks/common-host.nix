@@ -20,8 +20,7 @@ let
 
     iifname "bond0" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport 8080 accept comment "cloudflared origins"
 
-    iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"
-
+    iifname "bond0" ip saddr { 10.15.4.9, 10.244.3.0/24 } tcp dport 8080 accept comment "shared Cloudflare connector"
 
     ip saddr 10.15.4.6 tcp dport 9464 accept comment "observability agent scrape"
   '';
@@ -68,12 +67,12 @@ let
       address = "10.15.4.7/24";
       networks = {
         "10-member-1" = {
-          Name = "enp0s13f0u3";
-          MACAddress = "9c:bf:0d:00:0d:3c";
+          Name = "lan0";
+          PermanentMACAddress = "9c:bf:0d:00:0d:3c";
         };
         "10-member-2" = {
-          Name = "enp0s13f0u4";
-          MACAddress = "9c:bf:0d:00:0d:3c";
+          Name = "lan1";
+          PermanentMACAddress = "9c:bf:0d:00:0d:4f";
         };
         "20-bond0".Name = "bond0";
       };
@@ -82,12 +81,12 @@ let
       address = "10.15.4.9/24";
       networks = {
         "10-member-1" = {
-          Name = "enp0s13f0u3";
-          MACAddress = "9c:bf:0d:00:20:37";
+          Name = "lan0";
+          PermanentMACAddress = "9c:bf:0d:00:20:37";
         };
         "10-member-2" = {
-          Name = "enp0s13f0u4";
-          MACAddress = "9c:bf:0d:00:20:37";
+          Name = "lan1";
+          PermanentMACAddress = "9c:bf:0d:00:20:36";
         };
         "20-bond0".Name = "bond0";
       };
@@ -105,6 +104,11 @@ let
     let
       config = nixosConfigurations.${hostname}.config;
       comin = config.services.comin;
+      ruleLines =
+        text:
+        lib.sort builtins.lessThan (
+          lib.filter (line: line != "") (map lib.strings.trim (lib.splitString "\n" text))
+        );
       networkAddresses = lib.flatten (
         lib.mapAttrsToList (_: network: network.address or [ ]) config.systemd.network.networks
       );
@@ -205,11 +209,15 @@ let
     assert config.networking.nftables.enable;
     assert !(builtins.elem 4243 config.networking.firewall.allowedTCPPorts);
     assert
-      config.networking.firewall.extraInputRules == (
+      ruleLines config.networking.firewall.extraInputRules == ruleLines (
         if hostname == "hl-node-02" then
           applicationExporterRule
         else
-          lib.optionalString (hostname == "hl-node-00") observabilityRule + exporterRule
+          lib.optionalString (hostname == "hl-node-00") observabilityRule
+          + exporterRule
+          + lib.optionalString (hostname == "hl-node-01") ''
+            iifname "end0" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport 8080 accept comment "cloudflared origins"
+          ''
       );
     assert comin.exporter.listen_address == "0.0.0.0";
     assert comin.exporter.port == 4243;

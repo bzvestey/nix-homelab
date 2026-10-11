@@ -256,7 +256,7 @@ pkgs.testers.runNixOSTest {
         };
     origin9 =
       pkgs.lib.recursiveUpdate
-        (origin "10.15.4.9"
+        (origin "10.15.4.7"
           [
             {
               hostname = "id.minastas.xyz";
@@ -319,7 +319,7 @@ pkgs.testers.runNixOSTest {
         faulthandler.cancel_dump_traceback_later()
     for node, interface, address in (
         (origin5, "eth1", "10.15.4.5/24"), (origin5, "tailscale0", "100.64.0.5/24"),
-        (origin9, "eth1", "10.15.4.9/24"), (connectorA, "eth1", "10.15.4.4/24"),
+        (origin9, "eth1", "10.15.4.7/24"), (connectorA, "eth1", "10.15.4.4/24"),
         (connectorB, "eth1", "10.15.4.6/24"), (edge, "eth1", "10.15.4.20/24"),
         (lanClient, "eth1", "10.15.4.30/24"), (tailClient, "eth2", "100.64.0.2/24")):
         node.succeed(f"ip address replace {address} dev {interface}")

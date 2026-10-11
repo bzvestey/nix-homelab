@@ -3,11 +3,11 @@ keys:
   - &hl-node-00 age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec
   - &hl-node-02 age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh
   - &hl-node-03 age144zjku25ahrs74kqlq47nsh8hdu47w2j37c26plr8klx0x559yxqkv932v
+  - &hl-node-04 age1qdgzv4wywfyds8qqul4s5vnpr72h5s9y46ghssq87dje9f6s4ekqpe4g9n
 
 # Enrollment adds public host recipients here, using the exact anchor printed
 # by fleet-enroll. Never add private keys or generated credentials.
 #   - &hl-node-01 age1...
-#   - &hl-node-04 age1...
 
 creation_rules:
   # Add one rule per enrolled host. Keep the administrator and only that host.
@@ -22,6 +22,10 @@ creation_rules:
   - path_regex: secrets/hosts/hl-node-03/.*\.yaml$
     key_groups:
       - age: [*administrator, *hl-node-03]
+
+  - path_regex: secrets/hosts/hl-node-04/.*\.yaml$
+    key_groups:
+      - age: [*administrator, *hl-node-04]
 
   # - path_regex: secrets/hosts/hl-node-01/.*\.yaml$
   #   key_groups:

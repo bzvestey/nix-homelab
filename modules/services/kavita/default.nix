@@ -58,6 +58,8 @@ in
           path = "/var/lib/kavita";
           owner = "storage-apps";
           group = "storage-apps";
+          # Avoid copying Kavita's own archives while the service is stopped.
+          exclude = [ "/backups/" ];
           healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:5000/";
         })
         // {

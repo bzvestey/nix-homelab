@@ -51,6 +51,7 @@
       owner ? "root",
       group ? "root",
       serviceUnit ? "podman-${name}.service",
+      exclude ? [ ],
       healthCheckCommand,
     }:
     {
@@ -64,7 +65,14 @@
         if ${pkgs.systemd}/bin/systemctl is-active --quiet "$unit"; then active=1; fi
         ${pkgs.systemd}/bin/systemctl stop "$unit"
         trap 'if [ "$active" = 1 ]; then ${pkgs.systemd}/bin/systemctl start "$unit"; fi' EXIT
-        ${pkgs.coreutils}/bin/cp -a --no-preserve=links ${lib.escapeShellArg path} "$FLEET_BACKUP_STAGING_DIR/state"
+        ${
+          if exclude == [ ] then
+            "${pkgs.coreutils}/bin/cp -a --no-preserve=links ${lib.escapeShellArg path}"
+          else
+            "${pkgs.rsync}/bin/rsync -a ${
+              lib.escapeShellArgs (map (pattern: "--exclude=${pattern}") exclude)
+            } -- ${lib.escapeShellArg "${path}/"}"
+        } "$FLEET_BACKUP_STAGING_DIR/state"
       '';
       restoreCommand = ''
         ${pkgs.coreutils}/bin/mkdir -p ${lib.escapeShellArg path}

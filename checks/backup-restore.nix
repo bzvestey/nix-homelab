@@ -248,6 +248,7 @@ let
           {
             name = "linked";
             path = "${root}/real-source-linked";
+            exclude = [ "/backups/" ];
             healthCheckCommand = "true";
           }
       // {
@@ -469,11 +470,19 @@ pkgs.runCommand "backup-restore-tests"
         mkdir -p ${root}/real-source-linked
         printf linked-content >${root}/real-source-linked/data
         ln ${root}/real-source-linked/data ${root}/real-source-linked/link
+        mkdir -p ${root}/real-source-linked/{backups,covers/backups,bookmarks}
+        printf archive >${root}/real-source-linked/backups/internal.zip
+        printf cover >${root}/real-source-linked/covers/backups/cover.png
+        printf bookmark >${root}/real-source-linked/bookmarks/page.json
         ${realTools}/bin/fleet-backup-run linked
         ${realTools}/bin/fleet-restore linked --rehearsal
         test "$(cat ${root}/observed-linked/data)" = linked-content
         test "$(cat ${root}/observed-linked/link)" = linked-content
         test "$(stat -c %h ${root}/observed-linked/data)" -eq 1
+        test ! -e ${root}/observed-linked/backups
+        test "$(cat ${root}/observed-linked/covers/backups/cover.png)" = cover
+        test "$(cat ${root}/observed-linked/bookmarks/page.json)" = bookmark
+        test "$(cat ${root}/real-source-linked/backups/internal.zip)" = archive
 
         # Staging accepts exactly the entry types restore accepts.
         for kind in symlink hardlink fifo newline; do

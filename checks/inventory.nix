@@ -5,9 +5,9 @@
   readiness ? false,
   expectedErrors ? [ ],
   fixtureMode ? false,
+  inventory ? builtins.fromJSON (builtins.readFile inventoryFile),
 }:
 let
-  inventory = builtins.fromJSON (builtins.readFile inventoryFile);
   isNonEmptyString = value: builtins.isString value && value != "";
   isObservationDate =
     value: builtins.isString value && builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" value != null;

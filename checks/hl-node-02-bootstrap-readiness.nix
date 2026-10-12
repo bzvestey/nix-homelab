@@ -3,13 +3,13 @@
   host,
   node,
   inventoryFile ? ../docs/inventory/services.md,
+  inventory ? builtins.fromJSON (builtins.readFile inventoryFile),
 }:
 let
   inherit (pkgs) lib;
-  inventory = builtins.fromJSON (builtins.readFile inventoryFile);
   target = lib.findFirst (target: target.name == "hl-node-02") null inventory.targets;
   inherit (target) hardware;
-  schema = import ./inventory.nix { inherit pkgs lib inventoryFile; };
+  schema = import ./inventory.nix { inherit pkgs lib inventory; };
   workloads = [
     "podman-immich"
     "podman-immich-ml"

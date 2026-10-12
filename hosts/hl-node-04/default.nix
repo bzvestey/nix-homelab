@@ -20,14 +20,16 @@ in
         mode = "0400";
         restartUnits = [ ];
       });
-  fleet.preparedApplications.existingSecretPaths = [
-    "/run/secrets/tailscale-auth-key"
-    "/run/secrets/restic-repository"
-    "/run/secrets/restic-password"
-    "/run/secrets/restic-s3-credentials"
-  ];
-  fleet.preparedApplications.secretsFile = ../../secrets/hosts/hl-node-04/applications.yaml;
-  fleet.comin.enableMirror = false;
+  fleet = {
+    preparedApplications.existingSecretPaths = [
+      "/run/secrets/tailscale-auth-key"
+      "/run/secrets/restic-repository"
+      "/run/secrets/restic-password"
+      "/run/secrets/restic-s3-credentials"
+    ];
+    preparedApplications.secretsFile = ../../secrets/hosts/hl-node-04/applications.yaml;
+    comin.enableMirror = false;
+  };
   services.fleet.forgejo-runner = {
     enable = true;
     uuid = "456e3c18-a5e5-4869-9906-a7d65d2eb2a2";

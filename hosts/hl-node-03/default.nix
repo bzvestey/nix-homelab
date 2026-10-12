@@ -26,14 +26,16 @@ in
         uid = lib.mkForce 1000;
       };
     };
-  fleet.preparedApplications.existingSecretPaths = [
-    "/run/secrets/tailscale-auth-key"
-    "/run/secrets/restic-repository"
-    "/run/secrets/restic-password"
-    "/run/secrets/restic-s3-credentials"
-  ];
-  fleet.preparedApplications.secretsFile = ../../secrets/hosts/hl-node-03/applications.yaml;
-  fleet.comin.enableMirror = false;
+  fleet = {
+    preparedApplications.existingSecretPaths = [
+      "/run/secrets/tailscale-auth-key"
+      "/run/secrets/restic-repository"
+      "/run/secrets/restic-password"
+      "/run/secrets/restic-s3-credentials"
+    ];
+    preparedApplications.secretsFile = ../../secrets/hosts/hl-node-03/applications.yaml;
+    comin.enableMirror = false;
+  };
   services.fleet.forgejo-runner = {
     enable = true;
     uuid = "d590a8c1-c6d3-4fdc-b11f-6a57978e78ec";

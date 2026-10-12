@@ -9,17 +9,13 @@ let
   gate = args: import ./hl-node-02-bootstrap-readiness.nix ({ inherit pkgs host node; } // args);
   accepts = args: (builtins.tryEval (gate args).drvPath).success;
   withHardware = change: {
-    inventoryFile = builtins.toFile "bootstrap-hardware-fixture.json" (
-      builtins.toJSON (
-        inventory
-        // {
-          targets = map (
-            target:
-            if target.name == "hl-node-02" then lib.recursiveUpdate target { hardware = change; } else target
-          ) inventory.targets;
-        }
-      )
-    );
+    # Keep fixtures in memory: no store-file realization during --no-build.
+    inventory = inventory // {
+      targets = map (
+        target:
+        if target.name == "hl-node-02" then lib.recursiveUpdate target { hardware = change; } else target
+      ) inventory.targets;
+    };
   };
 in
 # Bootstrap may pass while production capacity/restore blockers remain.

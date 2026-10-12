@@ -36,10 +36,6 @@ let
       name = "github";
       url = "https://github.com/bzvestey/nix-homelab.git";
     }
-    {
-      name = "tangled";
-      url = "https://tangled.org/bzvestey.minastas.social/nix-homelab";
-    }
   ];
   expected = {
     hl-node-00 = {
@@ -119,9 +115,8 @@ let
         comin.enable
         && comin.debug == false
         && comin.sshAllowedSignersPath == "/etc/comin/allowed_signers"
-        &&
-          map remoteIdentity comin.remotes
-          == (if hostname == "hl-node-02" then lib.take 1 expectedRemotes else expectedRemotes)
+        && !config.fleet.comin.enableMirror
+        && map remoteIdentity comin.remotes == expectedRemotes
         && lib.all (remote: remote.poller.period == 60) comin.remotes
         && lib.all (
           remote:
@@ -210,14 +205,20 @@ let
     assert !(builtins.elem 4243 config.networking.firewall.allowedTCPPorts);
     assert
       ruleLines config.networking.firewall.extraInputRules == ruleLines (
-        if hostname == "hl-node-02" then
-          applicationExporterRule
-        else
-          lib.optionalString (hostname == "hl-node-00") observabilityRule
-          + exporterRule
-          + lib.optionalString (hostname == "hl-node-01") ''
-            iifname "end0" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport 8080 accept comment "cloudflared origins"
-          ''
+        (
+          if hostname == "hl-node-02" then
+            applicationExporterRule
+          else
+            lib.optionalString (hostname == "hl-node-00") observabilityRule
+            + exporterRule
+            + lib.optionalString (hostname == "hl-node-01") ''
+              iifname "end0" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport 8080 accept comment "cloudflared origins"
+            ''
+        )
+        + ''
+          iifname "podman*" udp dport 53 accept comment "Podman bridge DNS"
+          iifname "podman*" tcp dport 53 accept comment "Podman bridge DNS"
+        ''
       );
     assert comin.exporter.listen_address == "0.0.0.0";
     assert comin.exporter.port == 4243;

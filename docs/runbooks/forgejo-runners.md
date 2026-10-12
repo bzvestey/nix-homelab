@@ -109,6 +109,34 @@ Do not collect production token values or dump credential directories into
 diagnostic reports. Disabling a runner is reversible through its fleet enable
 option; revoke its server credentials separately if compromise is suspected.
 
+## Checkout archive regression (Podman 5.8.7)
+
+The migrated runners hit the same checkout failure on all three Frameworks:
+`statat var/run/act/actions/.../.eslintignore: path escapes from parent`.
+This happens before Git checkout: the Docker-compatible archive API rejects
+the job image's absolute `/var/run -> /run` symlink. The subsequent missing
+`dist/index.js` error is a consequence of the failed copy, not a missing Node
+installation or bad repository credentials.
+
+The runner module backports the final fix from
+[Buildah #7129](https://github.com/podman-container-tools/buildah/pull/7129),
+adapting its call site to Podman's vendored Buildah 1.43.4. Only the API daemon
+uses the patched binary; unrelated application units and the CLI package are
+unchanged. Its systemd drop-in resets the vendor unit's `ExecStart` before
+replacing it. The archive security checks remain enabled: valid in-container
+absolute symlinks work, while relative escapes outside the extraction directory
+remain rejected. Remove this backport once the pinned Podman includes the fix;
+do not downgrade away the existing archive security patches.
+
+The regression fixture exercises both cases through `PUT /containers/.../archive`,
+with `/var/run -> /run` in its job image. A plain file-copy command does not
+represent the runner's broad-root archive operation.
+
+Separately, the WyrdSaga test workflow publishes PostgreSQL on host port 5432,
+which conflicts with the existing database on node02. Container jobs should
+connect to their PostgreSQL service on the job network without a fixed host
+port publication; do not stop or move the homelab database to accommodate CI.
+
 ## Local acceptance
 
 `nix build -L .#checks.x86_64-linux.forgejo-runner` builds a local image and starts

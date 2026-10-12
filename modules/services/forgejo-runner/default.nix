@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   utils,
   ...
 }:
@@ -38,6 +39,17 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Podman 5.8.7 rejects Actions archive paths through /var/run -> /run.
+    # Patch only the API daemon so unrelated application units do not restart.
+    systemd.services.podman.serviceConfig.ExecStart = [
+      "" # Reset ExecStart from Podman's vendor unit before adding the override.
+      "${
+        pkgs.podman.overrideAttrs (old: {
+          patches = (old.patches or [ ]) ++ [ ../../../packages/podman-absolute-symlinks.patch ];
+        })
+      }/bin/podman $LOGGING system service"
+    ];
+
     assertions = [
       {
         assertion = lib.hasPrefix "/run/" cfg.tokenFile;

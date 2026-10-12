@@ -43,7 +43,8 @@ let
       pathsToLink = [ "/bin" ];
     };
     extraCommands = ''
-      mkdir -p tmp
+      mkdir -p tmp var run
+      ln -s /run var/run
       chmod 1777 tmp
     '';
     config = {
@@ -66,7 +67,10 @@ let
       virtualisation.memorySize = 2048;
       virtualisation.diskSize = 4096;
       networking.firewall.enable = false;
-      environment.systemPackages = [ pkgs.jq ];
+      environment.systemPackages = [
+        pkgs.jq
+        pkgs.curl
+      ];
       services.fleet.forgejo-runner = {
         enable = true;
         inherit name;
@@ -149,6 +153,15 @@ let
           machine.succeed("umask 077; printf %s " + shlex.quote(registration["token"]) + " > /run/runner-token")
           machine.succeed("umask 077; printf %s " + shlex.quote(registration["uuid"]) + " > /run/runner-uuid")
           machine.succeed("podman load -i ${image}")
+          # Actions sends broad-root archives through the image's /var/run
+          # symlink. Allow that in-root path, but still reject relative escapes.
+          machine.succeed("podman run -d --name archive-probe runner-fixture:local")
+          machine.succeed("systemctl start podman.socket")
+          machine.succeed("printf checkout-probe > /tmp/checkout-probe; tar -C /tmp --transform='s,^checkout-probe$,var/run/checkout-probe,' -cf - checkout-probe | curl --fail --unix-socket /run/podman/podman.sock -X PUT 'http://localhost/v1.41/containers/archive-probe/archive?path=/' -H 'Content-Type: application/x-tar' --data-binary @-")
+          machine.succeed("test $(podman exec archive-probe cat /run/checkout-probe) = checkout-probe")
+          machine.succeed("podman exec archive-probe sh -c 'mkdir /nested; ln -s .. /nested/escape'")
+          machine.fail("tar -C /tmp --transform='s,^checkout-probe$,escape/checkout-probe,' -cf - checkout-probe | curl --fail --unix-socket /run/podman/podman.sock -X PUT 'http://localhost/v1.41/containers/archive-probe/archive?path=/nested' -H 'Content-Type: application/x-tar' --data-binary @-")
+          machine.succeed("podman exec archive-probe test ! -e /checkout-probe; podman rm -f archive-probe")
           machine.succeed("systemctl start " + unit)
           machine.wait_for_unit(unit)
           machine.wait_until_succeeds("journalctl -u " + unit + " -o cat | grep 'declared successfully'")

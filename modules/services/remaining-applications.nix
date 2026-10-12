@@ -200,7 +200,17 @@ in
           extraOptions = [ "--network=host" ];
         };
         foundry = {
-          image = "ghcr.io/bzvestey/foundry@sha256:5d59c2eabaa4a495171cfa5ca73148aaf76056bd2052e84d978935f80ea32709";
+          # Foundry 14.369 requires Node >=24.13.1 and <25. Its licensed
+          # application is restored separately into the writable app volume.
+          image = "docker.io/library/node@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd";
+          user = "1000:1000";
+          cmd = [
+            "node"
+            "/home/foundry/app/resources/app/main.js"
+            "--headless"
+            "--dataPath=/home/foundry/data"
+          ];
+          extraOptions = [ "--workdir=/home/foundry" ];
           environmentFiles = [ (env "foundry") ];
           ports = [ "127.0.0.1:30000:30000" ];
           volumes = [

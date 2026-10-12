@@ -56,6 +56,34 @@ confirmed restore. Restore paired Forgejo/PDS database and state only with their
 writers stopped; never start Kubernetes and native copies together. The
 prerequisite details below describe the original capture/import contract.
 
+## Foundry 14.369 upgrade: 2026-10-12
+
+The application on node02 is now 14.369, installed from the administrator's
+licensed Node.js archive. Archive SHA256:
+`4c82219f1f6cf2670ad3691caf23b7929aa43d2af910baf581df5ba58caeac2e`.
+The ZIP contains the application at its root; it was installed into
+`/var/lib/foundry/app/resources/app`, preserving the existing launch path and
+separate `/var/lib/foundry/data` volume. Do not commit the licensed archive.
+
+Its package requires Node `>=24.13.1 <25.0.0`. The previous private container
+used Node 25 and has been replaced by the public Node runtime pinned to
+`docker.io/library/node@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd`.
+The running version was verified as 24.21.0, with UID/GID 1000:1000 and the
+existing explicit data path. The native database binding loaded successfully.
+
+A fresh stopped-state fleet backup passed before replacement. Local rollback
+copies of the old application, data and system closure are retained under
+`/var/lib/hlr/foundry-upgrade-14.369/` (root-only directory). Restore both old
+application and pre-upgrade data if a world has been migrated; restoring only
+the application is not a safe downgrade. The recorded old system closure
+provides the previous container runtime. Keep these copies until acceptance.
+
+Startup confirms Foundry Version 14 Build 369. No world is configured to
+autolaunch, and no world was launched during the upgrade. The public URL now
+reaches `/license`: administrator license confirmation and a representative
+world test remain required. Existing license/configuration files are retained;
+do not share the license key in logs or chat. Hourly backup scheduling resumed.
+
 ## Observed sources and immutable versions
 
 Read-only Kubernetes inspection on 2026-10-11 confirmed the following images.

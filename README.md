@@ -1,12 +1,202 @@
 # NixOS Homelab Fleet
 
-Declarative NixOS configurations for the five-host homelab fleet.
+Declarative NixOS configurations for five homelab nodes, replacing the previous
+OpenTofu/Kubernetes/Argo CD deployment. Comin builds and activates signed Git
+revisions; applications run as native services or rootful Podman containers.
+Databases and application configuration stay local to their consuming host.
+Large shared libraries remain on TrueNAS NFS, reached over Tailscale.
+
+## Fleet
+
+| Node | Hardware / LAN address | Workloads |
+| --- | --- | --- |
+| `hl-node-00` | Raspberry Pi 5, 8 GiB / `10.15.4.6` | OpenTelemetry gateway, Prometheus, Loki, Tempo, Grafana; telemetry on a powered SSD |
+| `hl-node-01` | Raspberry Pi 5, 16 GiB / `10.15.4.4` | Pocket ID, Mailrise, Homarr, Donetick, CommaFeed, Wallos |
+| `hl-node-02` | Framework / `10.15.4.5` | Immich, Mealie, Tuwunel, Forgejo, Foundry, Tangled Knot, Tranquil PDS; one Forgejo runner |
+| `hl-node-03` | Framework / `10.15.4.7` | Jellyfin, Kavita, Vikunja; one Forgejo runner |
+| `hl-node-04` | Framework / `10.15.4.9` | Deluge with Gluetun/port manager, Prowlarr, Radarr, Sonarr, Whisparr, SABnzbd, publication-manager; one Forgejo runner |
+
+Host identities are independent of their roles. Placement, addresses, permanent
+NIC identities, and installation-disk pins are defined in
+[`lib/fleet-topology.nix`](lib/fleet-topology.nix). Switch ports use **native VLAN
+4**: the hosts send untagged traffic, not an additional tagged VLAN interface.
+Framework NICs form active-backup bonds with stable `lan0`/`lan1` names.
+
+Public HTTP routes use Cloudflare connectors/Caddy; tailnet routes use Tailscale
+service identities. Each host runs telemetry collection, and dashboards/alerts
+are managed here rather than edited only in Grafana.
+
+## Repository layout
+
+- `flake.nix`, `flake.lock`: fleet outputs and pinned Nix dependencies.
+- `hosts/<node>/`: hardware, networking, enrollment, and host-specific overrides.
+- `modules/roles/`: select workloads for a role.
+- `modules/services/<service>/default.nix`: each application's container, local
+  database, persistent state, backup/restore contract, and ingress.
+- Grouped `*-applications.nix` and `media-automation.nix` modules: compatibility
+  aggregators that import and enable individual services. Existing group options
+  still work; an individual `services.fleet.<service>.enable = false` overrides
+  its group's default. Deluge owns its tightly coupled VPN and port manager.
+- `modules/fleet/`: shared deployment, storage, secrets, ingress, telemetry, and
+  recovery infrastructure. `prepared-applications.nix` and node02's `cutover.nix`
+  still provide live enrollment/startup configuration despite their names.
+- `installers/`: host-specific bootstrap media and installation guards.
+- `packages/`: custom tools and dependency corrections; `lib/`: shared helpers.
+- `secrets/`, `.sops.yaml`: encrypted secrets and age recipient policies.
+- `checks/`, `.github/`: configuration/VM tests and scoped CI builds.
+- `dashboards/`, `alerts/`: observability definitions.
+- `docs/runbooks/`: installation, enrollment, backup/restore, and service guidance.
+  Migration inventories and old wave/rehearsal documents are historical evidence,
+  not the source of truth for current placement or application versions.
+
+## Deployment and operations
+
+Comin polls the GitHub remote every 60 seconds. It switches from signed `main`
+and can test a signed `testing-<hostname>` branch without selecting it as the
+normal boot generation. A Tangled fallback is configured where
+`fleet.comin.enableMirror` is enabled; keep its policy/revision consistent with
+GitHub. **Comin does not wait for GitHub Actions**: validate before publishing a
+deployment commit. CI validates/builds; it does not perform the activation.
+
+After local validation, publish with Jujutsu and an authorized SSH signing key:
+
+```sh
+jj describe -m 'fix(mealie): update pinned image'
+jj --config 'signing.backend="ssh"' \
+  --config "signing.key=\"$HOME/.ssh/id_ed25519.pub\"" sign -r @
+jj bookmark set main -r @
+jj git push --bookmark main
+```
+
+The signer must match `modules/fleet/comin.nix`; do not disable signature checks
+or remove Jujutsu change IDs to work around a verification failure. Inspect
+`journalctl -u comin`, `systemctl --failed`, and `journalctl -u podman-<service>`
+on the affected node after deployment. Comin metrics are on port 4243, restricted
+to the observability node. A retained NixOS generation can roll back system
+configuration, but **does not roll back an application's migrated database**.
+
+Secrets use sops-nix with each host's real SSH-derived age recipient, not a
+per-machine 1Password login. Never put plaintext secrets, host private keys, or
+licensed application archives into Git or the Nix store. See
+[host enrollment and credential rotation](docs/runbooks/enroll-host.md).
+
+Backups are automatic, with isolated encrypted Restic repositories per host
+backed by Garage/S3. Jobs stage consistent database exports or quiesced state,
+validate payloads, and publish health metrics. Before an application upgrade,
+run its relevant backup jobs on that host and confirm success, for example:
+
+```sh
+sudo systemctl start fleet-backup-mealie-db.service fleet-backup-mealie-state.service
+sudo fleet-restore mealie-db --snapshot latest --rehearsal
+```
+
+`--rehearsal` downloads and validates a payload without replacing live state;
+it is not a complete application restore test. Actual restore and overwrite
+procedures are in the [backup/restore runbook](docs/runbooks/backup-restore.md).
+Retain recovery snapshots and application-upgrade rollback data until explicitly
+released; disposable installer downloads are not backups.
+
+## Updating versions
+
+### Container applications
+
+Images are pinned by **digest**, not mutable `latest` tags. Change the `image`
+in `modules/services/<service>/default.nix`. Updating `flake.lock` alone does
+not update these images. The Forgejo runner's job image label is a separate
+setting in `modules/services/forgejo-runner/default.nix`, currently `act-latest`.
+
+1. Read the application's release/migration notes and create fresh backups.
+2. Resolve the intended release tag to its registry digest, for example:
+
+   ```sh
+   # Substitute the desired real release tag.
+   image=ghcr.io/mealie-recipes/mealie:vX.Y.Z
+   nix shell --inputs-from . nixpkgs#skopeo -c \
+     skopeo inspect --format '{{.Digest}}' "docker://$image"
+   ```
+
+   Check supported platforms before choosing the digest: Pi services need
+   `linux/arm64`, Framework services need `linux/amd64`. A manifest-list digest
+   can cover both; a platform-specific digest cannot. Private registries require
+   runtime authentication, never a token embedded in the Nix expression.
+3. Replace the repository/digest pin and adjust configuration required by the
+   release. Keep Immich server and machine-learning images on the same release.
+   Update version expectations in existing checks when they deliberately pin a
+   release; leave historical source inventories unchanged.
+4. Format, evaluate/build the affected host, then publish a signed commit.
+   Verify the service, logs, authentication, and backups after Comin switches.
+
+Do not update managed application binaries from inside a running container.
+Rollback after a schema migration may require restoring the pre-upgrade database
+and state as well as the previous image.
+
+### NixOS, native services, and flake inputs
+
+NixOS, native observability tools, Forgejo runner, and ordinary Nix packages
+follow the locked `nixpkgs` input. Hardware profiles, Disko, sops-nix, and Comin
+have their own flake inputs. Update deliberately and review `flake.lock`:
+
+```sh
+nix flake update nixpkgs         # OS and nixpkgs-provided packages
+nix flake update comin           # one other input
+# nix flake update              # all inputs; broader upgrade
+jj diff flake.lock
+```
+
+Shared-input changes affect the whole fleet, so validate both architectures and
+all affected hosts. Custom pins live in `packages/`, notably Immich's PG16
+extensions in `immich-postgresql.nix`. Keep the Comin signature-compatibility
+correction and Podman archive backport until their upstream replacements are
+verified; see [enrollment](docs/runbooks/enroll-host.md) and
+[runner troubleshooting](docs/runbooks/forgejo-runners.md).
+
+### PostgreSQL major upgrades
+
+The package selections (`postgresql_16`, `_17`, `_18`) are in the owning service
+modules/custom packages. Updating nixpkgs normally updates that selected major;
+changing the selection to another major is a **data migration**, not an image
+bump. Make verified logical backups, check required extensions, plan a supported
+dump/restore or `pg_upgrade`, and retain the old data/major for rollback. Never
+point a new major at the existing data directory without a migration procedure.
+
+### Foundry VTT
+
+The Foundry module pins the **Node runtime image**. The licensed Foundry app is
+installed separately under `/var/lib/foundry/app`, with user data under
+`/var/lib/foundry/data`; it is not bundled into the repository or installer.
+The current app is 14.369 with Node 24. For a future update, obtain the licensed
+Node ZIP, confirm the required Node range and system/module compatibility, take
+a cold backup of app and data, stop Foundry, install the new app preserving its
+configuration/license, and start/test it. Changing the runtime image alone does
+not update Foundry. Downgrading after world migration requires the old app
+**and** pre-migration data. Keep `/var/lib/hlr/foundry-upgrade-14.369/` as recovery
+material until it is explicitly released.
 
 ## Validation
+
+Use focused checks while iterating, then the full suite for shared changes:
+
+```sh
+nix fmt -- --check .
+nix run .#statix -- check .
+nix run .#deadnix -- --fail .
+nix flake check --no-build --show-trace
+nix build --no-link .#nixosConfigurations.hl-node-02.config.system.build.toplevel
+# Existing grouped-service contracts (choose the matching architecture).
+nix build --no-link .#checks.x86_64-linux.remaining-services
+```
+
+Full VM checks require a Linux host with readable/writable `/dev/kvm`:
 
 ```console
 nix flake check --show-trace
 ```
+
+Build Pi closures/images on native AArch64 and Framework closures/images on
+x86_64. For first installation or replacement hardware, use the
+[Framework](docs/runbooks/install-framework.md) or
+[Pi](docs/runbooks/install-pi.md) runbook and reverify physical identities and
+recovery-key escrow; ordinary service updates do not require reflashing.
 
 ## CI scope and image builds
 

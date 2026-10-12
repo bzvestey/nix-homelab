@@ -410,6 +410,12 @@ bounded archive extraction and repeats grammar/type/required-path checks.
 
 ## 5. Read-only preparation: evaluate/build driver only
 
+> Historical migration procedure: the node02-specific rehearsal launcher and
+> driver flake outputs were retired after migration. The commands below describe
+> the original procedure, not current repository entrypoints. For ongoing restore
+> validation use `fleet-restore <job> --rehearsal` from the
+> [backup and restore runbook](backup-restore.md).
+
 The `hl-node-02-rehearsal-driver` package reuses the two-node check through its
 supported `.extend` API. It preserves the pinned applications, uses a 64 GiB
 application disk and 128 GiB rehearsal NAS disk, restricts guest networking and

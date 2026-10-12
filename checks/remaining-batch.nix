@@ -29,13 +29,17 @@ let
   c03 = preparedConfigurations.hl-node-03-staging.config;
 in
 assert lib.all quarantined (builtins.attrValues bootstrapConfigurations);
-assert builtins.hasAttr "pocket-id" c03.virtualisation.oci-containers.containers;
-assert builtins.hasAttr "mailrise" c03.virtualisation.oci-containers.containers;
+assert builtins.hasAttr "pocket-id" c01.virtualisation.oci-containers.containers;
+assert builtins.hasAttr "mailrise" c01.virtualisation.oci-containers.containers;
+assert !(builtins.hasAttr "pocket-id" c03.virtualisation.oci-containers.containers);
+assert !(builtins.hasAttr "mailrise" c03.virtualisation.oci-containers.containers);
+assert !(builtins.hasAttr "tailscale-mailrise-state" c03.fleet.backup.jobs);
+assert !c03.fleet.cloudflared.enable;
 assert !(builtins.hasAttr "homarr" c03.virtualisation.oci-containers.containers);
 assert !(builtins.hasAttr "homarr-state" c03.fleet.backup.jobs);
 assert !(builtins.hasAttr "tailscale-homarr-state-json" c03.fleet.preparedApplications.secretPaths);
-assert c03.sops.secrets.mailrise-conf.uid == 999;
-assert c03.sops.secrets.mailrise-conf.mode == "0400";
+assert c01.sops.secrets.mailrise-conf.uid == 999;
+assert c01.sops.secrets.mailrise-conf.mode == "0400";
 assert c01.fleet.tailscaleServiceProxy.proxies.mailrise.tcpForwards."25" == "127.0.0.1:8025";
 assert
   c04.fleet.tailscaleServiceProxy.proxies.deluge-direct.tcpForwards."58846" == "127.0.0.1:58846";

@@ -126,8 +126,7 @@ in
       networking.nftables.enable = true;
       networking.firewall.extraInputRules = ''
         ${lib.optionalString (publicRoutes != [ ]) ''
-          # hl-node-03 temporarily replaces the second Pi connector during migration.
-          iifname "${cfg.lanInterface}" ip saddr { 10.15.4.4, 10.15.4.6, 10.15.4.7 } tcp dport ${toString cfg.publicPort} accept comment "cloudflared origins"
+          iifname "${cfg.lanInterface}" ip saddr { 10.15.4.4, 10.15.4.6 } tcp dport ${toString cfg.publicPort} accept comment "cloudflared origins"
         ''}
         ${lib.optionalString (caddyTailnetRoutes != [ ]) ''
           iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"

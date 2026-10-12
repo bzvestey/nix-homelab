@@ -4,11 +4,15 @@ Placement is hl-node-01 for the six lightweight apps and Cloudflare;
 hl-node-03 for Jellyfin/Kavita/Vikunja; hl-node-04 for media automation.
 Each Framework retains one runner. Manyfold is excluded.
 
-Pocket ID and Mailrise now temporarily run on hl-node-03, alongside its
-storage applications and the second Cloudflare connector. The normal hl-node-03
-output includes this handoff; `hl-node-03-staging` is its compatibility alias,
-not a separate deployment that Comin can overwrite. The four other future Pi
-applications remain deferred until hl-node-01.
+All six lightweight applications now belong to hl-node-01. Pocket ID and
+Mailrise have left their temporary hl-node-03 placement; the second Cloudflare
+connector is on hl-node-01 alongside the hl-node-00 connector. Pocket ID's
+shared and Cloudflare-managed origin is 10.15.4.4:8080, and hl-node-03 no longer
+has origin-firewall access or staging workloads/credentials. The
+`hl-node-03-staging` output remains a compatibility alias of the normal
+hl-node-03 configuration; it no longer enables the retired handoff.
+The sequence below records the migration procedure, including that temporary
+placement, rather than instructions to re-enable it.
 
 ## Build once, install separately
 

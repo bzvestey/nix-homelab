@@ -14,6 +14,7 @@
         restartUnits = lib.optional (name == "tailscale-auth-key") "tailscaled-autoconnect.service";
       });
   fleet.backup.s3CredentialsFile = config.sops.secrets.restic-s3-credentials.path;
+  fleet.comin.enableMirror = false;
 
   systemd.network.networks."20-lan" = {
     matchConfig = {

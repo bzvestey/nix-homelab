@@ -39,6 +39,7 @@ let
         pkgs.bashInteractive
         pkgs.coreutils
         pkgs.gitMinimal
+        pkgs.glibc.bin
       ];
       pathsToLink = [ "/bin" ];
     };
@@ -66,7 +67,8 @@ let
       ];
       virtualisation.memorySize = 2048;
       virtualisation.diskSize = 4096;
-      networking.firewall.enable = false;
+      networking.nftables.enable = true;
+      networking.firewall.enable = true;
       environment.systemPackages = [
         pkgs.jq
         pkgs.curl
@@ -162,6 +164,12 @@ let
           machine.succeed("podman exec archive-probe sh -c 'mkdir /nested; ln -s .. /nested/escape'")
           machine.fail("tar -C /tmp --transform='s,^checkout-probe$,escape/checkout-probe,' -cf - checkout-probe | curl --fail --unix-socket /run/podman/podman.sock -X PUT 'http://localhost/v1.41/containers/archive-probe/archive?path=/nested' -H 'Content-Type: application/x-tar' --data-binary @-")
           machine.succeed("podman exec archive-probe test ! -e /checkout-probe; podman rm -f archive-probe")
+          # Workflows create private bridges beyond podman0. Service DNS must
+          # remain reachable with the production firewall enabled.
+          machine.succeed("podman network create workflow-dns")
+          machine.succeed("podman run -d --name dns-peer --network workflow-dns --network-alias database runner-fixture:local")
+          machine.succeed("podman run --rm --network workflow-dns runner-fixture:local timeout 15 getent hosts database")
+          machine.succeed("podman rm -f dns-peer; podman network rm workflow-dns")
           machine.succeed("systemctl start " + unit)
           machine.wait_for_unit(unit)
           machine.wait_until_succeeds("journalctl -u " + unit + " -o cat | grep 'declared successfully'")

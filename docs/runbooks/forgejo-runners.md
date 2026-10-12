@@ -132,6 +132,15 @@ The regression fixture exercises both cases through `PUT /containers/.../archive
 with `/var/run -> /run` in its job image. A plain file-copy command does not
 represent the runner's broad-root archive operation.
 
+For `Could not resolve host` during clone, test from a fresh private workflow
+network, not just the default Podman bridge. NixOS's default DNS allowance covers
+only `podman0`; workflow bridges use `podman1` and higher. The shared fleet Podman
+module allows TCP/UDP port 53 on `podman*` interfaces so the bridge resolver can
+answer both service aliases and Tailscale names. It does not trust the bridges
+for other host ports or replace service DNS with static host entries. The runner
+fixture keeps the firewall enabled and checks service-name resolution on a
+private bridge.
+
 Separately, the WyrdSaga test workflow publishes PostgreSQL on host port 5432,
 which conflicts with the existing database on node02. Container jobs should
 connect to their PostgreSQL service on the job network without a fixed host

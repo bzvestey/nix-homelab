@@ -126,12 +126,6 @@ in
     mailriseConfigFile = runtimePath "/run/secrets/mailrise.conf";
   };
   config = lib.mkIf cfg.enable {
-    # A custom DNS-enabled Podman network may use podman1 (or later), while
-    # NixOS opens resolver access only on the default podman0 interface.
-    networking.firewall.extraInputRules = ''
-      iifname "podman*" udp dport 53 accept comment "Podman bridge DNS"
-      iifname "podman*" tcp dport 53 accept comment "Podman bridge DNS"
-    '';
     virtualisation.oci-containers = {
       backend = "podman";
       containers = lib.mapAttrs (

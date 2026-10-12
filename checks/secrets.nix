@@ -7,6 +7,53 @@
 }:
 let
   connectorCredentialFile = ../secrets/pi-connectors/cloudflared.yaml;
+  administratorRecipient = "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz";
+  hostRecipients = {
+    hl-node-00 = "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec";
+    hl-node-01 = "age1vq66246cwhpyq72skeca4lfrwullzqts02xn0n6qcel4yce7h4sqyj864q";
+    hl-node-02 = "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh";
+    hl-node-03 = "age144zjku25ahrs74kqlq47nsh8hdu47w2j37c26plr8klx0x559yxqkv932v";
+    hl-node-04 = "age1qdgzv4wywfyds8qqul4s5vnpr72h5s9y46ghssq87dje9f6s4ekqpe4g9n";
+  };
+  expectedPolicy = {
+    keys = [ administratorRecipient ] ++ builtins.attrValues hostRecipients;
+    creation_rules =
+      pkgs.lib.mapAttrsToList (host: recipient: {
+        path_regex = "secrets/hosts/${host}/.*\\.yaml$";
+        key_groups = [
+          {
+            age = [
+              administratorRecipient
+              recipient
+            ];
+          }
+        ];
+      }) hostRecipients
+      ++ [
+        {
+          path_regex = "secrets/pi-connectors/.*\\.yaml$";
+          key_groups = [
+            {
+              age = [
+                administratorRecipient
+                hostRecipients.hl-node-00
+              ];
+            }
+          ];
+        }
+        {
+          path_regex = "secrets/framework-runners/.*\\.yaml$";
+          key_groups = [
+            {
+              age = [
+                administratorRecipient
+                hostRecipients.hl-node-02
+              ];
+            }
+          ];
+        }
+      ];
+  };
   enrollment = pkgs.runCommand "fleet-enroll-tests" { nativeBuildInputs = [ pkgs.openssh ]; } ''
     mkdir -p etc/ssh
     ssh-keygen -q -t ed25519 -N "" -C vm-test -f etc/ssh/ssh_host_ed25519_key
@@ -62,51 +109,8 @@ let
       ''
         policy_json=$(yq --output-format=json '.' ${../.sops.yaml})
 
-        jq -e '
-          .keys == [
-            "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-            "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec",
-            "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
-          ]
-          and .creation_rules == [
-            {
-              "path_regex": "secrets/hosts/hl-node-00/.*\\.yaml$",
-              "key_groups": [{
-                "age": [
-                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-                  "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
-                ]
-              }]
-            },
-            {
-              "path_regex": "secrets/hosts/hl-node-02/.*\\.yaml$",
-              "key_groups": [{
-                "age": [
-                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-                  "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
-                ]
-              }]
-            },
-            {
-              "path_regex": "secrets/pi-connectors/.*\\.yaml$",
-              "key_groups": [{
-                "age": [
-                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-                  "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
-                ]
-              }]
-            },
-            {
-              "path_regex": "secrets/framework-runners/.*\\.yaml$",
-              "key_groups": [{
-                "age": [
-                  "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-                  "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
-                ]
-              }]
-            }
-          ]
-        ' <<<"$policy_json"
+        jq -e --argjson expected ${pkgs.lib.escapeShellArg (builtins.toJSON expectedPolicy)} \
+          '. == $expected' <<<"$policy_json"
 
         credential_json=$(yq --output-format=json '.' ${connectorCredentialFile})
         jq -e '
@@ -120,24 +124,38 @@ let
           ]
         ' <<<"$credential_json"
         ! grep -Eq 'AccountTag|TunnelSecret|TunnelID|(^|[[:space:]])[ast]:' ${connectorCredentialFile}
-        bootstrap_json=$(yq --output-format=json '.' ${../secrets/hosts/hl-node-00/bootstrap.yaml})
-        jq -e '
-          (keys | sort) == ["restic-password", "restic-repository", "restic-s3-credentials", "sops", "tailscale-auth-key"]
-          and (del(.sops) | all(.[]; startswith("ENC[AES256_GCM,")))
-          and [.sops.age[].recipient] == [
-            "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-            "age1q38h0k2k08hkp9xevrm9rkfex9nefvnm362xgmtsg376nk0rgv3sgzgrec"
-          ]
-        ' <<<"$bootstrap_json"
-        framework_bootstrap_json=$(yq --output-format=json '.' ${../secrets/hosts/hl-node-02/bootstrap.yaml})
-        jq -e '
-          (keys | sort) == ["sops", "tailscale-auth-key"]
-          and (.["tailscale-auth-key"] | startswith("ENC[AES256_GCM,"))
-          and [.sops.age[].recipient] == [
-            "age1h9s2cpcl8vrtxwq0nlsd86uu0q005v90fmwvwd39ayryy4kvvfdsdz25jz",
-            "age1xl6hedpt4t6jl9qvtz8vykm37c0f60ul08xzmqwd6rsuwqmtng5sfv52eh"
-          ]
-        ' <<<"$framework_bootstrap_json"
+        ${pkgs.lib.concatStringsSep "\n" (
+          pkgs.lib.mapAttrsToList (
+            host: recipient:
+            let
+              # Node02's Restic credentials are enrolled via applications.yaml.
+              fields =
+                if host == "hl-node-02" then
+                  [
+                    "sops"
+                    "tailscale-auth-key"
+                  ]
+                else
+                  [
+                    "restic-password"
+                    "restic-repository"
+                    "restic-s3-credentials"
+                    "sops"
+                    "tailscale-auth-key"
+                  ];
+            in
+            ''
+              bootstrap_json=$(yq --output-format=json '.' ${../secrets/hosts + "/${host}/bootstrap.yaml"})
+              jq -e --arg administrator ${pkgs.lib.escapeShellArg administratorRecipient} \
+                --arg host ${pkgs.lib.escapeShellArg recipient} \
+                --argjson fields ${pkgs.lib.escapeShellArg (builtins.toJSON fields)} '
+                (keys | sort) == $fields
+                and (del(.sops) | all(.[]; startswith("ENC[AES256_GCM,")))
+                and [.sops.age[].recipient] == [$administrator, $host]
+              ' <<<"$bootstrap_json"
+            ''
+          ) hostRecipients
+        )}
         touch $out
       '';
 

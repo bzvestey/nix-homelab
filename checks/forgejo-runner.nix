@@ -39,7 +39,7 @@ let
         pkgs.bashInteractive
         pkgs.coreutils
         pkgs.gitMinimal
-        pkgs.glibc.bin
+        pkgs.getent
       ];
       pathsToLink = [ "/bin" ];
     };

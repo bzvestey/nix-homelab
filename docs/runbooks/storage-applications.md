@@ -111,8 +111,20 @@ a Jellyfin hardware transcode on target; source Deployment had no GPU mapping.
 ## Backups and acceptance
 
 Shared `application-backups.nix` provides stopped-writer whole-directory captures
-for `jellyfin-state` and `kavita-state` hourly, database alert class, and
-`vikunja-files` daily. `vikunja-db` is hourly PG17 logical `app` dump with scratch
+for `jellyfin-state` hourly, database alert class, and `vikunja-files` daily.
+`kavita-state` is hourly, database alert class, but leaves Kavita running: SQLite's
+online backup API captures committed `kavita.db` data, including WAL contents,
+and checks snapshot integrity before copying configuration and persistent assets.
+Live database/sidecar files, `cache.db`, `cache/`, `cache-long/`, `temp/` and
+internal `backups/` archives are excluded. Assets are best-effort temporal copies,
+not an atomic database-plus-assets snapshot. Files vanishing during asset copying
+are tolerated; other copy errors fail the job. The payload retains the `state/`
+layout, and restore still stops Kavita and replaces its state (removing stale
+SQLite sidecars). `fleet-restore kavita-state --rehearsal` checks database integrity
+without stopping the application. Existing internal backup archives are not
+included in new snapshots and would not survive a whole-directory restore;
+retain those separately if needed before restoring.
+`vikunja-db` is hourly PG17 logical `app` dump with scratch
 database rehearsal, preserving app ownership on real restore. Coordinate final
 Vikunja files/dump capture with its writer stopped for cross-resource consistency.
 Payload bounds are 32 GiB Jellyfin, 128 GiB Kavita, 16 GiB Vikunja files; DB uses shared 1 GiB

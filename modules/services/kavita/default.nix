@@ -58,14 +58,39 @@ in
           path = "/var/lib/kavita";
           owner = "storage-apps";
           group = "storage-apps";
-          # Avoid copying Kavita's own archives while the service is stopped.
-          exclude = [ "/backups/" ];
           healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:5000/";
         })
         // {
           frequency = "hourly";
           backupClass = "database";
           maxPayloadBytes = 137438953472;
+          requiredPaths = [
+            "state/kavita.db"
+            "state/appsettings.json"
+          ];
+          createCommand = ''
+            ${pkgs.coreutils}/bin/mkdir -p "$FLEET_BACKUP_STAGING_DIR/state"
+            # SQLite's online backup API includes committed WAL data without
+            # stopping Kavita or copying its live database/sidecar files.
+            ${pkgs.sqlite}/bin/sqlite3 -readonly /var/lib/kavita/kavita.db \
+              ".timeout 60000" ".backup '$FLEET_BACKUP_STAGING_DIR/state/kavita.db'"
+            test "$(${pkgs.sqlite}/bin/sqlite3 -readonly "$FLEET_BACKUP_STAGING_DIR/state/kavita.db" 'PRAGMA integrity_check;')" = ok
+            # Assets are best-effort temporal copies, as in Kavita's own backup.
+            # Rebuildable caches, internal archives and live SQLite files are omitted.
+            set +e
+            ${pkgs.rsync}/bin/rsync -a \
+              --exclude='/kavita.db*' --exclude='/cache.db*' \
+              --exclude='/backups/' --exclude='/temp/' \
+              --exclude='/cache/' --exclude='/cache-long/' \
+              -- /var/lib/kavita/ "$FLEET_BACKUP_STAGING_DIR/state/"
+            rc=$?
+            set -e
+            # Files may vanish while the running application updates its assets.
+            [ "$rc" -eq 0 ] || [ "$rc" -eq 24 ]
+          '';
+          rehearsalCommand = ''
+            test "$(${pkgs.sqlite}/bin/sqlite3 -readonly "$FLEET_RESTORE_SOURCE_DIR/state/kavita.db" 'PRAGMA integrity_check;')" = ok
+          '';
         };
       ingress.routes = [
         {

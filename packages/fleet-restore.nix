@@ -112,7 +112,9 @@ let
       ' || { echo "archive entries exceed type, count, or declared-size bound" >&2; return 1; }
     }
     tree_bytes() {
-      find "$1" -type f -printf '%s\n' | awk '{ count++; if (count > 100000 || $1 > max || total > max - $1) exit 1; total += $1 } END { print total + 0 }' max="$max_payload_bytes"
+      # Exporters such as rsync rename temporary files during traversal. Ignore
+      # entries gone since readdir, but still fail on other traversal errors.
+      find "$1" -ignore_readdir_race -type f -printf '%s\n' | awk '{ count++; if (count > 100000 || $1 > max || total > max - $1) exit 1; total += $1 } END { print total + 0 }' max="$max_payload_bytes"
     }
     unit_state() {
       systemctl show "$1" --property=LoadState --property=ActiveState --property=MainPID --property=ControlGroup --property=ExecMainCode --property=ExecMainStatus

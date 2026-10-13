@@ -42,7 +42,6 @@ assert builtins.all
   ];
 assert builtins.all (name: lib.hasInfix "systemctl stop" jobs.${name}.createCommand) [
   "jellyfin-state"
-  "kavita-state"
   "vikunja-files"
 ];
 assert builtins.all (

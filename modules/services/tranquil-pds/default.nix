@@ -35,6 +35,7 @@ in
         tranquil-pds-state = backups.state {
           name = "tranquil-pds";
           path = "/var/lib/tranquil-pds";
+          online = true;
           owner = "65532";
           group = "65532";
           healthCheckCommand = health;

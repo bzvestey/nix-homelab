@@ -96,6 +96,44 @@ procedures are in the [backup/restore runbook](docs/runbooks/backup-restore.md).
 Retain recovery snapshots and application-upgrade rollback data until explicitly
 released; disposable installer downloads are not backups.
 
+### Backup availability and remaining investigation
+
+SQLite snapshots keep Pocket ID, Donetick, Homarr, Wallos, Jellyfin, Kavita,
+Prowlarr, Radarr, Sonarr and Whisparr online during their hourly backups. Each
+database is captured through SQLite's backup API and integrity-checked; live
+database sidecars are excluded. Tuwunel uses an hourly native RocksDB checkpoint
+and waits for completion before copying it. Mealie, Vikunja and Tranquil PDS keep
+running during their hourly PostgreSQL dumps and daily file captures.
+
+These database snapshots are consistent individually, **not atomic with one
+another or with accompanying assets/media**. File changes or deletions during
+capture can require reconciliation after restore. For a coordinated recovery
+point before a migration, stop writers explicitly and capture all related jobs.
+Restores still stop services; online backup does not mean online restore.
+
+Tailscale proxy identity backups also stay online. They capture the daemon's
+atomically persisted state map, validate its current-profile/key linkage, and
+omit logs and renewable certificate caches. Restore reissues cached certificates;
+revoked/expired identities may need reauthentication. Tailnet Lock authority
+storage is not supported by this capture and causes it to fail closed.
+
+The following backups still stop their applications. They run **once daily at
+6:00 AM Pacific** (`America/Los_Angeles`, including daylight saving time), with
+no random delay or missed-run catch-up at boot. Jobs on one host serialize, so
+some interruptions begin after 6 AM. Manual backups/forced restores can interrupt
+services at other times. Daily jobs alert when stale beyond 26 hours; hourly
+database jobs retain the 90-minute threshold, and failures still alert separately.
+
+| Application | Why it still stops / investigation needed |
+| --- | --- |
+| CommaFeed | Embedded H2, not SQLite. Investigate access to its running connection for native `BACKUP TO` and test recovery. |
+| publication-manager | Multiple SQLite run databases plus pipeline/run files. Investigate a coordinated application-level export, not independent live copies. |
+| SABnzbd | Queue, history, administrative state and in-flight downloads need a coordinated save/export and restore test. |
+| Forgejo | PostgreSQL dumps remain hourly and online; daily repository/config capture stops Forgejo. Investigate Git/repository and DB coordination, including externally stored objects. |
+| Tangled Knot | Repositories and identity/metadata files need a coordinated export while writes are active. |
+| Foundry | Active worlds use LevelDB; native backups require unloading the world. Retain interruption until a verified alternative exists. |
+| Deluge | Session/torrent/fast-resume state needs a coordinated save with download state. The daily capture also stops its port manager, but not Gluetun. |
+
 ## Updating versions
 
 ### Container applications

@@ -45,6 +45,11 @@ in
       (backups.state {
         name = "pocket-id";
         path = "/var/lib/pocket-id";
+        sqliteDatabases = [ "pocket-id.db" ];
+        exclude = [
+          "/backup/"
+          "/data-exports/"
+        ];
         owner = "1000";
         group = "1000";
         healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:1411/healthz";

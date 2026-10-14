@@ -110,8 +110,10 @@ a Jellyfin hardware transcode on target; source Deployment had no GPU mapping.
 
 ## Backups and acceptance
 
-Shared `application-backups.nix` provides stopped-writer whole-directory captures
-for `jellyfin-state` hourly, database alert class, and `vikunja-files` daily.
+Shared `application-backups.nix` captures `jellyfin-state` hourly without stopping
+Jellyfin: SQLite snapshots `data/data/jellyfin.db`, checks its integrity, and
+copies persistent assets while omitting live sidecars, caches, logs, transcodes
+and internal backup archives. `vikunja-files` is a daily online file capture.
 `kavita-state` is hourly, database alert class, but leaves Kavita running: SQLite's
 online backup API captures committed `kavita.db` data, including WAL contents,
 and checks snapshot integrity before copying configuration and persistent assets.
@@ -125,8 +127,10 @@ without stopping the application. Existing internal backup archives are not
 included in new snapshots and would not survive a whole-directory restore;
 retain those separately if needed before restoring.
 `vikunja-db` is hourly PG17 logical `app` dump with scratch
-database rehearsal, preserving app ownership on real restore. Coordinate final
-Vikunja files/dump capture with its writer stopped for cross-resource consistency.
+database rehearsal, preserving app ownership on real restore. Routine file and
+database jobs do not stop Vikunja and are not one atomic recovery point.
+Coordinate final pre-migration files/dump capture with its writer explicitly
+stopped when cross-resource consistency is required.
 Payload bounds are 32 GiB Jellyfin, 128 GiB Kavita, 16 GiB Vikunja files; DB uses shared 1 GiB
 default. Measure final sizes before activation and adjust bounds if needed.
 Runtime YAML/env files and Tailscale identities require separate encrypted

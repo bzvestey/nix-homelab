@@ -76,10 +76,8 @@ in
     backup.jobs = lib.mapAttrs' (
       name: proxy:
       lib.nameValuePair "tailscale-${name}-state" (
-        backups.state {
-          name = "tailscale-${name}";
-          path = "/var/lib/tailscale-${name}";
-          serviceUnit = "tailscale-${name}.service";
+        backups.tailscaleIdentity {
+          inherit name;
           healthCheckCommand = ''
             ${lib.getExe pkgs.tailscale} --socket=/run/tailscale-${name}/tailscaled.sock status --json --peers=false |
               ${lib.getExe pkgs.jq} -e --arg hostname ${lib.escapeShellArg proxy.hostname} \

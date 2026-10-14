@@ -56,6 +56,7 @@ in
         (backups.state {
           name = "kavita";
           path = "/var/lib/kavita";
+          online = true;
           owner = "storage-apps";
           group = "storage-apps";
           healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:5000/";

@@ -46,6 +46,14 @@ in
         (backups.state {
           name = "whisparr";
           path = "/var/lib/media-automation/whisparr";
+          sqliteDatabases = [
+            "whisparr2.db"
+            "logs.db"
+          ];
+          exclude = [
+            "/Backups/"
+            "/logs/"
+          ];
           owner = "1000";
           group = "1000";
           healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:6969/";

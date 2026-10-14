@@ -51,6 +51,7 @@ in
       (backups.state {
         name = "donetick";
         path = "/var/lib/donetick";
+        sqliteDatabases = [ "donetick.db" ];
         owner = "root";
         group = "root";
         healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:2021/";

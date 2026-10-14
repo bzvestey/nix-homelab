@@ -113,6 +113,7 @@ in
         mealie-state = backups.state {
           name = "mealie";
           path = "/var/lib/mealie";
+          online = true;
           owner = "mealie";
           group = "mealie";
           healthCheckCommand = health;

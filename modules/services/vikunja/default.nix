@@ -81,6 +81,7 @@ in
           (backups.state {
             name = "vikunja";
             path = "/var/lib/vikunja";
+            online = true;
             owner = "storage-apps";
             group = "storage-apps";
             healthCheckCommand = health;

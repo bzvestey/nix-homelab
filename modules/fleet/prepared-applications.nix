@@ -61,7 +61,7 @@ in
     manageIdentityBackups = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Create stopped-state backups unless another module owns these jobs.";
+      description = "Create online identity backups unless another module owns these jobs.";
     };
     secretPaths = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
@@ -105,10 +105,8 @@ in
           lib.mapAttrs' (
             name: proxy:
             lib.nameValuePair "tailscale-${name}-state" (
-              backups.state {
-                name = "tailscale-${name}";
-                path = "/var/lib/tailscale-${name}";
-                serviceUnit = "tailscale-${name}.service";
+              backups.tailscaleIdentity {
+                inherit name;
                 healthCheckCommand = ''
                   ${lib.getExe pkgs.tailscale} --socket=/run/tailscale-${name}/tailscaled.sock status --json --peers=false |
                     ${lib.getExe pkgs.jq} -e --arg hostname ${lib.escapeShellArg proxy.hostname} \

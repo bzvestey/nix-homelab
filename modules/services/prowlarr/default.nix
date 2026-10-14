@@ -37,6 +37,14 @@ in
       (backups.state {
         name = "prowlarr";
         path = "/var/lib/media-automation/prowlarr";
+        sqliteDatabases = [
+          "prowlarr.db"
+          "logs.db"
+        ];
+        exclude = [
+          "/Backups/"
+          "/logs/"
+        ];
         owner = "1000";
         group = "1000";
         healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:9696/";

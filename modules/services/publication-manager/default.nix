@@ -71,7 +71,6 @@ in
           healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:8090/readyz";
         })
         // {
-          frequency = "hourly";
           backupClass = "database";
           mode = "0600";
           directoryMode = "0700";

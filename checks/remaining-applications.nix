@@ -45,8 +45,11 @@ assert builtins.all (name: lib.versions.major c.fleet.localPostgres.${name}.pack
   ];
 assert jobs.forgejo-db.frequency == "hourly";
 assert jobs.tranquil-pds-db.frequency == "hourly";
-assert jobs.foundry-state.frequency == "hourly";
-assert jobs.tangled-knot-state.frequency == "hourly";
+assert builtins.all (name: jobs."${name}-state".frequency == "*-*-* 06:00:00 America/Los_Angeles") [
+  "forgejo"
+  "foundry"
+  "tangled-knot"
+];
 assert builtins.all
   (
     name:
@@ -60,7 +63,7 @@ assert builtins.all
 assert builtins.all (
   name:
   jobs."${name}-state".paths == [ "/var/lib/${name}" ]
-  && lib.hasInfix "systemctl stop" jobs."${name}-state".createCommand
+  && (lib.hasInfix "systemctl stop" jobs."${name}-state".createCommand == (name != "tranquil-pds"))
 ) names;
 assert jobs.tranquil-pds-state.owner == "65532";
 assert jobs.foundry-state.owner == "1000";

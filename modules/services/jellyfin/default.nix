@@ -48,6 +48,13 @@ in
         (backups.state {
           name = "jellyfin";
           path = "/var/lib/jellyfin";
+          sqliteDatabases = [ "data/data/jellyfin.db" ];
+          exclude = [
+            "/cache/"
+            "/log/"
+            "/data/transcodes/"
+            "/data/data/SQLiteBackups/"
+          ];
           owner = "storage-apps";
           group = "storage-apps";
           healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:8096/health";

@@ -12,6 +12,41 @@ Application filenames may contain spaces, punctuation and Unicode; absolute path
 
 Repository operations take a host-wide lock, then all job-local work takes a per-job lock. A forced pre-backup uses an internal core while already holding both locks. `systemctl is-active` exit 0 means active and documented exit 3 means inactive; all other statuses fail closed.
 
+## Capture availability and scheduling
+
+The [README availability table](../../README.md#backup-availability-and-remaining-investigation)
+lists online captures and applications still requiring interruption. Shared
+SQLite captures use the online backup API, check each database's integrity and
+exclude its live database/sidecars during asset copying. Files vanishing during
+online asset copying are tolerated; other copy errors fail the job. Individual
+databases, assets and separate PostgreSQL dump/file jobs are not one atomic
+recovery point. Explicitly stop writers for a coordinated pre-migration capture.
+
+Disruptive jobs set `interruptsService = true` and use
+`*-*-* 06:00:00 America/Los_Angeles`. Their timers have no random delay or
+persistent missed-run catch-up; an offline host waits until the next scheduled
+6 AM instead of interrupting applications immediately at boot. Host-wide locking
+can delay actual capture beyond 6 AM. This policy does not restrict manual jobs
+or forced restores. Online jobs retain their existing schedules and staggering.
+
+Tuwunel sends SIGUSR2 to its existing daemon to create a native RocksDB
+checkpoint, waits up to 120 seconds for fresh completion output, then copies the
+completed checkpoint and local media. It never copies the live RocksDB files.
+If a request times out or capture is interrupted, a checkpoint may remain at
+`/var/lib/tuwunel-backup/checkpoint`. Subsequent jobs fail closed rather than
+delete a possibly in-progress checkpoint: inspect container logs, confirm the
+request has finished, then remove that disposable checkpoint before retrying.
+Rehearsal checks CURRENT/manifest structure; a real restore test must also verify
+Matrix identities and media. Non-local media providers need separate protection.
+
+Tailscale captures only the atomically replaced `tailscaled.state` map and
+validates decoded current-profile metadata, machine/node keys and node ID before
+backup, rehearsal and import. Certificate caches and logs are omitted; the
+daemon reissues certificates after restore. Restore still requires working
+control-plane access and non-revoked credentials. Separate Tailnet Lock (`tka`)
+authority storage fails capture closed and needs an additional recovery contract
+before enabling it on these proxy identities.
+
 ## Restore
 
 1. Verify repository reachability, credentials, free space, and application-specific prerequisites encoded by `preflightCommand`.
@@ -25,4 +60,4 @@ Unknown jobs, unreadable destinations, unavailable snapshots, and failed preflig
 
 ## Metrics and alerts
 
-Metrics are atomically renamed into `/var/lib/node_exporter/textfile_collector`. Backup, restore, rehearsal, and repository-check results are separate from last-success time; failures preserve the prior success timestamp. Backup failures report a defined byte count (zero until staging size is known). Backup metrics export their class and threshold. Alert when database-class backups exceed **90 minutes**, state-class backups exceed **26 hours**, or check/restore/rehearsal result is zero. Also alert on repository locks and repeated bounded-staging failures.
+Metrics are atomically renamed into `/var/lib/node_exporter/textfile_collector`. Backup, restore, rehearsal, and repository-check results are separate from last-success time; failures preserve the prior success timestamp. Backup failures report a defined byte count (zero until staging size is known). Backup metrics export their class and `alertAfterSeconds` threshold: **90 minutes** for hourly databases, **26 hours** for state-class or disruptive daily jobs, including database-class daily jobs. Backup/check/restore/rehearsal failures still alert separately; changing cadence does not suppress failures. Also alert on repository locks and repeated bounded-staging failures.

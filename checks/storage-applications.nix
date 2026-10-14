@@ -40,7 +40,7 @@ assert builtins.all
     "kavita-state"
     "vikunja-db"
   ];
-assert builtins.all (name: lib.hasInfix "systemctl stop" jobs.${name}.createCommand) [
+assert builtins.all (name: !lib.hasInfix "systemctl stop" jobs.${name}.createCommand) [
   "jellyfin-state"
   "vikunja-files"
 ];

@@ -29,7 +29,7 @@ assert !(builtins.hasAttr "mailrise-state" jobs);
 assert lib.all (
   name:
   jobs."${name}-state".serviceUnits == [ "podman-${name}.service" ]
-  && lib.hasInfix "systemctl stop" jobs."${name}-state".createCommand
+  && (lib.hasInfix "systemctl stop" jobs."${name}-state".createCommand == (name == "commafeed"))
   && lib.hasInfix "state/." jobs."${name}-state".restoreCommand
 ) (lib.remove "mailrise" names);
 assert lib.all (hostname: lib.any (route: route.hostname == hostname) config.fleet.ingress.routes) [
@@ -41,10 +41,14 @@ assert lib.all (hostname: lib.any (route: route.hostname == hostname) config.fle
 ];
 assert lib.all (
   name:
-  jobs."${name}-state".frequency == "hourly"
+  jobs."${name}-state".frequency
+  == (if name == "commafeed" then "*-*-* 06:00:00 America/Los_Angeles" else "hourly")
   && jobs."${name}-state".backupClass == "database"
   && jobs."${name}-state".paths == [ "/var/lib/${name}" ]
 ) (lib.remove "mailrise" names);
+assert config.systemd.timers.fleet-backup-commafeed-state.timerConfig.Persistent == false;
+assert config.systemd.timers.fleet-backup-commafeed-state.timerConfig.RandomizedDelaySec == "0";
+assert jobs.commafeed-state.alertAfterSeconds == 93600;
 assert containers.pocket-id.environment.APP_URL == "https://id.minastas.xyz";
 assert containers.homarr.environment.DB_URL == "/appdata/db.sqlite";
 assert containers.donetick.environment.DT_SQLITE_PATH == "/donetick_data/donetick.db";

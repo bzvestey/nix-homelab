@@ -57,4 +57,17 @@ assert
 assert
   c04.fleet.preparedApplications.secretPaths.publication-manager-master-key
   == "/run/secrets/publication-manager/master-key";
+assert lib.all
+  (
+    c:
+    lib.all (
+      name: !lib.hasInfix "systemctl stop" c.fleet.backup.jobs."tailscale-${name}-state".createCommand
+    ) (builtins.attrNames c.fleet.tailscaleServiceProxy.proxies)
+  )
+  [
+    c01
+    c02
+    c03
+    c04
+  ];
 pkgs.runCommand "remaining-batch-contract" { } "touch $out"

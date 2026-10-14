@@ -185,6 +185,7 @@ testPkgs.testers.runNixOSTest {
         response = matrix_post("register", payload)
         assert response["user_id"] == f"@{username}:matrix.minastas.social"
         matrix_users.append((username, device))
+    media = json.loads(machine.succeed("curl -fsS -H " + shlex.quote("Authorization: Bearer " + response["access_token"]) + " -H 'Content-Type: application/octet-stream' --data-binary 'fleet-media-17' http://127.0.0.1:8008/_matrix/media/v3/upload"))["content_uri"].removeprefix("mxc://")
     machine.succeed("curl -fsS http://127.0.0.1:8008/_matrix/client/v3/login | jq -e '.flows | any(.type == \"m.login.sso\")'")
     machine.succeed("podman inspect mealie | jq -e '.[0].Config.Env | index(\"OIDC_PROVIDER_NAME=PocketID\") != null and index(\"ALLOW_PASSWORD_LOGIN=false\") != null and index(\"OIDC_CLIENT_SECRET=oidc-fixture\") != null' >/dev/null")
     machine.fail("PGPASSWORD=immich-fixture ${pkgs.postgresql_17}/bin/psql -h 127.0.0.1 -p 5432 -U app app -c 'SELECT 1'")
@@ -197,13 +198,22 @@ testPkgs.testers.runNixOSTest {
     mealie_manifest = machine.succeed(mealie_manifest_command)
     machine.log("Mealie initial state manifest:\n" + mealie_manifest)
     assert mealie_manifest.strip()
+    invocations = {app: machine.succeed(f"systemctl show podman-{app} -P InvocationID").strip() for app in ["mealie", "tuwunel"]}
     for job in jobs:
         machine.succeed(f"fleet-backup-run {job}", timeout=180)
+        for app, invocation in invocations.items():
+            assert machine.succeed(f"systemctl show podman-{app} -P InvocationID").strip() == invocation, f"backup {job} restarted {app}"
         frequency, backup_class, threshold = backup_policy[job]
         metrics = machine.succeed(f"cat /var/lib/node_exporter/textfile_collector/fleet_backup_{job}.prom")
         assert f'fleet_backup_result{{job="{job}",class="{backup_class}"}} 1' in metrics, metrics
         assert f'fleet_backup_alert_threshold_seconds{{job="{job}",class="{backup_class}"}} {threshold}' in metrics, metrics
         machine.succeed(f"fleet-restore {job} --rehearsal", timeout=180)
+    # A second capture must not mistake old success output for this request;
+    # a leftover checkpoint must fail closed without restarting the daemon.
+    machine.succeed("fleet-backup-run tuwunel-state; mkdir /var/lib/tuwunel-backup/checkpoint", timeout=180)
+    machine.fail("fleet-backup-run tuwunel-state", timeout=30)
+    assert machine.succeed("systemctl show podman-tuwunel -P InvocationID").strip() == invocations["tuwunel"]
+    machine.succeed("rmdir /var/lib/tuwunel-backup/checkpoint; curl -fsS http://127.0.0.1:8008/_matrix/client/versions")
     expected = {app: sql(app, "SELECT id,value FROM fleet_fixture ORDER BY id") for app in ["immich", "mealie"]}
     commands = json.loads(machine.succeed("cat /etc/fixture-commands.json"))
     assert set(commands) == set(jobs)
@@ -231,6 +241,8 @@ testPkgs.testers.runNixOSTest {
         response = matrix_post("login", {"type": "m.login.password", "identifier": {"type": "m.id.user", "user": username}, "password": "fixture-only-matrix", "device_id": device})
         assert response["user_id"] == f"@{username}:matrix.minastas.social"
         assert response["device_id"] == device
+    restored_media = machine.succeed("curl -fsS -H " + shlex.quote("Authorization: Bearer " + response["access_token"]) + " http://127.0.0.1:8008/_matrix/client/v1/media/download/" + media)
+    assert restored_media == "fleet-media-17"
     machine.succeed("test $(stat -c %U:%G /var/lib/mealie) = mealie:mealie")
     restored_mealie_manifest = machine.succeed(mealie_manifest_command)
     machine.log("Mealie restored state manifest:\n" + restored_mealie_manifest)

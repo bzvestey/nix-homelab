@@ -318,7 +318,12 @@ let
     mode=${lib.escapeShellArg job.mode}
     directory_mode=${lib.escapeShellArg job.directoryMode}
     backup_class=${lib.escapeShellArg job.backupClass}
-    alert_threshold=${if job.backupClass == "database" then "5400" else "93600"}
+    alert_threshold=${
+      toString (
+        job.alertAfterSeconds
+          or (if job.backupClass == "database" && !(job.interruptsService or false) then 5400 else 93600)
+      )
+    }
     staging_generations=${toString job.failedStagingGenerations}
     staging_bytes=${toString job.failedStagingBytes}
     max_payload_bytes=${toString job.maxPayloadBytes}

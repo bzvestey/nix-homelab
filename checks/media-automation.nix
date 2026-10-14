@@ -10,6 +10,11 @@ let
     "sabnzbd"
     "publication-manager"
   ];
+  disruptive = [
+    "deluge"
+    "sabnzbd"
+    "publication-manager"
+  ];
 in
 assert config.services.fleet.mediaAutomation.enable;
 assert lib.all (name: builtins.hasAttr name containers) apps;
@@ -39,7 +44,8 @@ assert lib.all (
   let
     job = config.fleet.backup.jobs."${name}-state";
   in
-  job.frequency == "hourly"
+  job.frequency
+  == (if builtins.elem name disruptive then "*-*-* 06:00:00 America/Los_Angeles" else "hourly")
   && job.backupClass == "database"
   && lib.all (path: lib.hasPrefix "/var/lib/media-automation/" path) job.paths
 ) apps;
@@ -79,7 +85,7 @@ assert lib.all (
   && job.group == "1000"
   && job.directoryMode == "0700"
   && containers.${name}.environmentFiles == [ "/run/secrets/${name}.env" ]
-  && lib.hasInfix "systemctl stop" job.createCommand
+  && (lib.hasInfix "systemctl stop" job.createCommand == builtins.elem name disruptive)
 ) apps;
 # The stopped-source Sonarr archive measured about 1.58 GiB at migration.
 assert config.fleet.backup.jobs.sonarr-state.maxPayloadBytes >= 1698247656;

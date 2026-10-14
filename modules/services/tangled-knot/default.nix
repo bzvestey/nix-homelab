@@ -22,7 +22,6 @@ in
         healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 http://127.0.0.1:5555/xrpc/_health";
       })
       // {
-        frequency = "hourly";
         backupClass = "database";
       };
     fleet.ingress.routes = [

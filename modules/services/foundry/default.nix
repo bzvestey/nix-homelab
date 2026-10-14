@@ -22,7 +22,6 @@ in
         healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 http://127.0.0.1:30000/";
       })
       // {
-        frequency = "hourly";
         backupClass = "database";
         # Modules contain spaces and relative symlinks; retain a bounded tar payload.
         maxPayloadBytes = 16 * 1024 * 1024 * 1024;

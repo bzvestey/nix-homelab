@@ -27,6 +27,7 @@ let
   observabilityRule = ''
     ip saddr 10.15.4.0/24 tcp dport { 4319, 4320 } accept comment "fleet OTLP gateway"
 
+    iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"
   '';
   remoteIdentity = remote: {
     inherit (remote) name url;

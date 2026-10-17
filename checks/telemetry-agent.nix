@@ -62,7 +62,11 @@ pkgs.testers.runNixOSTest {
         };
         unrelated-application = {
           wantedBy = [ "multi-user.target" ];
-          serviceConfig.ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
+          serviceConfig = {
+            ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
+            Restart = "on-failure";
+            RestartSec = "500ms";
+          };
         };
       };
       environment.systemPackages = [ pkgs.curl ];
@@ -150,6 +154,12 @@ pkgs.testers.runNixOSTest {
     comin_metric = next(line for line in metrics.splitlines() if line.startswith("comin_build_total{"))
     for label in ["deployment_environment", "deployment_revision", "host_name", "service_name"]:
         assert comin_metric.count(label + "=") == 1
+    # Automatic retries must be visible separately from explicit stop/start.
+    agent.wait_until_succeeds("curl -fsS http://127.0.0.1:9464/metrics | grep -E '^node_systemd_service_restart_total\\{.*name=\"unrelated-application.service\".* 0$'", timeout=45)
+    agent.succeed("systemctl stop unrelated-application; systemctl start unrelated-application")
+    agent.succeed("test $(systemctl show unrelated-application -P NRestarts) = 0")
+    agent.succeed("systemctl kill --kill-whom=main --signal=KILL unrelated-application")
+    agent.wait_until_succeeds("curl -fsS http://127.0.0.1:9464/metrics | grep -E '^node_systemd_service_restart_total\\{.*name=\"unrelated-application.service\".* 1$'", timeout=60)
     agent.succeed("systemctl is-active unrelated-application.service")
     for prop in ["After", "Requires", "Wants", "BindsTo"]:
         value = agent.succeed(f"systemctl show unrelated-application.service -p {prop} --value")

@@ -216,7 +216,10 @@ in
     services.prometheus.exporters.node = {
       enable = true;
       enabledCollectors = [ "systemd" ];
-      extraFlags = [ "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector" ];
+      extraFlags = [
+        "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
+        "--collector.systemd.enable-restarts-metrics"
+      ];
     };
     systemd.tmpfiles.rules = [ "d /var/lib/node_exporter/textfile_collector 0755 root root -" ];
     networking.firewall.extraInputRules = ''

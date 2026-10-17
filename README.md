@@ -96,6 +96,29 @@ procedures are in the [backup/restore runbook](docs/runbooks/backup-restore.md).
 Retain recovery snapshots and application-upgrade rollback data until explicitly
 released; disposable installer downloads are not backups.
 
+### Grafana access and service lifecycle
+
+Grafana is available to tailnet clients at
+**https://hl-node-00.tailbc181.ts.net/dashboard/**, using the host's existing
+Tailscale identity and HTTPS certificate through Caddy. It is not published
+through Cloudflare, and port 3000 remains loopback-only. Grafana login is still
+required; the administrator password is stored on node 00 at
+`/var/lib/telemetry/grafana/admin-password`.
+
+The **Service lifecycle** dashboard (`service-lifecycle`) filters by host and
+systemd service name (regular expression). Its journal-derived starts, stops,
+failures and automatic-retry counts cover the selected time range; the event
+timeline includes explicit backup/deployment stop/start cycles. Starts include
+initial startup, so they are not labeled as restart counts. The default service
+filter covers application containers, Tailscale and core monitoring services;
+use `.*[.]service` to include other system services and backup jobs.
+
+The sampled automatic-retry graph shows systemd's `NRestarts`, not manual
+stop/start cycles. Counters can reset on explicit restarts or reboot, and
+short-lived changes between scrapes may be missed. Journal counts also depend
+on successful collection and Loki retention: zero received events is not proof
+that no interruption occurred during a telemetry outage.
+
 ### Backup availability and remaining investigation
 
 SQLite snapshots keep Pocket ID, Donetick, Homarr, Wallos, Jellyfin, Kavita,

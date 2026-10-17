@@ -7,6 +7,7 @@
 let
   cfg = config.fleet.observability;
   stateRoot = "/var/lib/telemetry";
+  grafanaHostname = "hl-node-00.tailbc181.ts.net";
   gib = 1024 * 1024 * 1024;
   minimumDeviceBytes = if cfg.testMode then 2 * gib else cfg.storage.minimumFilesystemBytes;
   effectiveBudget =
@@ -52,6 +53,7 @@ let
         "storage.json"
         "postgres.json"
         "ingress.json"
+        "service-lifecycle.json"
       ]
   );
   gatewayConfig = (pkgs.formats.yaml { }).generate "otel-gateway.yaml" {
@@ -245,6 +247,8 @@ let
   };
 in
 {
+  imports = [ ../fleet/ingress.nix ];
+
   options.fleet.observability = {
     enable = lib.mkEnableOption "central fleet observability stack";
     testMode = lib.mkOption {
@@ -322,6 +326,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    fleet.ingress.routes = [
+      {
+        hostname = grafanaHostname;
+        upstream = "http://127.0.0.1:3000";
+        exposure = "tailnet";
+      }
+    ];
     assertions = [
       {
         assertion = totalBudgetBytes <= cfg.storage.minimumFilesystemBytes * 85 / 100;
@@ -536,6 +547,9 @@ in
           server = {
             http_addr = "127.0.0.1";
             http_port = 3000;
+            domain = grafanaHostname;
+            root_url = "https://${grafanaHostname}/dashboard/";
+            serve_from_sub_path = true;
           };
           security.admin_password = "$__file{${stateRoot}/grafana/admin-password}";
           security.secret_key = "$__file{${stateRoot}/grafana/secret-key}";
@@ -622,7 +636,7 @@ in
         test "$(${pkgs.sqlite}/bin/sqlite3 -readonly ${stateRoot}/grafana/data/grafana.db 'pragma integrity_check')" = ok
         password=$(cat ${stateRoot}/grafana/admin-password)
         for attempt in $(seq 1 30); do
-          if ${pkgs.curl}/bin/curl --connect-timeout 1 --max-time 3 -fsS -u "admin:$password" http://127.0.0.1:3000/api/user | ${pkgs.jq}/bin/jq -e '.login == "admin"' >/dev/null; then
+          if ${pkgs.curl}/bin/curl --connect-timeout 1 --max-time 3 -fsS -u "admin:$password" http://127.0.0.1:3000/dashboard/api/user | ${pkgs.jq}/bin/jq -e '.login == "admin"' >/dev/null; then
             exit 0
           fi
           sleep 1

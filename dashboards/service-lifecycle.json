@@ -1,0 +1,105 @@
+{
+  "uid": "service-lifecycle",
+  "title": "Service lifecycle",
+  "description": "System services and Podman containers by host and unit. Received journal events include explicit backup/deployment stop/start cycles; starts include initial startup. Counts cover the selected range and can undercount during telemetry outages or outside Loki retention. Automatic retry counters are supporting scrape-based context, not a count of manual restarts.",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["fleet", "systemd", "restarts"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {"type": "loki", "uid": "loki"},
+        "query": "label_values({service_name=\"host-agent\"}, host_name)",
+        "refresh": 1,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "name": "service",
+        "label": "Service (regex)",
+        "type": "textbox",
+        "query": "(podman-.*|tailscale.*|grafana|prometheus|loki|tempo|comin|otel-gateway|opentelemetry-collector)[.]service",
+        "current": {
+          "text": "(podman-.*|tailscale.*|grafana|prometheus|loki|tempo|comin|otel-gateway|opentelemetry-collector)[.]service",
+          "value": "(podman-.*|tailscale.*|grafana|prometheus|loki|tempo|comin|otel-gateway|opentelemetry-collector)[.]service"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Starts (incl. initial)",
+      "description": "Completed systemd start jobs, including initial starts, manual restarts and automatic retries. Not a restart-only count.",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "fixed", "fixedColor": "blue"}}, "overrides": []},
+      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "queryType": "instant", "expr": "sum(count_over_time({service_name=\"host-agent\",host_name=~\"${host:regex}\"} | json unit=\"UNIT\", event=\"MESSAGE_ID\", pid=\"_PID\" | __error__=\"\" | pid=\"1\" | unit=~`${service:raw}` | event=\"39f53479d3a045ac8e11786248231fbf\" [$__range])) or vector(0)"}]
+    },
+    {
+      "id": 2,
+      "title": "Stops",
+      "description": "Completed systemd stop jobs, including explicit backup/deployment interruptions. A crash can emit a failure without a completed stop job; inspect the event timeline too.",
+      "type": "stat",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "fixed", "fixedColor": "orange"}}, "overrides": []},
+      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "queryType": "instant", "expr": "sum(count_over_time({service_name=\"host-agent\",host_name=~\"${host:regex}\"} | json unit=\"UNIT\", event=\"MESSAGE_ID\", pid=\"_PID\" | __error__=\"\" | pid=\"1\" | unit=~`${service:raw}` | event=\"9d1aaa27d60140bd96365438aad20286\" [$__range])) or vector(0)"}]
+    },
+    {
+      "id": 3,
+      "title": "Failures",
+      "description": "Unit failure-result events, including crashes. Uses systemd's failure-result ID, not just failed start jobs.",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "fixed", "fixedColor": "red"}}, "overrides": []},
+      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "queryType": "instant", "expr": "sum(count_over_time({service_name=\"host-agent\",host_name=~\"${host:regex}\"} | json unit=\"UNIT\", event=\"MESSAGE_ID\", pid=\"_PID\" | __error__=\"\" | pid=\"1\" | unit=~`${service:raw}` | event=\"d9b373ed55a64feb8242e02dbe79a49c\" [$__range])) or vector(0)"}]
+    },
+    {
+      "id": 4,
+      "title": "Retries scheduled",
+      "description": "Received systemd restart-scheduled events. Explicit stop/start cycles do not increment this count. A scheduled retry is not proof of a successful restart.",
+      "type": "stat",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "fixed", "fixedColor": "purple"}}, "overrides": []},
+      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "queryType": "instant", "expr": "sum(count_over_time({service_name=\"host-agent\",host_name=~\"${host:regex}\"} | json unit=\"UNIT\", event=\"MESSAGE_ID\", pid=\"_PID\" | __error__=\"\" | pid=\"1\" | unit=~`${service:raw}` | event=\"5eb03494b6584870a536b337290809b3\" [$__range])) or vector(0)"}]
+    },
+    {
+      "id": 5,
+      "title": "Automatic retry counters · sampled",
+      "description": "systemd NRestarts sampled by node exporter. Resets on explicit restarts/host reboot; short-lived changes between scrapes may be missed. Use journal counts and events above/below for manual stop/start cycles and selected-range counts.",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 0, "min": 0, "custom": {"drawStyle": "line", "lineInterpolation": "stepAfter", "axisSoftMax": 1}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["max"]}, "tooltip": {"mode": "multi"}},
+      "targets": [{"refId": "A", "expr": "node_systemd_service_restart_total{host_name=~\"${host:regex}\",name=~`${service:raw}`}", "legendFormat": "{{host_name}} · {{name}}"}]
+    },
+    {
+      "id": 6,
+      "title": "Lifecycle events · newest first",
+      "description": "Structured system-manager events only (PID 1). Filter by host/service above to correlate backup or deployment stop/start cycles. Ordinary application messages mentioning Started are not counted.",
+      "type": "logs",
+      "gridPos": {"x": 0, "y": 11, "w": 24, "h": 10},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "options": {"showTime": true, "showLabels": false, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+      "targets": [{"refId": "A", "queryType": "range", "maxLines": 250, "expr": "{service_name=\"host-agent\",host_name=~\"${host:regex}\"} | json unit=\"UNIT\", event=\"MESSAGE_ID\", message=\"MESSAGE\", pid=\"_PID\" | __error__=\"\" | pid=\"1\" | unit=~`${service:raw}` | event=~\"39f53479d3a045ac8e11786248231fbf|9d1aaa27d60140bd96365438aad20286|d9b373ed55a64feb8242e02dbe79a49c|5eb03494b6584870a536b337290809b3\" | line_format `{{.host_name}} · {{.unit}} · {{.message}}`"}]
+    }
+  ]
+}

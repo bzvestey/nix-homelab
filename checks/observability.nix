@@ -5,17 +5,28 @@ pkgs.testers.runNixOSTest {
   nodes.machine = { config, ... }: {
     imports = [
       ../modules/fleet/backup.nix
+      ../modules/fleet/ingress.nix
       ../modules/roles/observability.nix
     ];
-    fleet.observability = {
-      enable = true;
-      testMode = true;
-      scrapeTargets = [ "127.0.0.1:9464" ];
-    };
-    fleet.backup = {
-      repositoryFile = "/run/observability-test/restic-repository";
-      passwordFile = "/run/observability-test/restic-password";
-      s3CredentialsFile = "/run/observability-test/restic-s3-credentials";
+    networking.firewall.allowedTCPPorts = [ 4320 ];
+    fleet = {
+      ingress = {
+        enableTailscale = false;
+        testUseInternalTls = true;
+      };
+      observability = {
+        enable = true;
+        testMode = true;
+        scrapeTargets = [
+          "127.0.0.1:9464"
+          "agent:9464"
+        ];
+      };
+      backup = {
+        repositoryFile = "/run/observability-test/restic-repository";
+        passwordFile = "/run/observability-test/restic-password";
+        s3CredentialsFile = "/run/observability-test/restic-s3-credentials";
+      };
     };
     services.prometheus.exporters.node = {
       enable = true;
@@ -55,8 +66,25 @@ pkgs.testers.runNixOSTest {
     ];
   };
 
+  nodes.agent = {
+    imports = [ ../modules/fleet/telemetry-agent.nix ];
+    fleet.telemetry = {
+      enable = true;
+      gatewayEndpoint = "http://machine:4320";
+    };
+    networking.firewall.allowedTCPPorts = [ 9464 ];
+    systemd.services.lifecycle-fixture.serviceConfig = {
+      ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
+      Restart = "on-failure";
+      RestartSec = "500ms";
+    };
+    environment.systemPackages = [ pkgs.curl ];
+  };
+
   testScript = ''
     import hashlib
+    import json
+    import shlex
 
     start_all()
     machine.succeed("mkfs.ext4 -F -L telemetry-small -O project,quota /dev/vdb")
@@ -82,6 +110,12 @@ pkgs.testers.runNixOSTest {
     machine.succeed("systemctl reset-failed; systemctl start prometheus loki tempo grafana otel-gateway")
     for unit in ["prometheus", "loki", "tempo", "grafana", "otel-gateway"]:
         machine.wait_for_unit(f"{unit}.service")
+    machine.wait_for_open_port(3000)
+    machine.wait_until_succeeds("curl -fsS http://127.0.0.1:3000/dashboard/api/health | jq -e '.database == \"ok\"'", timeout=30)
+    machine.wait_for_unit("caddy.service")
+    machine.succeed("curl --noproxy '*' -kfsS --resolve hl-node-00.tailbc181.ts.net:443:127.0.0.1 https://hl-node-00.tailbc181.ts.net/dashboard/api/health | jq -e '.database == \"ok\"'")
+    machine.fail("curl --noproxy '*' -kfsS --resolve hl-node-00.tailbc181.ts.net:443:127.0.0.1 https://hl-node-00.tailbc181.ts.net/dashboard/api/datasources")
+    agent.fail("curl --noproxy '*' --connect-to hl-node-00.tailbc181.ts.net:443:machine:443 --max-time 2 -kfsS https://hl-node-00.tailbc181.ts.net/dashboard/api/health")
     machine.wait_for_open_port(4319)
     for project, directory in [(1001, "prometheus"), (1002, "loki"), (1003, "tempo"), (1004, "grafana")]:
         machine.succeed(f"touch /var/lib/telemetry/{directory}/quota-child; test $(${pkgs.e2fsprogs}/bin/lsattr -p /var/lib/telemetry/{directory}/quota-child | awk '{{print $1}}') = {project}")
@@ -132,10 +166,26 @@ pkgs.testers.runNixOSTest {
     machine.succeed("systemctl start loki.service")
     machine.wait_for_unit("loki.service")
     auth = "admin:" + machine.succeed("cat /var/lib/telemetry/grafana/admin-password").strip()
-    machine.wait_until_succeeds(f"curl --connect-timeout 1 --max-time 3 -fsS -u '{auth}' http://127.0.0.1:3000/api/user | jq -e '.login == \"admin\"'", timeout=30)
-    machine.fail("curl -fsS http://127.0.0.1:3000/api/datasources")
-    machine.succeed(f"curl -fsS -u '{auth}' http://127.0.0.1:3000/api/datasources | jq -e 'map(.uid) | sort == [\"loki\",\"prometheus\",\"tempo\"]'")
-    machine.succeed(f"curl -fsS -u '{auth}' 'http://127.0.0.1:3000/api/search?type=dash-db' | jq -e 'map(.uid) | sort == [\"backups\",\"comin\",\"fleet\",\"ingress\",\"postgres\",\"storage\"]'")
+    machine.wait_until_succeeds(f"curl --connect-timeout 1 --max-time 3 -fsS -u '{auth}' http://127.0.0.1:3000/dashboard/api/user | jq -e '.login == \"admin\"'", timeout=30)
+    machine.fail("curl -fsS http://127.0.0.1:3000/dashboard/api/datasources")
+    machine.succeed(f"curl -fsS -u '{auth}' http://127.0.0.1:3000/dashboard/api/datasources | jq -e 'map(.uid) | sort == [\"loki\",\"prometheus\",\"tempo\"]'")
+    machine.succeed(f"curl -fsS -u '{auth}' 'http://127.0.0.1:3000/dashboard/api/search?type=dash-db' | jq -e 'map(.uid) | sort == [\"backups\",\"comin\",\"fleet\",\"ingress\",\"postgres\",\"service-lifecycle\",\"storage\"]'")
+    dashboard = json.loads(machine.succeed(f"curl -fsS -u '{auth}' http://127.0.0.1:3000/dashboard/api/dashboards/uid/service-lifecycle"))["dashboard"]
+    agent.wait_for_unit("opentelemetry-collector.service")
+    agent.succeed("systemctl start lifecycle-fixture")
+    # Counter telemetry complements the journal, but explicit starts must not
+    # become automatic retries. Allow the collector to observe the initial zero.
+    machine.wait_until_succeeds("curl -GfsS --data-urlencode 'query=node_systemd_service_restart_total{name=\"lifecycle-fixture.service\"}' http://127.0.0.1:9090/api/v1/query | jq -e '.data.result[0].value[1] == \"0\"'", timeout=90)
+    agent.succeed("systemctl stop lifecycle-fixture; systemctl start lifecycle-fixture; systemctl kill --kill-whom=main --signal=KILL lifecycle-fixture")
+    agent.wait_until_succeeds("test $(systemctl show lifecycle-fixture -P NRestarts) = 1; systemctl is-active lifecycle-fixture")
+    agent.succeed("systemctl stop lifecycle-fixture; systemd-cat -t systemd echo 'Started lifecycle-fixture.service (not a lifecycle event)'")
+    # Execute the dashboard's real queries: one initial start, one manual
+    # start, one automatic retry. The misleading application log must not count.
+    for panel_id, expected in [(1, 3), (2, 2), (3, 1), (4, 1)]:
+        panel = next(panel for panel in dashboard["panels"] if panel["id"] == panel_id)
+        query = panel["targets"][0]["expr"].replace("''${host:regex}", "agent").replace("''${service:raw}", "lifecycle-fixture.service").replace("$__range", "10m")
+        comparison = ">=" if panel_id == 2 else "=="
+        machine.wait_until_succeeds(f"curl -GfsS --data-urlencode {shlex.quote('query=' + query)} http://127.0.0.1:3100/loki/api/v1/query | jq -e '[.data.result[].value[1] | tonumber] | add {comparison} {expected}'", timeout=90)
     machine.succeed("test -s /var/lib/telemetry/grafana/admin-password")
     machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q TelemetryRefusedOrDropped")
     machine.succeed("mkdir -p /var/lib/node_exporter/textfile_collector; printf '%s\\n' 'otelcol_receiver_refused_spans 0' 'otelcol_receiver_refused_log_records 0' > /var/lib/node_exporter/textfile_collector/otel-colliding-labels.prom")
@@ -172,11 +222,11 @@ pkgs.testers.runNixOSTest {
     machine.succeed("sqlite3 /var/lib/telemetry/grafana/data/grafana.db 'delete from task9_fixture'; fleet-restore grafana-state --rehearsal; sleep 5; fleet-restore grafana-state --force")
     machine.succeed("test $(sqlite3 /var/lib/telemetry/grafana/data/grafana.db 'select value from task9_fixture') = restorable; test $(sqlite3 /var/lib/telemetry/grafana/data/grafana.db 'pragma integrity_check') = ok; test $(stat -c %a /var/lib/telemetry/grafana/admin-password) = 600; test $(stat -c %a /var/lib/telemetry/grafana/secret-key) = 600")
     restored_auth = "admin:" + machine.succeed("cat /var/lib/telemetry/grafana/admin-password").strip()
-    machine.wait_until_succeeds(f"curl --connect-timeout 1 --max-time 3 -fsS -u '{restored_auth}' http://127.0.0.1:3000/api/user | jq -e '.login == \"admin\"'", timeout=30)
+    machine.wait_until_succeeds(f"curl --connect-timeout 1 --max-time 3 -fsS -u '{restored_auth}' http://127.0.0.1:3000/dashboard/api/user | jq -e '.login == \"admin\"'", timeout=30)
     machine.succeed("curl -fsS -o /tmp/node-metrics http://127.0.0.1:9464/metrics; grep -q 'fleet_backup_result{class=\"state\",job=\"grafana-state\"} 1' /tmp/node-metrics; grep -q 'fleet_restore_result{job=\"grafana-state\"' /tmp/node-metrics; grep -q 'fleet_restore_rehearsal_result{job=\"grafana-state\"' /tmp/node-metrics")
     for query, value in [("fleet_backup_result", "1"), ("fleet_restore_result", "1"), ("fleet_restore_rehearsal_result", "1"), ("fleet_backup_alert_threshold_seconds", "93600")]:
         machine.wait_until_succeeds(f"curl -GfsS --data-urlencode 'query={query}{{job=\"grafana-state\"}}' http://127.0.0.1:9090/api/v1/query | jq -e '.data.result[0].value[1] == \"{value}\"'", timeout=120)
-    machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '[.data.groups[].rules[] | select(.name == \"BackupStale\" or .name == \"BackupOrRestoreFailed\") | .query] | tostring | test(\"fleet_backup_|fleet_restore_\")'; curl -fsS -u '" + restored_auth + "' 'http://127.0.0.1:3000/api/dashboards/uid/backups' | jq -e '[.dashboard.panels[].targets[].expr] | tostring | test(\"fleet_backup_\") and test(\"fleet_restore_rehearsal_\")'")
+    machine.succeed("curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e '[.data.groups[].rules[] | select(.name == \"BackupStale\" or .name == \"BackupOrRestoreFailed\") | .query] | tostring | test(\"fleet_backup_|fleet_restore_\")'; curl -fsS -u '" + restored_auth + "' 'http://127.0.0.1:3000/dashboard/api/dashboards/uid/backups' | jq -e '[.dashboard.panels[].targets[].expr] | tostring | test(\"fleet_backup_\") and test(\"fleet_restore_rehearsal_\")'")
     for directory, mebibytes in [("prometheus", 257), ("loki", 129), ("tempo", 65), ("grafana", 33)]:
         machine.fail(f"runuser -u {directory} -- dd if=/dev/zero of=/var/lib/telemetry/{directory}/quota-fill bs=1M count={mebibytes} conv=fsync status=none")
         machine.succeed(f"rm -f /var/lib/telemetry/{directory}/quota-fill")

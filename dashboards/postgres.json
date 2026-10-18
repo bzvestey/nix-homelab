@@ -1,1 +1,250 @@
-{"uid":"postgres","title":"PostgreSQL","schemaVersion":39,"version":1,"panels":[{"id":1,"title":"Availability","type":"stat","targets":[{"refId":"A","expr":"pg_up"}]},{"id":2,"title":"Database capacity","type":"timeseries","targets":[{"refId":"A","expr":"pg_database_size_bytes"}]},{"id":3,"title":"Query pressure","type":"timeseries","targets":[{"refId":"A","expr":"rate(pg_stat_database_xact_commit[5m])"},{"refId":"B","expr":"pg_stat_activity_count"}]}]}
+{
+  "uid": "postgres",
+  "title": "PostgreSQL",
+  "schemaVersion": 39,
+  "version": 2,
+  "description": "Local PostgreSQL clusters: exporter database connectivity, database sizes, transaction rates and connections. Missing telemetry is unknown, not an available database.",
+  "tags": [
+    "fleet",
+    "databases"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(up{job=\"fleet-agents\"}, host_name)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "cluster",
+        "label": "Cluster",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(pg_up{job=~\"postgres-.+\",host_name=~\"${host:regex}\"}, cluster)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "database",
+        "label": "Database",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(pg_fleet_database_size_bytes{job=~\"postgres-.+\",host_name=~\"${host:regex}\",cluster=~\"${cluster:regex}\"}, datname)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Database connectivity by cluster",
+      "description": "Exporter pg_up: 1 connected, 0 database unavailable. No data means exporter/telemetry unavailable.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Unknown",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Connected",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pg_up{job=~\"postgres-.+\",host_name=~\"${host:regex}\",cluster=~\"${cluster:regex}\"}",
+          "legendFormat": "{{host_name}} · {{cluster}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Database size",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pg_fleet_database_size_bytes{job=~\"postgres-.+\",host_name=~\"${host:regex}\",cluster=~\"${cluster:regex}\",datname=~\"${database:regex}\"}",
+          "legendFormat": "{{host_name}} · {{cluster}} · {{datname}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Committed transactions per second",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(pg_fleet_xact_commit_total{job=~\"postgres-.+\",host_name=~\"${host:regex}\",cluster=~\"${cluster:regex}\",datname=~\"${database:regex}\"}[$__rate_interval])",
+          "legendFormat": "{{host_name}} · {{cluster}} · {{datname}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Database connections",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pg_fleet_connections{job=~\"postgres-.+\",host_name=~\"${host:regex}\",cluster=~\"${cluster:regex}\",datname=~\"${database:regex}\"}",
+          "legendFormat": "{{host_name}} · {{cluster}} · {{datname}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Rolled-back transactions per second",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(pg_fleet_xact_rollback_total{job=~\"postgres-.+\",host_name=~\"${host:regex}\",cluster=~\"${cluster:regex}\",datname=~\"${database:regex}\"}[$__rate_interval])",
+          "legendFormat": "{{host_name}} · {{cluster}} · {{datname}}"
+        }
+      ]
+    }
+  ]
+}

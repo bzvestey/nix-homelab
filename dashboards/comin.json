@@ -1,1 +1,267 @@
-{"uid":"comin","title":"Comin","schemaVersion":39,"version":1,"panels":[{"id":1,"title":"Current revision","type":"table","targets":[{"refId":"A","expr":"comin_current_revision_info"}]},{"id":2,"title":"Deployment results","type":"timeseries","targets":[{"refId":"A","expr":"sum by (host_name,status) (increase(comin_build_total[1h]))"}]},{"id":3,"title":"Revision lag","type":"timeseries","targets":[{"refId":"A","expr":"comin_current_revision_info != on(host_name) group_left comin_expected_revision_info"}]}]}
+{
+  "uid": "comin",
+  "title": "Comin",
+  "schemaVersion": 39,
+  "version": 2,
+  "description": "Actual Comin deployment information and last-operation failure gauges. Revision consistency compares reported deployments, not the remote main head; no unsupported build counter or revision-lag metric is assumed.",
+  "tags": [
+    "fleet",
+    "deployments"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(up{job=\"fleet-agents\"}, host_name)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Last reported deployment",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "host_name",
+                "commit_id",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "host_name": 0,
+              "commit_id": 1,
+              "status": 2
+            },
+            "renameByName": {
+              "host_name": "Host",
+              "commit_id": "Revision",
+              "status": "Status"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "comin_deployment_info{job=\"comin\",host_name=~\"${host:regex}\"}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Revision"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 440
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Last operation failed · 1 = failure",
+      "description": "Gauges describe each operation's most recent outcome, not event counts. A previous failure may remain visible until that operation next succeeds.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"comin_last_(fetch|eval|build|deployment)_failed\",job=\"comin\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}} · {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Deployed revisions",
+      "description": "1 means reporting hosts agree, more than 1 means mixed revisions (normal during rollout). This does not compare against remote main or detect hosts whose telemetry is missing; check Fleet reachability too.",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "Unknown",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unknown",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (commit_id) (comin_deployment_info{job=\"comin\",status=\"done\",host_name=~\"${host:regex}\"}))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Suspended / reboot required",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"comin_is_suspended|comin_need_to_reboot\",job=\"comin\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}} · {{__name__}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Fetch attempts per second",
+      "description": "Actual exporter fetch counter, not a count of successful builds or deployments.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(comin_fetch_count_total{job=\"comin\",host_name=~\"${host:regex}\"}[$__rate_interval])",
+          "legendFormat": "{{host_name}}"
+        }
+      ]
+    }
+  ]
+}

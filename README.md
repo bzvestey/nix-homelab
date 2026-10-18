@@ -119,6 +119,46 @@ short-lived changes between scrapes may be missed. Journal counts also depend
 on successful collection and Loki retention: zero received events is not proof
 that no interruption occurred during a telemetry outage.
 
+### Dashboard telemetry and limitations
+
+The Fleet, Comin, PostgreSQL, Ingress, Storage and Backups dashboards use
+host selectors and the detailed direct-agent scrape jobs. The OTLP gateway
+also exports some of these metrics, but intentionally strips dimensions;
+combining both sources would double-count samples or merge different jobs.
+An absent series means **unknown/not recorded**, never an implicit success.
+
+- **Fleet:** failed systemd units stay separated by host. A read-only Podman
+  collector reports actual running/present state for configured application
+  containers, excluding ephemeral CI containers. Failed or older-than-three-minute
+  collector results are not used as container state. The freshness window allows
+  for the 30-second collector timer and two one-minute scrape stages.
+- **Comin:** reports the exporter's real deployment information, last-operation
+  failure gauges, suspension/reboot flags and fetch counter. Distinct deployed
+  revisions indicate rollout consistency, **not lag against remote main**.
+- **PostgreSQL:** each stock/isolated local cluster has a loopback exporter with
+  a dedicated peer-authenticated `fleet-pg-monitor` role granted `pg_monitor`,
+  without application passwords or write privileges. Panels show connectivity,
+  database bytes, transaction rates and connections, by host/cluster/database.
+- **Ingress:** central HTTPS probes cover concrete public inventory routes
+  (not wildcards), with real Matrix/PDS health paths. TLS validation remains on;
+  anonymous 401/403 challenges count as reachable, not proof of authenticated
+  application health. Local Caddy/cloudflared metrics and aggregate Tailscale
+  LocalAPI status are separate. Tailscale collection is read-only, includes host
+  and proxy identities, exports no peer names/addresses, and hides stale state.
+- **Storage:** filesystem capacity, NFS server operations and temperatures use
+  actual exporter names and separate units. Loopback smartctl polling does not
+  wake standby disks. **SMART status/temperature are the last reported values**:
+  the exporter can retain cached device data on polling errors. Missing device
+  data or zero discovered devices may mean unsupported hardware/bridges or a
+  scan failure, not healthy disks. Client-only hosts have no NFS server metrics.
+- **Garage is not configured:** no managed Garage server or metrics endpoint is
+  defined here. Identify its host/version, enable authenticated admin metrics,
+  provision credentials through SOPS, add a private scrape target, then verify
+  the actual metric names before replacing the dashboard's setup notice.
+- **Backups:** preserve host, backup job and class; age/duration use seconds and
+  size uses bytes. Actual restores and rehearsals are separate. “Not recorded”
+  does not establish recoverability; a rehearsal is not a full application test.
+
 ### Backup availability and remaining investigation
 
 SQLite snapshots keep Pocket ID, Donetick, Homarr, Wallos, Jellyfin, Kavita,

@@ -178,6 +178,12 @@ let
   };
 in
 {
+  imports = [
+    ./postgres-telemetry.nix
+    ./podman-telemetry.nix
+    ./tailscale-telemetry.nix
+  ];
+
   options.fleet.telemetry = {
     enable = lib.mkEnableOption "fleet OpenTelemetry agent";
     gatewayEndpoint = lib.mkOption {
@@ -208,19 +214,32 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    services.opentelemetry-collector = {
-      enable = true;
-      package = pkgs.opentelemetry-collector-contrib;
-      settings = baseSettings;
+    services = {
+      opentelemetry-collector = {
+        enable = true;
+        package = pkgs.opentelemetry-collector-contrib;
+        settings = baseSettings;
+      };
+      prometheus.exporters = {
+        node = {
+          enable = true;
+          enabledCollectors = [ "systemd" ];
+          extraFlags = [
+            "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
+            "--collector.systemd.enable-restarts-metrics"
+          ];
+        };
+        smartctl = {
+          enable = true;
+          listenAddress = "127.0.0.1";
+          openFirewall = false;
+          maxInterval = "5m";
+          # Do not wake sleeping disks just to obtain a monitoring sample.
+          extraFlags = [ "--smartctl.powermode-check=standby" ];
+        };
+      };
     };
-    services.prometheus.exporters.node = {
-      enable = true;
-      enabledCollectors = [ "systemd" ];
-      extraFlags = [
-        "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
-        "--collector.systemd.enable-restarts-metrics"
-      ];
-    };
+    fleet.telemetry.localPrometheusTargets.smartctl = "127.0.0.1:9633";
     systemd.tmpfiles.rules = [ "d /var/lib/node_exporter/textfile_collector 0755 root root -" ];
     networking.firewall.extraInputRules = ''
       ip saddr 10.15.4.6 tcp dport ${toString cfg.prometheusPort} accept comment "observability agent scrape"

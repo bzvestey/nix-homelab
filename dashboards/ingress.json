@@ -1,1 +1,314 @@
-{"uid":"ingress","title":"Ingress","schemaVersion":39,"version":1,"panels":[{"id":1,"title":"Public endpoints","type":"timeseries","targets":[{"refId":"A","expr":"up{job=\"public-endpoints\"}"}]},{"id":2,"title":"Caddy and cloudflared","type":"timeseries","targets":[{"refId":"A","expr":"up{job=~\"caddy|cloudflared\"}"}]},{"id":3,"title":"Tailscale peers","type":"timeseries","targets":[{"refId":"A","expr":"tailscale_peer_online"}]}]}
+{
+  "uid": "ingress",
+  "title": "Ingress",
+  "schemaVersion": 39,
+  "version": 2,
+  "description": "Public HTTP probes, local Caddy/cloudflared exporters and read-only Tailscale identity status. Probe success is application reachability, whereas exporter scrape success alone is not.",
+  "tags": [
+    "fleet",
+    "network"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host (local metrics only)",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(up{job=\"fleet-agents\"}, host_name)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Public endpoint reachability",
+      "description": "Verified TLS + HTTP: 2xx, redirects and expected 401/403 authentication gates pass. Wildcard inventory names are not probed. These fleet-wide probes are not filtered by the local host selector.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "lineInterpolation": "stepAfter",
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Reachable",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{job=\"public-endpoints\"}",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Public probe duration",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_duration_seconds{job=\"public-endpoints\"}",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Caddy / cloudflared exporter availability",
+      "description": "The host agent's local scrape success. Check public probes for end-to-end service health.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"caddy|cloudflared\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}} · {{job}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Cloudflare tunnel connections",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cloudflared_tunnel_ha_connections{job=\"cloudflared\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Tailscale identity online",
+      "description": "Native host and configured proxy identities. Only fresh successful LocalAPI reads are shown; unknown is not offline.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "lineInterpolation": "stepAfter",
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Offline",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Online",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tailscale_identity_online{job=\"node\",host_name=~\"${host:regex}\"} and on(host_name,identity) (tailscale_status_collection_success{job=\"node\"} == 1) and on(host_name,identity) (time() - tailscale_status_collection_timestamp_seconds{job=\"node\"} < 180)",
+          "legendFormat": "{{host_name}} · {{identity}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Online Tailscale peer count",
+      "description": "Aggregate per local identity, not a peer-by-peer list. No peer names or addresses are exported.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tailscale_peer_online{job=\"node\",host_name=~\"${host:regex}\"} and on(host_name,identity) (tailscale_status_collection_success{job=\"node\"} == 1) and on(host_name,identity) (time() - tailscale_status_collection_timestamp_seconds{job=\"node\"} < 180)",
+          "legendFormat": "{{host_name}} · {{identity}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Tailscale collection health",
+      "description": "0 = failed LocalAPI read, 1 = collected within three minutes, allowing for the timer and two scrape stages. Missing/stale results are unknown.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Not recorded / stale",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Collected",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tailscale_status_collection_success{job=\"node\",host_name=~\"${host:regex}\"} and on(host_name,identity) (time() - tailscale_status_collection_timestamp_seconds{job=\"node\"} < 180)",
+          "legendFormat": "{{host_name}} · {{identity}}",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,1 +1,235 @@
-{"uid":"fleet","title":"Fleet health","schemaVersion":39,"version":1,"panels":[{"id":1,"title":"Host availability","type":"timeseries","targets":[{"refId":"A","expr":"up{job=\"fleet-agents\"}"}]},{"id":2,"title":"Systemd failed units","type":"timeseries","targets":[{"refId":"A","expr":"sum by (instance) (node_systemd_unit_state{state=\"failed\"})"}]},{"id":3,"title":"Podman containers","type":"timeseries","targets":[{"refId":"A","expr":"sum by (instance) (podman_container_state == 1)"}]}]}
+{
+  "uid": "fleet",
+  "title": "Fleet health",
+  "schemaVersion": 39,
+  "version": 2,
+  "description": "Host scrape availability, per-host systemd failures and actual managed Podman state. Detailed agent metrics are selected once; missing or stale telemetry is not a healthy service.",
+  "tags": [
+    "fleet"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(up{job=\"fleet-agents\"}, host_name)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Host agent reachability",
+      "description": "Central Prometheus scrape success, not proof that every application is healthy.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"fleet-agents\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Failed systemd units by host",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (host_name) (node_systemd_unit_state{job=\"node\",state=\"failed\",host_name=~\"${host:regex}\"})",
+          "legendFormat": "{{host_name}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Running managed containers by host",
+      "description": "Actual Podman state, not systemd's service state. Unknown/stale collector results are omitted rather than reported as zero.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (host_name) (fleet_podman_container_running{job=\"node\",host_name=~\"${host:regex}\"} and on(host_name) (fleet_podman_collection_success{job=\"node\"} == 1) and on(host_name) (time() - fleet_podman_collection_timestamp_seconds{job=\"node\"} < 180))",
+          "legendFormat": "{{host_name}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Podman collection health",
+      "description": "1 means a successful status read within three minutes, allowing for the timer and two scrape stages. Missing means no collector or no fresh result, not healthy.",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Not recorded / stale",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Collected",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_podman_collection_success{job=\"node\",host_name=~\"${host:regex}\"} and on(host_name) (time() - fleet_podman_collection_timestamp_seconds{job=\"node\"} < 180)",
+          "legendFormat": "{{host_name}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Managed container running state",
+      "description": "1 running, 0 stopped or absent. Only configured application containers are tracked; ephemeral CI containers are intentionally excluded.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "lineInterpolation": "stepAfter",
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Not running",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Running",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_podman_container_running{job=\"node\",host_name=~\"${host:regex}\"} and on(host_name) (fleet_podman_collection_success{job=\"node\"} == 1) and on(host_name) (time() - fleet_podman_collection_timestamp_seconds{job=\"node\"} < 180)",
+          "legendFormat": "{{host_name}} · {{container}}"
+        }
+      ]
+    }
+  ]
+}

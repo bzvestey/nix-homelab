@@ -1,11 +1,13 @@
 {
   config,
   lib,
+  options,
   pkgs,
   ...
 }:
 let
   cfg = config.fleet.ingress;
+  telemetryEnabled = config.fleet.telemetry.enable or false;
   publicRoutes = builtins.filter (route: route.exposure == "public") cfg.routes;
   tailnetRoutes = builtins.filter (route: route.exposure == "tailnet") cfg.routes;
   proxyHostnames = map (proxy: proxy.hostname) (
@@ -52,6 +54,7 @@ let
   caddyfile = pkgs.writeText "fleet-caddyfile" ''
     {
       admin 127.0.0.1:2019
+      ${lib.optionalString telemetryEnabled "metrics"}
     }
     ${lib.concatMapStringsSep "\n" mkPublicSite publicRoutes}
     ${lib.concatMapStringsSep "\n" mkTailnetSite caddyTailnetRoutes}
@@ -132,6 +135,11 @@ in
           iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"
         ''}
       '';
+    })
+    (lib.optionalAttrs (lib.hasAttrByPath [ "fleet" "telemetry" "localPrometheusTargets" ] options) {
+      fleet.telemetry.localPrometheusTargets = lib.mkIf (telemetryEnabled && cfg.routes != [ ]) {
+        caddy = "127.0.0.1:2019";
+      };
     })
   ];
 }

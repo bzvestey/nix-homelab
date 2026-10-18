@@ -6,6 +6,11 @@
 }:
 let
   cfg = config.fleet.observability;
+  publicProbes = import ../fleet/public-probes.nix { inherit lib; };
+  topology = (import ../../lib/fleet-topology.nix { inherit lib; }).fleetTopology;
+  agentHosts = lib.mapAttrs' (
+    name: node: lib.nameValuePair "${node.address}:9464" name
+  ) topology.nodes;
   stateRoot = "/var/lib/telemetry";
   grafanaHostname = "hl-node-00.tailbc181.ts.net";
   gib = 1024 * 1024 * 1024;
@@ -258,13 +263,7 @@ in
     };
     scrapeTargets = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = map (address: "${address}:9464") [
-        "10.15.4.4"
-        "10.15.4.5"
-        "10.15.4.6"
-        "10.15.4.7"
-        "10.15.4.9"
-      ];
+      default = builtins.attrNames agentHosts;
       description = "Authoritative LAN host-agent scrape targets.";
     };
     storage = {
@@ -416,6 +415,14 @@ in
       };
     };
     services = {
+      prometheus.exporters.blackbox = {
+        enable = true;
+        listenAddress = "127.0.0.1";
+        openFirewall = false;
+        configFile = pkgs.writeText "public-probes.json" (
+          builtins.toJSON { inherit (publicProbes) modules; }
+        );
+      };
       prometheus = {
         enable = true;
         stateDir = "telemetry/prometheus";
@@ -425,10 +432,14 @@ in
           (pkgs.writeText "fleet-alerts.yml" (builtins.toJSON { groups = import ../../alerts/fleet.nix; }))
         ];
         scrapeConfigs = [
+          publicProbes.scrapeConfig
           {
             job_name = "fleet-agents";
             honor_labels = true;
-            static_configs = [ { targets = cfg.scrapeTargets; } ];
+            static_configs = map (target: {
+              targets = [ target ];
+              labels.host_name = agentHosts.${target} or target;
+            }) cfg.scrapeTargets;
           }
           {
             job_name = "observability";

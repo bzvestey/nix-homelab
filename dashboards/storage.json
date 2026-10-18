@@ -1,1 +1,272 @@
-{"uid":"storage","title":"Storage","schemaVersion":39,"version":1,"panels":[{"id":1,"title":"Filesystem capacity","type":"timeseries","targets":[{"refId":"A","expr":"1 - node_filesystem_avail_bytes / node_filesystem_size_bytes"}]},{"id":2,"title":"SMART and temperature","type":"timeseries","targets":[{"refId":"A","expr":"node_smartmon_device_smart_status"},{"refId":"B","expr":"node_hwmon_temp_celsius"}]},{"id":3,"title":"NFS and Garage","type":"timeseries","targets":[{"refId":"A","expr":"rate(node_nfs_requests_total[5m])"},{"refId":"B","expr":"garage_block_bytes"}]}]}
+{
+  "uid": "storage",
+  "title": "Storage",
+  "schemaVersion": 39,
+  "version": 2,
+  "description": "Direct-agent filesystem, hardware temperature, smartctl and NFS server metrics. Unsupported or missing hardware is not a passing SMART check. Garage metrics are not configured.",
+  "tags": [
+    "fleet",
+    "storage"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(up{job=\"fleet-agents\"}, host_name)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Filesystem capacity used",
+      "description": "Percent of filesystem capacity not available to ordinary users. Pseudo-filesystems and zero-sized filesystems are omitted.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(1 - node_filesystem_avail_bytes{job=\"node\",host_name=~\"${host:regex}\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{job=\"node\",host_name=~\"${host:regex}\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"}) and (node_filesystem_size_bytes{job=\"node\",host_name=~\"${host:regex}\"} > 0)",
+          "legendFormat": "{{host_name}} · {{mountpoint}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Hardware sensor temperature",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_hwmon_temp_celsius{job=\"node\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}} · {{chip}} · {{sensor}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Last reported SMART status",
+      "description": "smartctl exporter caches the last device report on polling errors: this is NOT a freshness guarantee. 1 = passed, 0 = failed; no device data means unknown or unsupported, never healthy. Standby disks are not woken for collection.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Unknown / unsupported",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Last report passed",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "smartctl_device_smart_status{job=\"smartctl\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}} · {{device}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Last reported disk temperature",
+      "description": "Cached by smartctl exporter; see SMART status caveat.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "smartctl_device_temperature{job=\"smartctl\",host_name=~\"${host:regex}\",temperature_type=\"current\"}",
+          "legendFormat": "{{host_name}} · {{device}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "NFS server requests per second",
+      "description": "Server-side operations by method; client-only hosts legitimately have no server series.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (host_name,method) (rate(node_nfsd_requests_total{job=\"node\",host_name=~\"${host:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{host_name}} · {{method}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Garage · not configured",
+      "type": "text",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Garage telemetry is not configured\nThis repository does not manage a Garage server or a reachable metrics endpoint. Empty metrics would not indicate healthy object storage.\n\nTo enable: identify the server and version, enable its authenticated admin metrics endpoint, provision credentials through SOPS, add a private scrape target, and verify the exported metric names before adding panels. See README → Dashboard telemetry and limitations."
+      }
+    },
+    {
+      "id": 7,
+      "title": "SMART devices discovered",
+      "description": "Zero means no devices discovered (unsupported bridge/hardware or scan failure), not proof that disks are healthy. Missing means exporter unavailable.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 5
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "smartctl_devices{job=\"smartctl\",host_name=~\"${host:regex}\"}",
+          "legendFormat": "{{host_name}}",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,11 +1,13 @@
 {
   config,
   lib,
+  options,
   pkgs,
   ...
 }:
 let
   cfg = config.fleet.cloudflared;
+  telemetryEnabled = config.fleet.telemetry.enable or false;
   hostnames = map (route: route.hostname) cfg.routes;
   duplicates = lib.filter (hostname: lib.count (candidate: candidate == hostname) hostnames > 1) (
     lib.unique hostnames
@@ -58,6 +60,7 @@ let
     credential="$CREDENTIALS_DIRECTORY/tunnel.json"
     tunnel_id="$(${lib.getExe pkgs.jq} -er '.TunnelID | select(type == "string" and test("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))' "$credential")"
     exec ${lib.getExe cfg.package} tunnel --no-autoupdate --config ${configFile} \
+      ${lib.optionalString telemetryEnabled "--metrics 127.0.0.1:20241"} \
       --credentials-file "$credential" run "$tunnel_id"
   '';
 in
@@ -78,6 +81,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    fleet =
+      lib.optionalAttrs (lib.hasAttrByPath [ "fleet" "telemetry" "localPrometheusTargets" ] options)
+        {
+          telemetry.localPrometheusTargets = lib.mkIf telemetryEnabled {
+            cloudflared = "127.0.0.1:20241";
+          };
+        };
     assertions = [
       {
         assertion = duplicates == [ ];

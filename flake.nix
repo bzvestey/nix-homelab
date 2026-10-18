@@ -346,6 +346,18 @@
           telemetry-agent = import ./checks/telemetry-agent.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };
+          postgres-telemetry = import ./checks/postgres-telemetry.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          ingress-telemetry = import ./checks/ingress-telemetry.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          host-telemetry = import ./checks/host-telemetry.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          dashboard-queries = import ./checks/dashboard-queries.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
           forgejo-runner = import ./checks/forgejo-runner.nix {
             inherit nixosConfigurations;
             pkgs = nixpkgs.legacyPackages.${system};

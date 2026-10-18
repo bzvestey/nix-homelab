@@ -1,1 +1,320 @@
-{"uid":"backups","title":"Backups","schemaVersion":39,"version":1,"panels":[{"id":1,"title":"Backup age, threshold, and result","type":"timeseries","targets":[{"refId":"A","expr":"time() - fleet_backup_last_success_timestamp_seconds"},{"refId":"B","expr":"fleet_backup_alert_threshold_seconds"},{"refId":"C","expr":"fleet_backup_result"}]},{"id":2,"title":"Backup duration and size","type":"timeseries","targets":[{"refId":"A","expr":"fleet_backup_duration_seconds"},{"refId":"B","expr":"fleet_backup_bytes"}]},{"id":3,"title":"Restore and rehearsal","type":"stat","targets":[{"refId":"A","expr":"fleet_restore_result"},{"refId":"B","expr":"fleet_restore_rehearsal_result"}]}]}
+{
+  "uid": "backups",
+  "title": "Backups",
+  "schemaVersion": 39,
+  "version": 2,
+  "description": "Detailed direct-agent backup metrics preserve host, backup job and class. Restore/rehearsal results are separate; missing results mean not recorded, never success.",
+  "tags": [
+    "fleet",
+    "backups"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(up{job=\"fleet-agents\"}, host_name)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "backup",
+        "label": "Backup job",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(fleet_backup_result{job=\"node\",host_name=~\"${host:regex}\"}, exported_job)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Backup age and allowed age",
+      "description": "Seconds since the last successful backup and the job's configured alert threshold.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - fleet_backup_last_success_timestamp_seconds{job=\"node\",host_name=~\"${host:regex}\",exported_job=~\"${backup:regex}\"}",
+          "legendFormat": "{{host_name}} · {{exported_job}} · {{class}} age"
+        },
+        {
+          "refId": "B",
+          "expr": "fleet_backup_alert_threshold_seconds{job=\"node\",host_name=~\"${host:regex}\",exported_job=~\"${backup:regex}\"}",
+          "legendFormat": "{{host_name}} · {{exported_job}} allowed age"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Last backup result",
+      "description": "1 success, 0 failure. Not recorded is unknown. This does not verify that a restore was performed.",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 9
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Not recorded",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Succeeded",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_backup_result{job=\"node\",host_name=~\"${host:regex}\",exported_job=~\"${backup:regex}\"}",
+          "legendFormat": "{{host_name}} · {{exported_job}} · {{class}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Backup duration",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_backup_duration_seconds{job=\"node\",host_name=~\"${host:regex}\",exported_job=~\"${backup:regex}\"}",
+          "legendFormat": "{{host_name}} · {{exported_job}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Backup bytes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_backup_bytes{job=\"node\",host_name=~\"${host:regex}\",exported_job=~\"${backup:regex}\"}",
+          "legendFormat": "{{host_name}} · {{exported_job}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Last actual restore result",
+      "description": "Not recorded means no restore result was exported. Missing data is intentionally not replaced with success.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Not recorded",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Succeeded",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_restore_result{job=\"node\",host_name=~\"${host:regex}\",exported_job=~\"${backup:regex}\"}",
+          "legendFormat": "{{host_name}} · {{exported_job}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Last restore rehearsal result",
+      "description": "A rehearsal is separate from an actual restore. Missing results mean not recorded.",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "noValue": "Not recorded",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Succeeded",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fleet_restore_rehearsal_result{job=\"node\",host_name=~\"${host:regex}\",exported_job=~\"${backup:regex}\"}",
+          "legendFormat": "{{host_name}} · {{exported_job}}",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

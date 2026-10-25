@@ -204,24 +204,24 @@ testPkgs.testers.runNixOSTest {
     machine.fail("systemctl start fleet-backup-tailscale-fixture-state")
     machine.succeed(f"test $(systemctl show tailscale-fixture -P InvocationID) = {identity_invocation}")
     machine.succeed("systemctl stop tailscale-fixture; find /var/lib/tailscale-fixture -mindepth 1 -delete; fleet-restore tailscale-fixture-state; cmp /run/fleet-test/identity-good /var/lib/tailscale-fixture/tailscaled.state; rm -f /run/fleet-test/backed-up")
-    # A multi-database SQLite capture must not restart the application, must
-    # preserve each database and assets, and must omit live sidecars.
+    # Wallos stores its setup token as plain text despite the .db suffix.
+    # Capture SQLite and regular assets without restarting or copying sidecars.
     machine.succeed("mkdir -p /var/lib/wallos/{db,logos}; printf logo >/var/lib/wallos/logos/custom.png")
     machine.succeed("sqlite3 /var/lib/wallos/db/wallos.db \"CREATE TABLE subscriptions(id INTEGER PRIMARY KEY); INSERT INTO subscriptions VALUES(17),(31);\"")
-    machine.succeed("sqlite3 /var/lib/wallos/db/setup_token.db \"CREATE TABLE tokens(value TEXT); INSERT INTO tokens VALUES('fixture');\"")
+    machine.succeed("printf fixture-setup-token >/var/lib/wallos/db/setup_token.db")
     machine.succeed("systemctl start podman-wallos")
     machine.wait_until_succeeds("sqlite3 /var/lib/wallos/db/wallos.db 'SELECT count(*) FROM reading' | grep -Eq '^[1-9][0-9]+$'")
     wallos_invocation = machine.succeed("systemctl show podman-wallos -P InvocationID").strip()
     machine.succeed("systemctl start fleet-backup-wallos-state")
     machine.succeed(f"test $(systemctl show podman-wallos -P InvocationID) = {wallos_invocation}; curl --fail http://127.0.0.1:8282/")
     wallos_snapshot = "/var/lib/fleet-backup/wallos-state/last-good/state"
-    machine.succeed(f"test $(sqlite3 {wallos_snapshot}/db/wallos.db 'SELECT sum(id) FROM subscriptions') = 48; test $(sqlite3 {wallos_snapshot}/db/setup_token.db 'SELECT value FROM tokens') = fixture; test $(cat {wallos_snapshot}/logos/custom.png) = logo")
+    machine.succeed(f"test $(sqlite3 {wallos_snapshot}/db/wallos.db 'SELECT sum(id) FROM subscriptions') = 48; test $(cat {wallos_snapshot}/db/setup_token.db) = fixture-setup-token; test $(cat {wallos_snapshot}/logos/custom.png) = logo")
     machine.succeed(f"sqlite3 {wallos_snapshot}/db/wallos.db 'SELECT count(*) > 0 AND count(*) = (SELECT count(*) FROM progress) FROM reading' | grep -qx 1; test ! -e {wallos_snapshot}/db/wallos.db-wal; test ! -e {wallos_snapshot}/db/wallos.db-shm")
     machine.succeed("fleet-restore wallos-state --rehearsal")
-    machine.succeed("mv /var/lib/wallos/db/setup_token.db /var/lib/wallos/db/setup_token.saved; printf corrupt >/var/lib/wallos/db/setup_token.db")
+    machine.succeed("systemctl stop podman-wallos; mv /var/lib/wallos/db/wallos.db /var/lib/wallos/db/wallos.saved; printf corrupt >/var/lib/wallos/db/wallos.db")
     machine.fail("systemctl start fleet-backup-wallos-state")
-    machine.succeed(f"test $(systemctl show podman-wallos -P InvocationID) = {wallos_invocation}")
-    machine.succeed("mv /var/lib/wallos/db/setup_token.saved /var/lib/wallos/db/setup_token.db; rm -f /run/fleet-test/backed-up")
+    machine.fail("systemctl is-active podman-wallos")
+    machine.succeed("mv /var/lib/wallos/db/wallos.saved /var/lib/wallos/db/wallos.db; rm -f /run/fleet-test/backed-up")
     # A backup must retain committed WAL data without interrupting the writer.
     machine.succeed("mkdir -p /var/lib/kavita/{covers,backups,temp,cache,cache-long,templates}")
     machine.succeed("printf configured >/var/lib/kavita/appsettings.json; printf restored >/var/lib/kavita/.fleet-restored")

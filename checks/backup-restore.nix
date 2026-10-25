@@ -208,9 +208,12 @@ let
     system = pkgs.stdenv.hostPlatform.system;
     modules = [
       ../modules/fleet/backup.nix
+      ../modules/fleet/ingress.nix
+      ../modules/services/wallos
       {
         networking.hostName = "backup-test";
         system.stateVersion = "26.05";
+        services.fleet.wallos.enable = true;
         fleet.backup = {
           repositoryFile = "/run/credentials/repository";
           passwordFile = "/run/credentials/password";
@@ -274,6 +277,22 @@ pkgs.runCommand "backup-restore-tests"
     ];
   }
   ''
+        # Wallos's setup token has a .db suffix but is plain text. Back it up
+        # unchanged alongside the actual SQLite snapshot, without stopping Wallos.
+        mkdir -p ${root}/wallos/db ${root}/wallos-staging
+        ${pkgs.sqlite}/bin/sqlite3 ${root}/wallos/db/wallos.db 'CREATE TABLE fixture(value); INSERT INTO fixture VALUES (37);'
+        printf fixture-setup-token > ${root}/wallos/db/setup_token.db
+        FLEET_BACKUP_STAGING_DIR=${root}/wallos-staging ${
+          pkgs.writeShellScript "wallos-backup-fixture" (
+            "set -euo pipefail\n"
+            +
+              pkgs.lib.replaceStrings [ "/var/lib/wallos" ] [ "${root}/wallos" ]
+                evaluated.config.fleet.backup.jobs.wallos-state.createCommand
+          )
+        }
+        cmp ${root}/wallos/db/setup_token.db ${root}/wallos-staging/state/db/setup_token.db
+        test "$(${pkgs.sqlite}/bin/sqlite3 ${root}/wallos-staging/state/db/wallos.db 'SELECT value FROM fixture;')" = 37
+
         mkdir -p ${root}/{source,target,database,state,metrics}
         printf original >${root}/source/data
         printf repository >${root}/repository

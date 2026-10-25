@@ -51,10 +51,8 @@ in
       (backups.state {
         name = "wallos";
         path = "/var/lib/wallos";
-        sqliteDatabases = [
-          "db/wallos.db"
-          "db/setup_token.db"
-        ];
+        # setup_token.db is plain text and is copied with the other assets.
+        sqliteDatabases = [ "db/wallos.db" ];
         owner = "82";
         group = "82";
         healthCheckCommand = "${pkgs.curl}/bin/curl --fail --max-time 10 --retry 60 --retry-all-errors --retry-delay 1 http://127.0.0.1:8282/";

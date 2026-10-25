@@ -60,6 +60,9 @@ let
         "postgres.json"
         "ingress.json"
         "service-lifecycle.json"
+        "home-assistant.json"
+        "home-assistant-apps.json"
+        "uptime-kuma.json"
       ]
   );
   gatewayConfig = (pkgs.formats.yaml { }).generate "otel-gateway.yaml" {
@@ -256,6 +259,7 @@ in
   imports = [
     ../fleet/ingress.nix
     ../fleet/nas-telemetry.nix
+    ../fleet/home-assistant-telemetry.nix
   ];
 
   options.fleet.observability = {

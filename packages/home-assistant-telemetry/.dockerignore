@@ -1,0 +1,6 @@
+# Allowlist the complete build context; private local options never belong here.
+**
+!Dockerfile
+!collector.py
+!transport.py
+!requirements.txt

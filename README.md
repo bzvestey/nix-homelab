@@ -193,6 +193,26 @@ traversal permitted for that UID. Garage refuses a world-readable token; do
 not bypass this with `GARAGE_ALLOW_WORLD_READABLE_SECRETS`. Restrict the admin
 listener to private access. Saving the App may restart Garage and interrupt S3.
 
+### Home Assistant operational telemetry
+
+The [HAOS setup and coverage runbook](docs/runbooks/home-assistant-telemetry.md)
+documents the installed aarch64 collector, private token/Kuma-key entry,
+node00 SOPS configuration, approval gates, overhead measurements and rollback.
+Baseline collection is enabled in hl-node-00's configuration; native exporters
+remain disabled. The native ARM64 collector passed runtime validation and live
+authentication/source checks. Validate the updated host closure before signed
+publication, then verify real central scrapes and dashboards after Comin switches.
+
+Scope is Supervisor/app operations only, not sensors, entities or automations.
+All installed apps receive baseline inventory/resource coverage where supported;
+only explicitly enabled, filtered Kuma/Grafana/InfluxDB native metrics are added.
+Unsupported, stale and failed collection means unknown, not healthy or zero.
+Supervisor manager access is powerful, not a read-only credential. A published
+HAOS metrics port may be LAN-reachable: every metrics path needs the separate
+bearer token, and LAN HTTP is not automatically tailnet-encrypted. No public
+forwarding or Funnel. Installation, private secret setup, any app restart and
+signed publication/activation each require explicit scoped approval.
+
 ### Backup availability and remaining investigation
 
 SQLite snapshots keep Pocket ID, Donetick, Homarr, Wallos, Jellyfin, Kavita,

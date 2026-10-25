@@ -1,0 +1,601 @@
+{
+  "uid": "home-assistant",
+  "title": "Home Assistant operations",
+  "schemaVersion": 39,
+  "version": 1,
+  "description": "Operational-only HAOS snapshots. Scrape reachability is not upstream success. Unknown/stale is not healthy. Core and Supervisor do not expose lifecycle state: no running state is inferred. CPU retains Supervisor share of system normalization (not per-core). Disk is the Supervisor data filesystem, not all disks. Boot age is approximate systemd boot-completion age.",
+  "tags": [
+    "fleet",
+    "homeassistant"
+  ],
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Collector reachability",
+      "description": "Collector scrape reachability only, not upstream health. Per-source collection health is shown separately.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / not configured",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unreachable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Reachable",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "expr": "up{job=\"homeassistant-platform\",host_name=\"homeassistant\"}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Per-source collection health (0 = unavailable)",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "source",
+                "app",
+                "Value",
+                "Value #A"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "source": 0,
+              "app": 1,
+              "Value": 2,
+              "Value #A": 2
+            },
+            "renameByName": {
+              "source": "Source",
+              "app": "App slug",
+              "Value": "Collection",
+              "Value #A": "Collection"
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 10,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / not collected",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Fresh success",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "(haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\"} * (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\"} < bool 90)) and on(host_name) (up{job=\"homeassistant-platform\",host_name=\"homeassistant\"} == 1)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Last successful collection age",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "source",
+                "app",
+                "Value",
+                "Value #A"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "source": 0,
+              "app": 1,
+              "Value": 2,
+              "Value #A": 2
+            },
+            "renameByName": {
+              "source": "Source",
+              "app": "App slug",
+              "Value": "Age",
+              "Value #A": "Age"
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unknown / never succeeded",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "(time() - (haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\"} > 0)) and on(host_name) (up{job=\"homeassistant-platform\",host_name=\"homeassistant\"} == 1)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Core / Supervisor share of system CPU (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{component}}",
+          "expr": "haos_cpu_percent{job=\"homeassistant-platform\",host_name=\"homeassistant\",component=~\"core|supervisor\"} and on(host_name,component) label_replace((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_stats|supervisor_stats\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_stats|supervisor_stats\"} < 90), \"component\", \"$1\", \"source\", \"(.*)_stats\")"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Core / Supervisor memory (cache-adjusted)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{component}}",
+          "expr": "haos_memory_usage_bytes{job=\"homeassistant-platform\",host_name=\"homeassistant\",component=~\"core|supervisor\"} and on(host_name,component) label_replace((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_stats|supervisor_stats\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_stats|supervisor_stats\"} < 90), \"component\", \"$1\", \"source\", \"(.*)_stats\")"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Approximate boot-completion age",
+      "type": "stat",
+      "options": {
+        "colorMode": "none"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 8,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "expr": "(time() - haos_host_boot_completion_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\"}) and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"host\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"host\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Supervisor data filesystem capacity (bytes)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 8,
+        "y": 14,
+        "w": 16,
+        "h": 6
+      },
+      "description": "Source GiB converted to bytes. Available space is independent, not total minus used.",
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{__name__}}",
+          "expr": "{__name__=~\"haos_host_disk_(total|used|free)_bytes\",job=\"homeassistant-platform\",host_name=\"homeassistant\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"host\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"host\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Core / Supervisor versions (not lifecycle state)",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "component",
+                "version",
+                "version_latest"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "component": 0,
+              "version": 1,
+              "version_latest": 2
+            },
+            "renameByName": {
+              "component": "Component",
+              "version": "Installed",
+              "version_latest": "Latest"
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "haos_component_info{job=\"homeassistant-platform\",host_name=\"homeassistant\",component=~\"core|supervisor\"} and on(host_name,component) label_replace((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_info|supervisor_info\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_info|supervisor_info\"} < 90), \"component\", \"$1\", \"source\", \"(.*)_info\")"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "OS / kernel inventory",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "host_name",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "operating_system",
+                "kernel",
+                "version",
+                "version_latest"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "operating_system": 0,
+              "kernel": 1,
+              "version": 2,
+              "version_latest": 3
+            },
+            "renameByName": {
+              "operating_system": "Operating system",
+              "kernel": "Kernel",
+              "version": "OS installed",
+              "version_latest": "OS latest"
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "haos_host_info{job=\"homeassistant-platform\",host_name=\"homeassistant\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"host\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"host\"} < 90))"
+        },
+        {
+          "refId": "B",
+          "instant": true,
+          "format": "table",
+          "expr": "haos_os_info{job=\"homeassistant-platform\",host_name=\"homeassistant\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"os\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"os\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Core / Supervisor updates available",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "component",
+                "Value",
+                "Value #A"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "component": 0,
+              "Value": 1,
+              "Value #A": 1
+            },
+            "renameByName": {
+              "component": "Component",
+              "Value": "Update available",
+              "Value #A": "Update available"
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "haos_update_available{job=\"homeassistant-platform\",host_name=\"homeassistant\",component=~\"core|supervisor\"} and on(host_name,component) label_replace((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_info|supervisor_info\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=~\"core_info|supervisor_info\"} < 90), \"component\", \"$1\", \"source\", \"(.*)_info\")"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Supervisor reported health / support (not process state)",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "__name__",
+                "Value",
+                "Value #A"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "__name__": 0,
+              "Value": 1,
+              "Value #A": 1
+            },
+            "renameByName": {
+              "__name__": "Reported signal",
+              "Value": "Value (0/1)",
+              "Value #A": "Value (0/1)"
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "{__name__=~\"haos_supervisor_(healthy|supported)\",job=\"homeassistant-platform\",host_name=\"homeassistant\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"supervisor_info\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"supervisor_info\"} < 90))"
+        }
+      ]
+    }
+  ]
+}

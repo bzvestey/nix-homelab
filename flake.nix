@@ -362,6 +362,26 @@
           nas-telemetry = import ./checks/nas-telemetry.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };
+          home-assistant-telemetry = import ./checks/home-assistant-telemetry.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          home-assistant-telemetry-http =
+            let
+              pkgs = nixpkgs.legacyPackages.${system};
+              python = pkgs.python3.withPackages (ps: [ ps.prometheus-client ]);
+            in
+            pkgs.runCommand "home-assistant-telemetry-http"
+              {
+                nativeBuildInputs = [
+                  python
+                  pkgs.prometheus.cli
+                ];
+              }
+              ''
+                export PYTHONDONTWRITEBYTECODE=1
+                python ${self}/checks/home-assistant-telemetry.py
+                touch $out
+              '';
           dashboard-queries = import ./checks/dashboard-queries.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };

@@ -1,0 +1,334 @@
+{
+  "uid": "uptime-kuma",
+  "title": "Uptime Kuma",
+  "schemaVersion": 39,
+  "version": 1,
+  "description": "Approved operational monitor dimensions only. Missing/stale collection is UNKNOWN. Native HTTP 200 can be empty and valid partial families can survive failure: all charts require platform native_kuma success and age <90s. Latest latency is milliseconds converted to seconds; unavailable -1 omitted. Window average is already seconds. Certificate remaining is days, not an expiry epoch.",
+  "tags": [
+    "fleet",
+    "homeassistant"
+  ],
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "monitor",
+        "label": "Monitor ID",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(monitor_status{job=\"homeassistant-kuma\",host_name=\"homeassistant\"}, monitor_id)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "window",
+        "label": "Uptime / average window",
+        "type": "custom",
+        "query": "1d,30d,365d",
+        "current": {
+          "text": "30d",
+          "value": "30d"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Monitor state",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / stale",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Down",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Up",
+                  "color": "green"
+                },
+                "2": {
+                  "text": "Pending",
+                  "color": "orange"
+                },
+                "3": {
+                  "text": "Maintenance",
+                  "color": "blue"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{monitor_name}} (#{{monitor_id}})",
+          "expr": "monitor_status{job=\"homeassistant-kuma\",host_name=\"homeassistant\",monitor_id=~\"${monitor:regex}\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Latest latency (seconds; unavailable omitted)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unknown / unavailable"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{monitor_name}}",
+          "expr": "((monitor_response_time{job=\"homeassistant-kuma\",host_name=\"homeassistant\",monitor_id=~\"${monitor:regex}\"} >= 0) / 1000) and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Window average latency (seconds)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{monitor_name}} {{window}}",
+          "expr": "monitor_response_time_seconds{job=\"homeassistant-kuma\",host_name=\"homeassistant\",monitor_id=~\"${monitor:regex}\",window=~\"${window:regex}\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Window uptime (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "Unknown / stale"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{monitor_name}} {{window}}",
+          "expr": "monitor_uptime_ratio{job=\"homeassistant-kuma\",host_name=\"homeassistant\",monitor_id=~\"${monitor:regex}\",window=~\"${window:regex}\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Certificate remaining (days, not epoch)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "noValue": "Unknown / no TLS information"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{monitor_name}}",
+          "expr": "monitor_cert_days_remaining{job=\"homeassistant-kuma\",host_name=\"homeassistant\",monitor_id=~\"${monitor:regex}\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Certificate validity",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / no TLS information",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Invalid",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Valid",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{monitor_name}}",
+          "expr": "monitor_cert_is_valid{job=\"homeassistant-kuma\",host_name=\"homeassistant\",monitor_id=~\"${monitor:regex}\"} and on(host_name) ((haos_collection_success{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} == 1) and (time() - haos_collection_last_success_timestamp_seconds{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"native_kuma\",app=\"a0d7b954_uptime-kuma\"} < 90))"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Kuma collection coverage / auth state",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "source",
+                "app",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "source": 0,
+              "app": 1,
+              "status": 2
+            },
+            "renameByName": {
+              "source": "Native source",
+              "app": "App slug",
+              "status": "Coverage / auth status"
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / collector unavailable"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "format": "table",
+          "expr": "haos_native_source_status{job=\"homeassistant-platform\",host_name=\"homeassistant\",source=\"kuma\",app=\"a0d7b954_uptime-kuma\"} and on(host_name) (up{job=\"homeassistant-platform\",host_name=\"homeassistant\"} == 1)"
+        }
+      ]
+    }
+  ]
+}

@@ -20,9 +20,22 @@
         mode = "0400";
         restartUnits = [ "prometheus.service" ];
       };
+      homeassistant-metrics-token = {
+        sopsFile = ../../secrets/hosts/hl-node-00/home-assistant-telemetry.yaml;
+        owner = "prometheus";
+        mode = "0400";
+        restartUnits = [ "prometheus.service" ];
+      };
     };
   fleet = {
     observability.nas.enable = true;
+    observability.homeAssistant = {
+      enable = true;
+      target = "100.75.116.65:9126";
+      tokenFile = config.sops.secrets.homeassistant-metrics-token.path;
+      nativeSources = [ ];
+      requiredApps = [ ];
+    };
     backup.s3CredentialsFile = config.sops.secrets.restic-s3-credentials.path;
     comin.enableMirror = false;
   };

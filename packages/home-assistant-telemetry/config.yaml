@@ -1,0 +1,35 @@
+name: Home Assistant Operational Telemetry
+version: "0.1.1"
+slug: home_assistant_telemetry
+description: Authenticated operational-only Supervisor metrics
+arch:
+  - aarch64
+startup: services
+boot: auto
+init: false
+# Protection mode defaults on in Supervisor user settings; it is not an app
+# config key. Do not disable it. Manager API access is NOT a read-only token.
+hassio_api: true
+hassio_role: manager
+homeassistant_api: false
+docker_api: false
+host_network: false
+host_pid: false
+host_dbus: false
+journald: false
+privileged: []
+map: []
+ports:
+  9126/tcp: 9126
+ports_description:
+  9126/tcp: Bearer-authenticated operational metrics (not necessarily tailnet-only)
+options:
+  native_kuma: false
+  native_grafana: false
+  native_influxdb: false
+schema:
+  metrics_token: password
+  native_kuma: bool
+  native_grafana: bool
+  native_influxdb: bool
+  kuma_api_key: password?

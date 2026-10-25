@@ -21,9 +21,11 @@
         restartUnits = [ "prometheus.service" ];
       };
     };
-  fleet.observability.nas.enable = true;
-  fleet.backup.s3CredentialsFile = config.sops.secrets.restic-s3-credentials.path;
-  fleet.comin.enableMirror = false;
+  fleet = {
+    observability.nas.enable = true;
+    backup.s3CredentialsFile = config.sops.secrets.restic-s3-credentials.path;
+    comin.enableMirror = false;
+  };
 
   systemd.network.networks."20-lan" = {
     matchConfig = {

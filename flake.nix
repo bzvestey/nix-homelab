@@ -348,6 +348,10 @@
           };
           postgres-telemetry = import ./checks/postgres-telemetry.nix {
             pkgs = nixpkgs.legacyPackages.${system};
+            vikunjaService =
+              (nixosConfigurations.hl-node-03.extendModules {
+                modules = [ { nixpkgs.hostPlatform = nixpkgs.lib.mkForce system; } ];
+              }).config.systemd.services.postgres-vikunja;
           };
           ingress-telemetry = import ./checks/ingress-telemetry.nix {
             pkgs = nixpkgs.legacyPackages.${system};

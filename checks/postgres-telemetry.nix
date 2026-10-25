@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, vikunjaService }:
 pkgs.testers.runNixOSTest {
   name = "postgres-telemetry";
   nodes.machine = { config, lib, ... }: {
@@ -21,6 +21,7 @@ pkgs.testers.runNixOSTest {
               postgres-stock = "127.0.0.1:9187";
               postgres-alpha = "127.0.0.1:9188";
               postgres-beta = "127.0.0.1:9189";
+              postgres-vikunja = "127.0.0.1:9190";
             };
           message = "Each cluster must register its own local scrape target";
         }
@@ -31,13 +32,25 @@ pkgs.testers.runNixOSTest {
         package = pkgs.postgresql_17;
         ensureDatabases = [ "stock_only" ];
       };
-      fleet.localPostgres = lib.genAttrs [ "alpha" "beta" ] (name: {
+      fleet.localPostgres = lib.genAttrs [ "alpha" "beta" "vikunja" ] (name: {
         package = pkgs.postgresql_17;
-        port = if name == "alpha" then 5433 else 5434;
+        port =
+          if name == "alpha" then
+            5433
+          else if name == "beta" then
+            5434
+          else
+            5435;
         environmentFile = "/run/cluster.env";
         initializeSQL = "SELECT 'initialized';";
       });
-      systemd.tmpfiles.rules = [ "f /run/cluster.env 0600 root root -" ];
+      systemd.services.postgres-vikunja.serviceConfig.ExecCondition =
+        vikunjaService.serviceConfig.ExecCondition;
+      users.groups.storage-apps = { };
+      systemd.tmpfiles.rules = [
+        "f /run/cluster.env 0600 root root - VIKUNJA_DATABASE_PASSWORD=fixture-only"
+        "d /var/lib/vikunja 0750 root storage-apps -"
+      ];
       environment.systemPackages = [
         pkgs.curl
         pkgs.postgresql_17
@@ -48,6 +61,18 @@ pkgs.testers.runNixOSTest {
     import re
     from datetime import timedelta
     start_all()
+    # The real Vikunja database gate must honor missing/empty restore markers,
+    # yet permit startup behind the application's private directory boundary.
+    machine.wait_for_unit("multi-user.target")
+    machine.succeed("systemctl start postgres-vikunja.service")
+    machine.fail("systemctl is-active postgres-vikunja.service")
+    machine.succeed("touch /var/lib/vikunja/.fleet-restored; systemctl start postgres-vikunja.service")
+    machine.fail("systemctl is-active postgres-vikunja.service")
+    machine.succeed("echo restored > /var/lib/vikunja/.fleet-restored")
+    machine.fail("su -s /bin/sh postgres-vikunja -c 'test -s /var/lib/vikunja/.fleet-restored'")
+    machine.succeed("systemctl start postgres-vikunja.service")
+    machine.wait_for_unit("postgres-vikunja.service", timeout=timedelta(seconds=20))
+    machine.succeed("su -s /bin/sh postgres-vikunja -c 'psql -h /run/postgres-vikunja -p 5435 -d postgres -Atc \"SELECT current_user\"' | grep -x postgres-vikunja")
     machine.wait_for_unit("postgresql.service")
     for name, port in [("alpha", 5433), ("beta", 5434)]:
         machine.wait_for_unit(f"postgres-{name}.service")

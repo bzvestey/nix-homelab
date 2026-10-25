@@ -34,7 +34,8 @@ in
         ];
       };
       postgres-vikunja.serviceConfig.ExecCondition = [
-        "${pkgs.coreutils}/bin/test -s /var/lib/vikunja/.fleet-restored"
+        # Only this gate needs root to traverse the private application directory.
+        "+${pkgs.coreutils}/bin/test -s /var/lib/vikunja/.fleet-restored"
         "${pkgs.writeShellScript "vikunja-database-credentials-present" ''
           test -n "''${VIKUNJA_DATABASE_PASSWORD:-}"
         ''}"

@@ -359,6 +359,9 @@
           host-telemetry = import ./checks/host-telemetry.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };
+          nas-telemetry = import ./checks/nas-telemetry.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
           dashboard-queries = import ./checks/dashboard-queries.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };

@@ -13,6 +13,7 @@ def expression(dashboard, panel_id, ref="A"):
     for variable, value in {
         "${host:regex}": "alpha|beta", "${cluster:regex}": ".*",
         "${database:regex}": ".*", "${backup:regex}": ".*",
+        "${metric:regex}": r"nas\.system\.cpu\.user",
         "$__rate_interval": "2m", "$__range": "5m",
     }.items():
         query = query.replace(variable, value)
@@ -70,6 +71,16 @@ for host, free, size in [("alpha", "25", "100"), ("beta", "125", "200")]:
 
 tests = []
 
+for host, available, scrape in [("alpha", "1", "1"), ("beta", "1", "0")]:
+    labels = {"job": "garage", "host_name": host, "instance": host + ":30190"}
+    metric("up", labels, scrape + "+0x5")
+    metric("cluster_available", labels, available + "+0x5")
+    metric("cluster_healthy", labels, "1+0x5")
+    metric("garage_local_disk_total", {**labels, "volume": "data"}, "200+0x5")
+    metric("garage_local_disk_avail", {**labels, "volume": "data"}, "50+0x5")
+metric("truenas_netdata", {"job": "truenas", "host_name": "nas", "metric": "nas.system.cpu.user"}, "23+0x5")
+metric("truenas_netdata", {"job": "truenas", "host_name": "nas", "metric": "nas.system.cpu.idle"}, "71+0x5")
+
 
 def check(dashboard, panel, samples, ref="A"):
     tests.append({"expr": expression(dashboard, panel, ref), "eval_time": "5m", "exp_samples": [
@@ -77,6 +88,12 @@ def check(dashboard, panel, samples, ref="A"):
     ]})
 
 
+check("nas", 1, [('{}', 2)])
+check("nas", 3, [('cluster_available{job="garage",host_name="alpha",instance="alpha:30190"}', 1)])
+check("nas", 4, [('cluster_healthy{job="garage",host_name="alpha",instance="alpha:30190"}', 1)])
+check("nas", 5, [('truenas_netdata{job="truenas",host_name="nas",metric="nas.system.cpu.user"}', 23)])
+check("nas", 6, [('{job="garage",host_name="alpha",instance="alpha:30190",volume="data"}', 0.75)])
+check("storage", 6, [('cluster_available{job="garage",host_name="alpha",instance="alpha:30190"}', 1)])
 check("fleet", 2, [('{host_name="alpha"}', 0), ('{host_name="beta"}', 2)])
 # Collector failure must hide unknown container state, not turn it into zero.
 check("fleet", 3, [('{host_name="alpha"}', 1)])

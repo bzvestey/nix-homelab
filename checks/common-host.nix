@@ -28,6 +28,10 @@ let
     ip saddr 10.15.4.0/24 tcp dport { 4319, 4320 } accept comment "fleet OTLP gateway"
 
     iifname "tailscale0" tcp dport 443 accept comment "tailnet Caddy"
+
+    ip saddr 100.102.187.89 tcp dport 9109 accept comment "TrueNAS Graphite"
+    tcp dport { 9108, 9109 } drop comment "No external exporter access or untrusted Graphite"
+    udp dport 9109 drop comment "Graphite accepts TCP only"
   '';
   remoteIdentity = remote: {
     inherit (remote) name url;

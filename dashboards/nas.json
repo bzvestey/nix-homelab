@@ -1,0 +1,319 @@
+{
+  "uid": "nas",
+  "title": "TrueNAS and Garage",
+  "schemaVersion": 39,
+  "version": 1,
+  "description": "TrueNAS Graphite reporting in native units and authenticated Garage metrics. Missing telemetry is unknown, not healthy.",
+  "tags": [
+    "storage",
+    "nas"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "metric",
+        "label": "TrueNAS metric (native units)",
+        "type": "query",
+        "datasource": {
+          "uid": "prometheus",
+          "type": "prometheus"
+        },
+        "query": "label_values(truenas_netdata{job=\"truenas\"}, metric)",
+        "refresh": 1,
+        "multi": false,
+        "includeAll": false,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "TrueNAS metrics received · last 3 minutes",
+      "description": "Count of retained reporting series, not NAS health. No data means no recent matching samples or the receiver is unavailable.",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "Not received",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(truenas_netdata{job=\"truenas\"})",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Garage metrics scrape",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown",
+          "min": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Up",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"garage\"}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Garage requests serviceable",
+      "description": "Garage's cluster_available value, hidden when its metrics scrape fails. Not an end-to-end S3 write test.",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cluster_available{job=\"garage\"} and on(instance) (up{job=\"garage\"} == 1)",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Garage storage nodes connected",
+      "description": "Garage's cluster_healthy value, not a disk integrity check.",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Degraded",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Connected",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cluster_healthy{job=\"garage\"} and on(instance) (up{job=\"garage\"} == 1)",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Selected TrueNAS metric · native reported units",
+      "description": "Original Netdata path after the truenas prefix. Values are not assumed to be bytes, percentages or counters; use TrueNAS reporting to identify the chart's units.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Not received"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "truenas_netdata{job=\"truenas\",metric=~`${metric:regex}`}",
+          "legendFormat": "{{metric}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Garage backing filesystem capacity used",
+      "description": "Filesystem usage reported by Garage, including non-Garage files on those filesystems. Not the size of stored S3 objects.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(1 - garage_local_disk_avail{job=\"garage\"} / garage_local_disk_total{job=\"garage\"}) and (garage_local_disk_total{job=\"garage\"} > 0) and on(instance) (up{job=\"garage\"} == 1)",
+          "legendFormat": "{{volume}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Reading this dashboard",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "TrueNAS reports over TCP Graphite with prefix **truenas**. Select a reported metric above. Samples expire after three minutes without updates; missing data is not a healthy NAS. The Graphite receiver's own scrape being up does not prove TrueNAS is sending.\n\nGarage is scraped separately with a metrics-only bearer token. Availability and connectivity are Garage's own reports, not an S3 restore test. Capacity is backing-filesystem usage, not bucket size."
+      }
+    }
+  ]
+}

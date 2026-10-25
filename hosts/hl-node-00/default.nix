@@ -12,7 +12,16 @@
         sopsFile = ../../secrets/hosts/hl-node-00/bootstrap.yaml;
         mode = "0400";
         restartUnits = lib.optional (name == "tailscale-auth-key") "tailscaled-autoconnect.service";
-      });
+      })
+    // {
+      garage-metrics-token = {
+        sopsFile = ../../secrets/hosts/hl-node-00/telemetry.yaml;
+        owner = "prometheus";
+        mode = "0400";
+        restartUnits = [ "prometheus.service" ];
+      };
+    };
+  fleet.observability.nas.enable = true;
   fleet.backup.s3CredentialsFile = config.sops.secrets.restic-s3-credentials.path;
   fleet.comin.enableMirror = false;
 

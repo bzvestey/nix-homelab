@@ -151,13 +151,47 @@ An absent series means **unknown/not recorded**, never an implicit success.
   the exporter can retain cached device data on polling errors. Missing device
   data or zero discovered devices may mean unsupported hardware/bridges or a
   scan failure, not healthy disks. Client-only hosts have no NFS server metrics.
-- **Garage is not configured:** no managed Garage server or metrics endpoint is
-  defined here. Identify its host/version, enable authenticated admin metrics,
-  provision credentials through SOPS, add a private scrape target, then verify
-  the actual metric names before replacing the dashboard's setup notice.
+- **TrueNAS and Garage:** external NAS reporting and Garage metrics have their
+  own dashboard (`nas`). Garage's authenticated cluster reports are also shown
+  in Storage. Missing telemetry remains unknown; filesystem usage reported by
+  Garage is not S3 bucket size or an end-to-end restore test.
 - **Backups:** preserve host, backup job and class; age/duration use seconds and
   size uses bytes. Actual restores and rehearsals are separate. “Not recorded”
   does not establish recoverability; a rehearsal is not a full application test.
+
+### TrueNAS and Garage telemetry
+
+TrueNAS 25.10 uses **Reporting → Exporters → GRAPHITE**. Send TCP reporting
+to `hl-node-00.tailbc181.ts.net:9109` (use its Tailscale IPv4 address if the UI
+requires an IP), with prefix `truenas` and a reporting interval of at most
+60 seconds. Only the NAS Tailscale address `100.102.187.89` is allowed through
+the receiver firewall; a LAN destination would use a different source address
+and is intentionally not allowed. Do not expose this unauthenticated protocol
+to the Internet. UDP is not enabled.
+
+Prometheus scrapes the receiver locally as job `truenas`. The full reporting
+path after the prefix is preserved as the `metric` label on `truenas_netdata`.
+The dashboard lets you select a path in its native reported units; it does not
+guess whether an arbitrary chart is a counter, percentage or byte value.
+Values expire after three minutes without updates. Receiver scrape success
+alone does not mean the NAS is sending or healthy. Specific CPU/ZFS panels
+can be added once their real reported paths and units are verified.
+
+Garage 2.4.1 runs as a TrueNAS App and exposes `/metrics` through its published
+Admin Port, currently `nas.tailbc181.ts.net:30190`, not the S3 port. The Pi
+scrapes it over Tailscale as job `garage`, using the metrics-only bearer token
+in `secrets/hosts/hl-node-00/telemetry.yaml`. SOPS installs the token as
+`/run/secrets/garage-metrics-token`, readable only by Prometheus. Never place
+the plaintext token in Git, command arguments, dashboards or this README.
+
+In the Garage App's **Additional Options**, set `.admin.metrics_require_token`
+to boolean `true` and `.admin.metrics_token_file` to the container path
+`/run/garage-metrics/token`. Mount the token directory read-only through
+Additional Storage. The token must match the Pi's encrypted copy, be owned by
+Garage's configured UID/GID and have mode **0600**, with parent-directory
+traversal permitted for that UID. Garage refuses a world-readable token; do
+not bypass this with `GARAGE_ALLOW_WORLD_READABLE_SECRETS`. Restrict the admin
+listener to private access. Saving the App may restart Garage and interrupt S3.
 
 ### Backup availability and remaining investigation
 

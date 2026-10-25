@@ -169,7 +169,7 @@ pkgs.testers.runNixOSTest {
     machine.wait_until_succeeds(f"curl --connect-timeout 1 --max-time 3 -fsS -u '{auth}' http://127.0.0.1:3000/dashboard/api/user | jq -e '.login == \"admin\"'", timeout=30)
     machine.fail("curl -fsS http://127.0.0.1:3000/dashboard/api/datasources")
     machine.succeed(f"curl -fsS -u '{auth}' http://127.0.0.1:3000/dashboard/api/datasources | jq -e 'map(.uid) | sort == [\"loki\",\"prometheus\",\"tempo\"]'")
-    machine.succeed(f"curl -fsS -u '{auth}' 'http://127.0.0.1:3000/dashboard/api/search?type=dash-db' | jq -e 'map(.uid) | sort == [\"backups\",\"comin\",\"fleet\",\"ingress\",\"postgres\",\"service-lifecycle\",\"storage\"]'")
+    machine.succeed(f"curl -fsS -u '{auth}' 'http://127.0.0.1:3000/dashboard/api/search?type=dash-db' | jq -e 'map(.uid) | sort == [\"backups\",\"comin\",\"fleet\",\"ingress\",\"nas\",\"postgres\",\"service-lifecycle\",\"storage\"]'")
     dashboard = json.loads(machine.succeed(f"curl -fsS -u '{auth}' http://127.0.0.1:3000/dashboard/api/dashboards/uid/service-lifecycle"))["dashboard"]
     agent.wait_for_unit("opentelemetry-collector.service")
     agent.succeed("systemctl start lifecycle-fixture")

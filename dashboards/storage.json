@@ -2,8 +2,8 @@
   "uid": "storage",
   "title": "Storage",
   "schemaVersion": 39,
-  "version": 2,
-  "description": "Direct-agent filesystem, hardware temperature, smartctl and NFS server metrics. Unsupported or missing hardware is not a passing SMART check. Garage metrics are not configured.",
+  "version": 3,
+  "description": "Direct-agent filesystem, hardware temperature, smartctl and NFS server metrics, plus authenticated Garage availability. See TrueNAS and Garage for external NAS reporting and capacity.",
   "tags": [
     "fleet",
     "storage"
@@ -24,7 +24,7 @@
           "uid": "prometheus",
           "type": "prometheus"
         },
-        "query": "label_values(up{job=\"fleet-agents\"}, host_name)",
+        "query": "label_values(up{job=~\"fleet-agents|garage\"}, host_name)",
         "refresh": 1,
         "multi": true,
         "includeAll": true,
@@ -213,18 +213,58 @@
     },
     {
       "id": 6,
-      "title": "Garage · not configured",
-      "type": "text",
+      "title": "Garage requests serviceable",
+      "description": "Garage's cluster availability report, not an end-to-end S3 write test. Unknown when the authenticated scrape fails. See the TrueNAS and Garage dashboard for capacity and NAS reporting.",
+      "type": "stat",
       "gridPos": {
         "x": 12,
         "y": 16,
         "w": 12,
         "h": 8
       },
+      "datasource": {
+        "uid": "prometheus",
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "gray"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
       "options": {
-        "mode": "markdown",
-        "content": "### Garage telemetry is not configured\nThis repository does not manage a Garage server or a reachable metrics endpoint. Empty metrics would not indicate healthy object storage.\n\nTo enable: identify the server and version, enable its authenticated admin metrics endpoint, provision credentials through SOPS, add a private scrape target, and verify the exported metric names before adding panels. See README → Dashboard telemetry and limitations."
-      }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cluster_available{job=\"garage\",host_name=~\"${host:regex}\"} and on(instance) (up{job=\"garage\"} == 1)",
+          "instant": true
+        }
+      ]
     },
     {
       "id": 7,

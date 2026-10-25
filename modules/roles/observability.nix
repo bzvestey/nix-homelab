@@ -56,6 +56,7 @@ let
         "comin.json"
         "backups.json"
         "storage.json"
+        "nas.json"
         "postgres.json"
         "ingress.json"
         "service-lifecycle.json"
@@ -252,7 +253,10 @@ let
   };
 in
 {
-  imports = [ ../fleet/ingress.nix ];
+  imports = [
+    ../fleet/ingress.nix
+    ../fleet/nas-telemetry.nix
+  ];
 
   options.fleet.observability = {
     enable = lib.mkEnableOption "central fleet observability stack";

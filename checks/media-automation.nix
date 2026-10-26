@@ -28,6 +28,18 @@ assert
   ];
 assert !builtins.elem "--network=host" containers.gluetun.extraOptions;
 assert containers.gluetun.environment.FIREWALL == "on";
+# Trust only the host-side Podman gateway that forwards HTTPS into these apps.
+assert lib.all
+  (
+    name:
+    (containers.${name}.environment."${lib.toUpper name}__SERVER__TRUSTEDNETWORKS" or "")
+    == "10.88.0.1/32"
+  )
+  [
+    "prowlarr"
+    "radarr"
+    "sonarr"
+  ];
 assert lib.all (name: builtins.elem "/mnt/bulk/videos:/videos" containers.${name}.volumes) [
   "deluge"
   "radarr"

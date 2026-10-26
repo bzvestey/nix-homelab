@@ -1,6 +1,9 @@
 { ... }:
 {
-  imports = [ ./observability.nix ];
+  imports = [
+    ./observability.nix
+    ../fleet/kuma-reconciler.nix
+  ];
   fleet = {
     telemetry.enable = true;
     observability.enable = true;

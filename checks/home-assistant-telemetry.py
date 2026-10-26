@@ -294,6 +294,7 @@ class Contract(unittest.TestCase):
                         "# TYPE process_cpu_seconds_total counter\n"
                         "process_cpu_seconds_total 3\n")
                 bad = f"# TYPE {name} counter\n{name} 7\n"
+                bad += f"# TYPE {name}_total counter\n{name}_total 123\n"
                 expected = "process_resident_memory_bytes"
             native.body = good + bad
             self.collector.poll()
@@ -409,12 +410,15 @@ class Contract(unittest.TestCase):
             if source == "grafana":
                 names += ["grafana_database_conn_open", "grafana_database_conn_idle", "grafana_database_conn_in_use"]
             native.body = "".join(f'# HELP {name} {SECRET}\n# TYPE {name} {"counter" if name.endswith("_total") else "gauge"}\n{name} 7\n' for name in names)
+            native.body += ('# TYPE go_memstats_alloc_bytes_total counter\n'
+                            'go_memstats_alloc_bytes_total 123456\n')
             native.body += f'unknown_sensor{{entity_id="{PRIVATE}"}} 99\n'
             native.body += ('# TYPE grafana_http_request_duration_seconds histogram\n'
                             f'grafana_http_request_duration_seconds_bucket{{handler="{PRIVATE}",le="+Inf"}} 9\n')
             self.collector.poll()
             body, data = self.native_scrape(source)
             self.assertEqual(len(data), len(names))
+            self.assertEqual(self.value(data, "go_memstats_alloc_bytes"), 7)
             self.assertTrue(all(not labels for _, labels in data))
             self.assertNotIn("grafana_http", body)
             self.assertEqual(self.value(self.scrape(), "haos_native_source_status", source=source, app=slug, status="enabled"), 1)

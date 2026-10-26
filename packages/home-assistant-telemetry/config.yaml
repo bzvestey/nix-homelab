@@ -1,5 +1,5 @@
 name: Home Assistant Operational Telemetry
-version: "0.1.1"
+version: "0.1.2"
 slug: home_assistant_telemetry
 description: Authenticated operational-only Supervisor metrics
 arch:

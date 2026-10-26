@@ -61,9 +61,16 @@ def native_rows(body, source):
     # expected contract, not the received type (which itself needs validation).
     counter_names = {name.removesuffix("_total"): name
                      for name, kind in allowed.items() if kind == "counter"}
+    # Preserve declared identities too: an unrelated foo_total counter must
+    # not be mistaken for an allowlisted foo gauge after parser normalization.
+    declared_counters = set(re.findall(
+        r"(?m)^\s*#\s+TYPE\s+([a-zA-Z_:][a-zA-Z0-9_:]*)\s+counter\s*$", body))
     series, rejected, recognized = {}, set(), False
     for family in text_string_to_metric_families(body):
-        name = counter_names.get(family.name, family.name)
+        name = family.name
+        if family.type == "counter" and name not in declared_counters:
+            name += "_total"
+        name = counter_names.get(name, name)
         if name not in allowed:
             continue
         recognized = recognized or bool(family.samples)

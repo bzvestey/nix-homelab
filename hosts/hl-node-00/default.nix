@@ -33,7 +33,11 @@
       enable = true;
       target = "100.75.116.65:9126";
       tokenFile = config.sops.secrets.homeassistant-metrics-token.path;
-      nativeSources = [ ];
+      nativeSources = [
+        "kuma"
+        "grafana"
+        "influxdb"
+      ];
       requiredApps = [ ];
     };
     backup.s3CredentialsFile = config.sops.secrets.restic-s3-credentials.path;

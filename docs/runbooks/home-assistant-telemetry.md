@@ -1,14 +1,32 @@
 # Home Assistant operational telemetry: setup and source contracts
 
-Discovery and baseline acceptance date: 2026-10-25. **Collector 0.1.1 is installed
+Discovery and baseline acceptance date: 2026-10-25. **Collector 0.1.2 is installed
 and running on HAOS with Protection mode on; central baseline scraping is enabled
-in hl-node-00's configuration and all native sources remain disabled.**
+in hl-node-00's configuration. Native Kuma, Grafana and InfluxDB collection is
+enabled on HAOS; their central jobs are prepared locally but not yet published.**
 The source observations below are discovery evidence;
 baseline acceptance is recorded separately below. Follow the approved
 [privacy and privilege boundary](../superpowers/specs/2026-10-25-home-assistant-operational-telemetry-design.md).
 No app was installed, configured, restarted, or upgraded during discovery.
 
 ### Current rollout status
+
+Native setup on 2026-10-26 exposed a collector parsing defect: Go exporters expose
+both the approved `go_memstats_alloc_bytes` gauge and an unrelated
+`go_memstats_alloc_bytes_total` counter. Python's parser normalizes their names;
+0.1.2 preserves declared counter identity so the unknown counter cannot reject
+the valid gauge. The allowlist and strict rejection of wrong types are unchanged.
+Only the collector was updated/restarted; Grafana and InfluxDB required no settings
+changes or restarts. The operator subsequently entered a dedicated Kuma API key
+privately into HAOS; authenticated upstream access passed and Kuma was enabled
+with a collector-only restart. The Kuma key remains on HAOS, separate from the
+central Bearer token. Central native publication remains pending.
+No sensor/entity integration was enabled.
+
+Four live observations across 97 seconds retained all 19 healthy baseline sources,
+eight label-free Grafana samples and five label-free InfluxDB samples. Node00
+authenticated successfully to both filtered endpoints over Tailscale. The native
+jobs are not yet centrally scraped; source readiness is not dashboard acceptance.
 
 Native ARM64 collector image/runtime passed; the earlier node00 closure build
 passed without activation and predates the central host preparation below.
@@ -100,7 +118,7 @@ actual LAN/tailnet authorization, manager access, ARM runtime, or dashboard rend
 
 ## Local HAOS app installation (after explicit approval)
 
-Packaging is version **0.1.1**, aarch64 only, built locally from its Dockerfile
+Packaging is version **0.1.2**, aarch64 only, built locally from its Dockerfile
 (there is no published image to install). Retain the digest-pinned Python base
 and hash-pinned `prometheus-client==0.25.0`; do not replace with mutable tags or
 unlocked dependencies. Recheck upstream compatibility when updating any pin.
@@ -181,12 +199,14 @@ temporary plaintext/key/header files and clear clipboard buffers after private
 entry/verification; deletion is not guaranteed secure erasure on SSDs, hence the
 private runtime/encrypted staging requirement. Revoke/rotate on accidental exposure.
 
-### Node00 baseline declaration
+### Node00 collection declaration
 
 These stanzas now exist locally in `hosts/hl-node-00/default.nix`; do not add
-duplicates or replace existing `sops.secrets`/`fleet` attributes. They remain
-baseline-only and contain no plaintext value. The secret is alongside Garage in the
-`// { ... }` block; collection options are inside the existing `fleet` block:
+duplicates or replace existing `sops.secrets`/`fleet` attributes. The baseline and
+secret declaration are deployed; native opt-ins below are local preparation,
+not central activation. They contain no plaintext value. The secret is alongside
+Garage in the `// { ... }` block; collection options are inside the existing
+`fleet` block:
 
 ```nix
 # Inside sops.secrets' existing // { ... } block:
@@ -202,15 +222,15 @@ observability.homeAssistant = {
   enable = true; # Approved baseline only; module default remains false.
   target = "100.75.116.65:9126";
   tokenFile = config.sops.secrets.homeassistant-metrics-token.path;
-  nativeSources = [ ]; # Add only validated "kuma", "grafana", "influxdb".
+  nativeSources = [ "kuma" "grafana" "influxdb" ]; # Prepared; publication pending.
   requiredApps = [ ]; # Explicit always-on slugs only; never stopped Get HACS.
 };
 ```
 
 Even a disabled declaration requires its encrypted key at activation: do not
 publish a declaration referencing a missing secret. Prepare and validate both
-together. Keep `nativeSources` empty until each native source is separately
-approved and validated. Default module enablement is false; only node00 opts in.
+together. Add a native source only after it is separately approved and validated.
+Default module enablement is false; only node00 opts in.
 SOPS creates `/run/secrets/homeassistant-metrics-token`,
 owned by Prometheus, mode 0400. Rotation can restart **central Prometheus** via
 `restartUnits`; approve that interruption too. Never copy a token into Nix text.
@@ -298,7 +318,7 @@ Record the reviewed/delivered revision, local test results, ARM build/runtime an
 closure results, approved actions, actual activation revision, source/sample
 counts, measured CPU/RSS/duration, screenshot inspection and unresolved gaps.
 Configuration enablement alone is not live acceptance: confirm **central baseline
-collection after Comin activation**. Native integration remains disabled.
+collection after Comin activation**. Central native jobs remain unpublished.
 If publication is approved, follow the README's signed jj workflow, not a manual
 deployment workflow. If a PR is created, monitor its comments/reviews and exact-head
 CI; do not describe an earlier green head as validation of the published revision.
@@ -502,7 +522,7 @@ Native storage/query counters for InfluxDB, Z-Wave driver/connection aggregates,
 Tailscale connection aggregates, Matter/OTBR protocol counters remain unsupported
 in this initial verified contract, not zero or healthy.
 
-## Kuma dedicated API-key workflow (operator action, not performed)
+## Kuma dedicated API-key workflow (private operator action)
 
 Kuma 2.5.6 `/metrics` uses `apiAuth` HTTP **Basic** authentication. With API-key
 mode enabled the **password is the API key**, and username is ignored by the
@@ -524,8 +544,8 @@ credentials. The live 401 alone cannot reveal whether API-key mode is enabled.
    `kuma_api_key: password?`, without a committed/default key. HAOS delivers user
    options to the app's private `/data/options.json`; collector reads locally,
    never dumps options, never places key in process arguments/environment exports,
-   and uses Basic auth only on its fixed Kuma target. **The packaging is local,
-   not installed.** Set `native_kuma: true` only after private key entry and
+   and uses Basic auth only on its fixed Kuma target. The local collector is
+   installed. Set `native_kuma: true` only after private key entry and
    approval. Loading new options requires restarting the collector only; do not
    restart Kuma/Core.
 4. Password schema is UI treatment/validation, **not encryption**. Supervisor,

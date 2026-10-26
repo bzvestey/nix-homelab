@@ -363,6 +363,11 @@ rename paths). A new branch compares against the repository default branch
 when available. Missing history, API errors, truncated results and unknown
 paths conservatively select all checks, closures and images.
 
+CI uses the Nix installers' normal signed binary caches directly. The optional
+GitHub Actions Nix cache proxy is omitted because its API rate limits caused fatal
+NAR downloads. Custom outputs built only in CI may need rebuilding on later runs;
+validation commands and failure handling are unchanged.
+
 | Changes | Architecture checks / closures | Automatic images |
 | --- | --- | --- |
 | `docs/`, README, AGENTS only | None | None |

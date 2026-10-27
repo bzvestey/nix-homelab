@@ -19,6 +19,8 @@ in
           PUID = "1000";
           PGID = "1000";
           TZ = "America/Los_Angeles";
+          # Tailscale Serve reaches this container through the host's Podman gateway.
+          PROWLARR__SERVER__TRUSTEDNETWORKS = "10.88.0.1/32";
         };
         volumes = [ "/var/lib/media-automation/prowlarr:/config" ];
         ports = [ "127.0.0.1:9696:9696" ];

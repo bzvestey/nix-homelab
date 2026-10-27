@@ -195,6 +195,10 @@ listener to private access. Saving the App may restart Garage and interrupt S3.
 
 ### Home Assistant operational telemetry
 
+The [Uptime Kuma reconciliation runbook](docs/runbooks/uptime-kuma-reconciliation.md)
+covers the disabled-by-default reconciler, private management prerequisites,
+separate bootstrap/ongoing approvals, inventory ownership and recovery barriers.
+
 The [HAOS setup and coverage runbook](docs/runbooks/home-assistant-telemetry.md)
 documents the installed aarch64 collector, private token/Kuma-key entry,
 node00 SOPS configuration, approval gates, overhead measurements and rollback.

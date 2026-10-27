@@ -102,6 +102,17 @@
           ./modules/fleet/telemetry-agent.nix
           { fleet.telemetry.enable = true; }
           { _module.args = { inherit fleetTopology; }; }
+          (nixpkgs.lib.optionalAttrs (builtins.elem "observability" (fleetTopology.rolesForNode nodeId)) {
+            _module.args.kumaInventory = {
+              nodes = nixpkgs.lib.mapAttrs (_: n: { inherit (n) address; }) fleetTopology.nodes;
+              routesByHost = nixpkgs.lib.mapAttrs (
+                _: host:
+                map (route: {
+                  inherit (route) hostname exposure;
+                }) host.config.fleet.ingress.routes
+              ) nixosConfigurations;
+            };
+          })
           (./hosts + "/${nodeId}")
         ]
         ++ selectRoleModules fleetTopology nodeId;
@@ -224,6 +235,7 @@
       packages = forAllSystems (system: {
         inherit (nixpkgs.legacyPackages.${system}) deadnix statix;
         comin = cominPackage system;
+        kuma-reconciler = nixpkgs.legacyPackages.${system}.callPackage ./packages/kuma-reconciler { };
         fleet-enroll = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-enroll.nix { };
         fleet-restore = nixpkgs.legacyPackages.${system}.callPackage ./packages/fleet-restore.nix {
           jobs = { };
@@ -284,6 +296,22 @@
           };
         }
         // {
+          kuma-inventory = import ./checks/kuma-inventory.nix {
+            inherit fleetTopology nixosConfigurations;
+            inherit (nixpkgs) lib;
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          kuma-reconciler = import ./checks/kuma-reconciler.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          kuma-module = import ./checks/kuma-module.nix {
+            inherit fleetTopology nixosConfigurations;
+            inherit (nixpkgs) lib;
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          kuma-service = import ./checks/kuma-service.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
           remaining-batch = import ./checks/remaining-batch.nix {
             inherit bootstrapConfigurations nixosConfigurations preparedConfigurations;
             pkgs = nixpkgs.legacyPackages.${system};

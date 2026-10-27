@@ -135,13 +135,16 @@ try:
             marker.unlink()
         # Force real systemd activation timeout while TLS waits on a blackhole;
         # production limits remain 150s and the unchanged CLI budget remains 120s.
+        # Allow ARM parent/child startup, but cancel before transport's own 10s budget.
         listener = socket.socket()
         listener.bind(("127.0.0.1", 8444))
         listener.listen()
         peer = []
+        connected = threading.Event()
         def accept():
             conn, _ = listener.accept()
             peer.append(conn)
+            connected.set()
             while conn.recv(4096):
                 pass
         thread = threading.Thread(target=accept, daemon=True)
@@ -151,7 +154,7 @@ try:
         command = run("systemctl", "show", "kuma-reconciler.service", "-p", "ExecStart", "--value")
         # Read the generated argv instead of constructing a substitute program.
         argv = command.split("argv[]=")[1].split(" ;")[0]
-        (dropin / "timeout.conf").write_text("[Service]\nTimeoutStartSec=2s\nExecStart=\nExecStart="
+        (dropin / "timeout.conf").write_text("[Service]\nTimeoutStartSec=5s\nExecStart=\nExecStart="
             + argv.replace(":8443", ":8444") + "\n")
         blackhole = dict(credential, origin="https://127.0.0.1:8444")
         Path("/run/kuma-test.json").write_text(json.dumps(blackhole))
@@ -160,10 +163,7 @@ try:
         run("systemctl", "reset-failed")
         activation = subprocess.Popen(["systemctl", "start", "kuma-reconciler.service"],
                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        for _ in range(60):
-            if peer:
-                break
-            time.sleep(0.02)
+        connected.wait(timeout=4)
         assert peer, "real child transport never reached TLS blackhole"
         processes = Path("/sys/fs/cgroup/system.slice/kuma-reconciler.service/cgroup.procs").read_text().split()
         assert len(processes) >= 2, "must exercise both parent and child transport"

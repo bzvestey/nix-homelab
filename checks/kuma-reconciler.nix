@@ -29,7 +29,8 @@ let
 in
 pkgs.testers.runNixOSTest {
   # Keep this contract check stable; kuma-service separately exercises the
-  # hardened NixOS units without consuming this suite's 360s driver budget.
+  # hardened NixOS units without consuming this suite's 600s driver budget,
+  # which accommodates slower native ARM execution.
   name = "kuma-reconciler-contracts";
   # Actual ICMP requires CAP_NET_RAW; an ordinary build sandbox cannot supply
   # it. Keep the real server and all test ports inside this disposable VM.
@@ -55,8 +56,9 @@ pkgs.testers.runNixOSTest {
         "RECONCILE_BIN=${client}/bin/kuma-reconciler "
         "DESIRED_FILE=${desired} "
         # Includes the literal 120s deadline test plus create/update durability
-        # failure and reviewed-recovery cases; the expanded suite takes ~285s.
-        "${python}/bin/python ${./kuma-reconciler.py}", timeout=timedelta(seconds=360)
+        # failure and reviewed-recovery cases; allow slower native ARM execution
+        # without changing any runtime deadlines or individual test assertions.
+        "${python}/bin/python ${./kuma-reconciler.py}", timeout=timedelta(seconds=600)
     ))
   '';
 }

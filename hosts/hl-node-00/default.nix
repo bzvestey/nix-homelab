@@ -26,19 +26,34 @@
         mode = "0400";
         restartUnits = [ "prometheus.service" ];
       };
+      kuma-reconciler-management = {
+        sopsFile = ../../secrets/hosts/hl-node-00/kuma-management.yaml;
+        owner = "root";
+        group = "root";
+        mode = "0600";
+      };
     };
   fleet = {
-    observability.nas.enable = true;
-    observability.homeAssistant = {
-      enable = true;
-      target = "100.75.116.65:9126";
-      tokenFile = config.sops.secrets.homeassistant-metrics-token.path;
-      nativeSources = [
-        "kuma"
-        "grafana"
-        "influxdb"
-      ];
-      requiredApps = [ ];
+    observability = {
+      nas.enable = true;
+      kumaReconciler = {
+        enable = true;
+        mode = "dry-run";
+        endpoint = "https://kuma-management.tailbc181.ts.net";
+        credentialFile = config.sops.secrets.kuma-reconciler-management.path;
+        notificationPolicy = null;
+      };
+      homeAssistant = {
+        enable = true;
+        target = "100.75.116.65:9126";
+        tokenFile = config.sops.secrets.homeassistant-metrics-token.path;
+        nativeSources = [
+          "kuma"
+          "grafana"
+          "influxdb"
+        ];
+        requiredApps = [ ];
+      };
     };
     backup.s3CredentialsFile = config.sops.secrets.restic-s3-credentials.path;
     comin.enableMirror = false;

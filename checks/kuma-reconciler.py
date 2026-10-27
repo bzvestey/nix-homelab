@@ -17,11 +17,14 @@ Tests use public setup/notification/pause/history APIs only, never the DB.
 
 import importlib.util
 from copy import deepcopy
+import base64
 import hashlib
+import hmac
 import fcntl
 import json
 import os
 from pathlib import Path
+import pty
 import select
 import shutil
 import signal
@@ -33,6 +36,7 @@ import tempfile
 import threading
 import time
 import unittest
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 import requests
@@ -387,6 +391,9 @@ class Contracts(unittest.TestCase):
             if fault == "delayed-info":
                 old = '        await sendInfo(socket, true);'
                 new = '        await new Promise(resolve => setTimeout(resolve, 250));\n' + old
+            elif fault == "late-auth-info":
+                old = '        sendInfo(socket),'
+                new = '        Promise.resolve().then(() => { setTimeout(() => sendInfo(socket), 1000); }),'
             elif fault in ("lost-ack", "lost-check-ack", "slow-add-ack"):
                 old = '''                callback({
                     ok: true,
@@ -445,6 +452,129 @@ class Contracts(unittest.TestCase):
         client = self.module.KumaClient(endpoint or self.endpoint, credential or self.credential)
         self.addCleanup(client.close)
         return client
+
+    def provision(self, output, endpoint=None, password=PASSWORD, ca=True, mfa=None):
+        binary = os.environ.get("PROVISION_BIN", "")
+        self.assertTrue(binary and Path(binary).is_file(), "Missing secure provisioning CLI")
+        keys = []
+        recipients = []
+        key_directory = tempfile.TemporaryDirectory(dir=self.root)
+        self.addCleanup(key_directory.cleanup)
+        for index in range(2):
+            key = Path(key_directory.name) / f"{index}.age"
+            subprocess.run(["age-keygen", "-o", str(key)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            keys.append(key)
+            recipients += ["--recipient", subprocess.check_output(
+                ["age-keygen", "-y", str(key)], text=True).strip()]
+        command = [binary, "--endpoint", endpoint or self.endpoint, "--output", str(output), *recipients]
+        if ca:
+            command += ["--ca-file", str(self.ca)]
+        terminal, slave = pty.openpty()
+        process = subprocess.Popen(["setsid", "--ctty", *command],
+                                   stdin=slave, stdout=slave, stderr=slave)
+        os.close(slave)
+        transcript = b""
+        prompts = [(b"Username:", "contract"), (b"Password:", password)]
+        if mfa is not None:
+            prompts.append((b"MFA code:", mfa))
+        deadline = time.monotonic() + 35
+        try:
+            while time.monotonic() < deadline:
+                if select.select([terminal], [], [], 0.1)[0]:
+                    try:
+                        data = os.read(terminal, 65536)
+                    except OSError:
+                        break
+                    if not data:
+                        break
+                    transcript += data
+                    if prompts and prompts[0][0] in transcript:
+                        _, value = prompts.pop(0)
+                        os.write(terminal, (value + "\n").encode())
+            else:
+                self.fail("Provisioning CLI did not finish")
+        finally:
+            os.close(terminal)
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+        self.assertNotIn(password.encode(), transcript)
+        if mfa is not None:
+            self.assertNotIn(mfa.encode(), transcript)
+        return process.returncode, keys, transcript
+
+    def test_provision_cli_encrypts_reusable_origin_bound_token_without_monitor_writes(self):
+        # Catches plaintext output, storing the password, wrong recipients/origin,
+        # an unusable token, leaking hidden input, and modifying existing monitors.
+        output = self.root / "provisioned.yaml"
+        before = self.client().snapshot()
+        code, keys, transcript = self.provision(output)
+        self.assertEqual(code, 0, transcript)
+        self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+        self.assertNotIn(PASSWORD, output.read_text())
+        for key in keys:
+            document = json.loads(subprocess.check_output(
+                ["sops", "decrypt", "--output-type", "json", str(output)],
+                env={**os.environ, "SOPS_AGE_KEY_FILE": str(key)}, stderr=subprocess.DEVNULL))
+            credential = json.loads(document["kuma-reconciler-management"])
+            self.assertEqual(set(credential), {"origin", "loginToken", "caFile"})
+            self.assertEqual(credential["origin"], self.endpoint)
+            self.assertNotIn(credential["loginToken"].encode(), transcript)
+            path = self.write_credential("provisioned.json", credential)
+            self.assertEqual(self.client(path).snapshot(), before)
+
+    def test_provision_waits_for_authenticated_version_after_login_ack(self):
+        endpoint = self.start_server("provision-late-info", fault="late-auth-info")
+        raw = self.raw_client(endpoint)
+        self.addCleanup(raw.disconnect)
+        self.assertTrue(raw.call("setup", ("contract", PASSWORD), timeout=10)["ok"])
+        output = self.root / "late-info.yaml"
+        code, _, transcript = self.provision(output, endpoint=endpoint)
+        self.assertEqual(code, 0, transcript)
+        self.assertTrue(output.is_file())
+
+    def test_provision_cli_failures_leave_no_credential_and_never_overwrite(self):
+        wrong = self.start_server("provision-version", "2.5.7")
+        raw = self.raw_client(wrong)
+        self.addCleanup(raw.disconnect)
+        self.assertTrue(raw.call("setup", ("contract", PASSWORD), timeout=10)["ok"])
+        for name, options in (
+            ("bad-password", {"password": "Wrong-Private-Password-42!"}),
+            ("bad-tls", {"ca": False}),
+            ("bad-version", {"endpoint": wrong}),
+            ("bad-origin", {"endpoint": self.endpoint + "/extra"}),
+        ):
+            with self.subTest(name=name):
+                output = self.root / f"{name}.yaml"
+                code, _, _ = self.provision(output, **options)
+                self.assertNotEqual(code, 0)
+                self.assertFalse(output.exists())
+        output = self.root / "existing-provision.yaml"
+        output.write_text("retain-existing-ciphertext")
+        code, _, _ = self.provision(output)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(output.read_text(), "retain-existing-ciphertext")
+        link = self.root / "provision-symlink.yaml"
+        link.symlink_to(output)
+        code, keys, _ = self.provision(link)
+        self.assertNotEqual(code, 0)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(output.read_text(), "retain-existing-ciphertext")
+        # No controlling terminal: a pipe must never become a secret-input fallback.
+        output = self.root / "no-terminal.yaml"
+        command = [os.environ["PROVISION_BIN"], "--endpoint", self.endpoint,
+                   "--output", str(output)]
+        for key in keys:
+            command += ["--recipient", subprocess.check_output(
+                ["age-keygen", "-y", str(key)], text=True).strip()]
+        result = subprocess.run(command, input=PASSWORD.encode(), start_new_session=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn(PASSWORD.encode(), result.stdout + result.stderr)
+        self.assertFalse(output.exists())
 
     def payload(self, name, kind="http", **overrides):
         return {
@@ -1245,7 +1375,8 @@ class Contracts(unittest.TestCase):
         self.assertTrue(raw.call("setup", ("contract", PASSWORD), timeout=10)["ok"])
         login = raw.call("login", {"username": "contract", "password": PASSWORD}, timeout=10)
         self.assertTrue(login["ok"])
-        self.assertTrue(raw.call("prepare2FA", PASSWORD, timeout=10)["ok"])
+        preparation = raw.call("prepare2FA", PASSWORD, timeout=10)
+        self.assertTrue(preparation["ok"])
         self.assertTrue(raw.call("save2FA", PASSWORD, timeout=10)["ok"])
         path = self.write_credential("mfa.json", {
             "origin": endpoint, "caFile": str(self.ca), "username": "contract", "password": PASSWORD,
@@ -1257,6 +1388,23 @@ class Contracts(unittest.TestCase):
             "origin": endpoint, "caFile": str(self.ca), "loginToken": login["token"],
         })
         self.assertEqual(self.client(token, endpoint).snapshot()["monitors"], [])
+        self.assertTrue(raw.call("twoFAStatus", timeout=10)["status"])
+        # Obtain a fresh token using the real challenge, not the old pre-MFA token.
+        secret = parse_qs(urlsplit(preparation["uri"]).query)["secret"][0]
+        key = base64.b32decode(secret + "=" * (-len(secret) % 8))
+        digest = hmac.new(key, (int(time.time()) // 30).to_bytes(8, "big"), hashlib.sha1).digest()
+        offset = digest[-1] & 15
+        code = f"{(int.from_bytes(digest[offset:offset + 4], 'big') & 0x7fffffff) % 1000000:06d}"
+        output = self.root / "mfa-provisioned.yaml"
+        result, keys, transcript = self.provision(output, endpoint=endpoint, mfa=code)
+        self.assertEqual(result, 0, transcript)
+        document = json.loads(subprocess.check_output(
+            ["sops", "decrypt", "--output-type", "json", str(output)],
+            env={**os.environ, "SOPS_AGE_KEY_FILE": str(keys[0])}, stderr=subprocess.DEVNULL))
+        credential = json.loads(document["kuma-reconciler-management"])
+        self.assertEqual(set(credential), {"origin", "loginToken", "caFile"})
+        path = self.write_credential("mfa-provisioned.json", credential)
+        self.assertEqual(self.client(path, endpoint).snapshot()["monitors"], [])
         self.assertTrue(raw.call("twoFAStatus", timeout=10)["status"])
 
     def test_api_error_is_bounded_and_close_prevents_writes(self):

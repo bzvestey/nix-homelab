@@ -2,9 +2,12 @@
 
 ## Status and authority
 
-The reconciler is **disabled** on hl-node-00. No production HTTPS management
-origin or management credential is provisioned by this change. Commands below
-are procedures for separately authorized work, not authorization to execute it.
+The reviewed hl-node-00 configuration selects **dry-run only**, using the private
+management origin `https://kuma-management.tailbc181.ts.net` and a root-only SOPS
+credential. After separately authorized publication/activation, its five-minute
+timer performs authenticated reads, not monitor writes. Prepared configuration
+is not evidence of live installation or a successful plan. Commands below are
+procedures for separately authorized work, not authorization to execute it.
 See the [design](../superpowers/specs/2026-10-26-uptime-kuma-reconciliation-design.md)
 for the reviewed identities and safety requirements.
 
@@ -111,6 +114,64 @@ Apply requires the explicitly approved shape
 decimal IDs and values booleans. An explicitly reviewed empty map is permitted;
 `null` is not approval. Verify actual delivery separately. Existing assignments
 are preserved, not replaced by this creation-only policy.
+
+### One-time interactive token provisioning
+
+The reconciler package also provides `kuma-provision-credential`. It is an
+operator-only utility, never invoked by a service, timer or activation script.
+Run it on hl-node-00 through a private SSH terminal after management exposure and
+credential provisioning are approved. Do not run it through an agent's captured
+terminal, a session recorder, `tee`, shell tracing or CI. It refuses insecure
+input fallback when a controlling terminal with hidden input is unavailable.
+
+Verify the administrator recipient in `.sops.yaml`, and the host recipient against
+`fleet-enroll` on hl-node-00. Pass exactly those two distinct public recipients:
+
+```sh
+kuma-provision-credential \
+  --endpoint https://kuma-management.tailbc181.ts.net \
+  --output /run/kuma-management.enc.yaml \
+  --recipient ADMINISTRATOR_PUBLIC_AGE_RECIPIENT \
+  --recipient HL_NODE_00_PUBLIC_AGE_RECIPIENT
+```
+
+The uppercase values are placeholders, not credentials or approved recipients.
+The helper hides username/password input and requests a fresh MFA code only when
+Kuma requires one. It performs a fresh login, not browser-session extraction.
+TLS/hostname verification, exact canonical origin, WebSocket-only transport and
+authenticated version 2.5.6 are required; there is no retry or insecure bypass.
+Authentication receives private inventory events from Kuma; these are not printed
+or saved. The helper submits no monitor writes and changes no authentication
+settings (a successful MFA login does consume its one-time code).
+
+Only `origin` and `loginToken` are retained in the credential JSON. Optional
+`--ca-file` supports a trusted private CA and also records its runtime bundle path;
+it never disables verification. The helper passes the JSON as a
+`kuma-reconciler-management` string to SOPS through an anonymous pipe and writes
+only encrypted YAML, mode 0600. Explicit recipients are used independently of
+ambient SOPS creation rules. Existing files and symlinks are never overwritten.
+Errors are bounded and do not print upstream authentication data. On failure,
+stop and diagnose; do not paste a credential or use repeated login attempts.
+
+Transfer only the encrypted YAML into
+`secrets/hosts/hl-node-00/kuma-management.yaml`. Verify its public recipient
+metadata against the two approved recipients before publication; do not print a
+decryption to a terminal. A separately reviewed host declaration should select
+the `kuma-reconciler-management` key, root owner/group and mode `0600`, yielding
+`/run/secrets/kuma-reconciler-management`. Reference that path through
+`config.sops.secrets.kuma-reconciler-management.path`, not a store-generated
+plaintext file. The ciphertext and declaration still require signed publication
+approval, and dry-run installation remains a separate gate. Keep the encrypted
+staging copy until delivery is verified, then remove only the disposable copy.
+
+In pinned 2.5.6 the login token is a management JWT with **no expiration**. Issuing
+another token does not revoke the previous one; a password change invalidates
+existing tokens and affects other sessions. Do not describe it as a scoped
+read-only or independently revocable API key. Do not change the account password
+or disable MFA as part of provisioning. If the token is exposed, obtain approval
+for account-level revocation and reprovisioning rather than merely generating
+another token. Source: `server/model/user.js` and the `login`/`loginByToken`
+handlers in `server/server.js` of the pinned release.
 
 ## Desired inventory versus full management inventory
 

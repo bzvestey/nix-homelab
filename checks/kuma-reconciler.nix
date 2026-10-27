@@ -41,6 +41,8 @@ pkgs.testers.runNixOSTest {
       pkgs.nodejs
       pkgs.openssl
       pkgs.iputils
+      pkgs.age
+      pkgs.sops
     ];
   };
   testScript = ''
@@ -54,6 +56,7 @@ pkgs.testers.runNixOSTest {
         "CLIENT_FILE=${client}/lib/kuma-reconciler/client.py "
         "RECONCILE_FILE=${client}/lib/kuma-reconciler/reconcile.py "
         "RECONCILE_BIN=${client}/bin/kuma-reconciler "
+        "PROVISION_BIN=${client}/bin/kuma-provision-credential "
         "DESIRED_FILE=${desired} "
         # Includes the literal 120s deadline test plus create/update durability
         # failure and reviewed-recovery cases; allow slower native ARM execution

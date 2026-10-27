@@ -42,7 +42,6 @@ let
     (observer.extendModules {
       modules = [
         {
-          fleet.observability.kumaReconciler = builtins.removeAttrs enabledSettings [ "domainZones" ];
           # Tie the observer projection back to this ENABLED configuration, including
           # its own Grafana route. Poison unrelated fields to catch broad forcing.
           _module.args.kumaInventory = lib.mkForce {
@@ -126,8 +125,17 @@ assert lib.hasInfix " reconcile "
       notificationPolicy.notificationIDList = { };
     }
   )).systemd.services.kuma-reconciler.serviceConfig.ExecStart;
-assert !observer.config.fleet.observability.kumaReconciler.enable;
-assert !(observer.config.systemd.services ? kuma-reconciler);
+assert observer.config.fleet.observability.kumaReconciler.enable;
+assert observer.config.fleet.observability.kumaReconciler.mode == "dry-run";
+assert observer.config.fleet.observability.kumaReconciler.notificationPolicy == null;
+assert
+  observer.config.fleet.observability.kumaReconciler.credentialFile
+  == observer.config.sops.secrets.kuma-reconciler-management.path;
+assert observer.config.sops.secrets.kuma-reconciler-management.owner == "root";
+assert observer.config.sops.secrets.kuma-reconciler-management.group == "root";
+assert observer.config.sops.secrets.kuma-reconciler-management.mode == "0600";
+assert lib.hasInfix " plan "
+  observer.config.systemd.services.kuma-reconciler.serviceConfig.ExecStart;
 assert lib.any (
   check:
   check.key == "site:hl-node-00.tailbc181.ts.net"

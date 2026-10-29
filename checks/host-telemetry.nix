@@ -21,7 +21,14 @@ pkgs.testers.runNixOSTest {
       ../modules/fleet/telemetry-agent.nix
       ../modules/fleet/podman.nix
     ];
-    fleet.telemetry.enable = true;
+    # This VM has no gateway: exercise local metrics during a bounded export
+    # failure without depending on production DNS or a minute-long scrape cycle.
+    fleet.telemetry = {
+      enable = true;
+      gatewayEndpoint = "http://127.0.0.1:1";
+      retryMaxElapsedTime = "10s";
+    };
+    services.opentelemetry-collector.settings.receivers.prometheus.config.global.scrape_interval = "1s";
     services.tailscale.enable = true;
     virtualisation.oci-containers = {
       backend = "podman";

@@ -44,9 +44,37 @@ jobs:
       - name: Run deadnix
         run: nix run .#deadnix -- --fail .
       - name: Check flake
+        id: flake-check
         run: |
           set -o pipefail
-          log="$RUNNER_TEMP/flake-check.log"
+          diagnostics="$RUNNER_TEMP/check-diagnostics"
+          mkdir -p "$diagnostics"
+          date -u --iso-8601=seconds > "$diagnostics/started-at"
+          log="$diagnostics/flake-check.log"
+          # Stream samples as well as saving them: a lost runner cannot upload artifacts.
+          # Never collect environment values or process command arguments.
+          (
+            set +e
+            sleep_pid=
+            trap 'kill "${sleep_pid:-}" 2>/dev/null || true; exit 0' INT TERM
+            echo 'Nix resource settings (command-line overrides are shown in the build command):'
+            nix config show 2>/dev/null | sed -n -E '/^(cores|max-jobs|system) = /p'
+            while true; do
+              echo "=== Resource sample $(date -u --iso-8601=seconds) ==="
+              free -m
+              df -h / /nix "$RUNNER_TEMP"
+              for pressure in /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io; do
+                echo "$pressure"
+                cat "$pressure"
+              done
+              ps -eo pid,ppid,comm,rss,pcpu --sort=-rss | head -n 16
+              sleep 30 &
+              sleep_pid=$!
+              wait "$sleep_pid"
+            done
+          ) > >(tee "$diagnostics/resources.log") 2>&1 &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" 2>/dev/null || true' EXIT
           set +e
           if [[ '${{ matrix.architecture }}' == x86_64-linux ]]; then
             if [[ -r /dev/kvm && -w /dev/kvm ]]; then
@@ -112,6 +140,25 @@ jobs:
               '${{ matrix.architecture }}' "$diagnostic"
             exit "$status"
           fi
+      - name: Collect flake-check diagnostics
+        if: ${{ always() && steps.flake-check.outcome != '' && steps.flake-check.outcome != 'skipped' }}
+        continue-on-error: true
+        run: |
+          diagnostics="$RUNNER_TEMP/check-diagnostics"
+          since=$(cat "$diagnostics/started-at")
+          { sudo -n journalctl -k --since "$since" -n 200 --no-pager; } > "$diagnostics/kernel.log" 2>&1 || true
+          { sudo -n journalctl -u nix-daemon.service --since "$since" -n 200 --no-pager; } > "$diagnostics/nix-daemon.log" 2>&1 || true
+      # For runner-internal diagnostics, select "Enable debug logging" when rerunning.
+      # Neither always() nor upload-artifact can recover files after total runner loss.
+      - name: Upload flake-check diagnostics
+        if: ${{ always() && steps.flake-check.outcome != '' && steps.flake-check.outcome != 'skipped' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake-diagnostics-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/check-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
 
   host-closures:
     needs: scope

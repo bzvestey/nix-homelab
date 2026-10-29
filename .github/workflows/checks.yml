@@ -78,7 +78,7 @@ jobs:
           set +e
           if [[ '${{ matrix.architecture }}' == x86_64-linux ]]; then
             if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-              nix flake check --show-trace --option max-jobs 1 2>&1 | tee "$log"
+              nix flake check --show-trace --option max-jobs 1 --cores 2 2>&1 | tee "$log"
               status=${PIPESTATUS[0]}
             else
               {

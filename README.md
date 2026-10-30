@@ -305,8 +305,8 @@ jj diff flake.lock
 Shared-input changes affect the whole fleet, so validate both architectures and
 all affected hosts. Custom pins live in `packages/`, notably Immich's PG16
 extensions in `immich-postgresql.nix`. Keep the Comin signature-compatibility
-correction and Podman archive backport until their upstream replacements are
-verified; see [enrollment](docs/runbooks/enroll-host.md) and
+correction until its upstream replacement is verified. Podman now includes the
+archive fix upstream; see [enrollment](docs/runbooks/enroll-host.md) and
 [runner troubleshooting](docs/runbooks/forgejo-runners.md).
 
 ### PostgreSQL major upgrades

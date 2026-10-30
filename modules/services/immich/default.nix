@@ -45,7 +45,7 @@ in
           CREATE EXTENSION IF NOT EXISTS pg_trgm;
           CREATE EXTENSION IF NOT EXISTS unaccent;
           CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-          CREATE EXTENSION IF NOT EXISTS vector VERSION '0.8.0';
+          CREATE EXTENSION IF NOT EXISTS vector VERSION '0.8.7';
           CREATE EXTENSION IF NOT EXISTS vchord VERSION '0.4.3';
         '';
       };
@@ -84,7 +84,7 @@ in
       backend = "podman";
       containers = {
         immich = {
-          image = "ghcr.io/immich-app/immich-server@sha256:db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1";
+          image = "ghcr.io/immich-app/immich-server@sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6";
           environmentFiles = [ cfg.environmentFile ];
           environment = {
             DB_HOSTNAME = "127.0.0.1";
@@ -101,7 +101,7 @@ in
           extraOptions = [ "--network=host" ];
         };
         immich-ml = {
-          image = "ghcr.io/immich-app/immich-machine-learning@sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed";
+          image = "ghcr.io/immich-app/immich-machine-learning@sha256:5b28c9352c8374b8a1ed96fbdd8d6755fea6e43510ec43fdf6538aa02ea40f56";
           environment = {
             IMMICH_HOST = "127.0.0.1";
             TRANSFORMERS_CACHE = "/cache";

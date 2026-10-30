@@ -44,7 +44,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.vikunja = {
-        image = "docker.io/vikunja/vikunja@sha256:e2204a1c1c6a81e833c2b3a5442be182ca2335b54c2e7e37578cc3fe12a27cfc";
+        image = "docker.io/vikunja/vikunja@sha256:f7dc8428d10aef17f3075886d3c1c022f566ec456f88985f02c137f4fc534576";
         environmentFiles = [ group.vikunjaEnvironmentFile ];
         environment = {
           VIKUNJA_DATABASE_TYPE = "postgres";

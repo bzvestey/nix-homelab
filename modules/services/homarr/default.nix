@@ -16,7 +16,8 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.homarr = {
-        image = "ghcr.io/homarr-labs/homarr@sha256:f0fb462299af9749a72f11040fd3f604d1c4976b3d9a137ae5021b7f44d980f5";
+        # v2 migrates boards/widgets: retain a verified appdata backup for rollback.
+        image = "ghcr.io/homarr-labs/homarr@sha256:9421086c541f0e83057eaac7b6181c6d3044835227017bea9fc4d0fffee49aa6";
         environmentFiles = [ group.environmentFiles.homarr ];
         environment = {
           TZ = "America/Los_Angeles";

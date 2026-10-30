@@ -16,7 +16,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.pocket-id = {
-        image = "ghcr.io/pocket-id/pocket-id@sha256:323e7ef5bfacf7cf32f22f3d10ccdf48e0c97c94d67e7e40b0b996830deb5165";
+        image = "ghcr.io/pocket-id/pocket-id@sha256:f085157f0b6ea4b2e8aa5ecfd99eada0d83a4960f3a3dcfd46014097d0ef7ab5";
         environmentFiles = [ group.environmentFiles.pocket-id ];
         environment = {
           TZ = "America/Los_Angeles";

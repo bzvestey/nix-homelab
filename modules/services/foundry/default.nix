@@ -53,7 +53,7 @@ in
       backend = "podman";
       containers.foundry = {
         # Foundry 14.369 requires Node >=24.13.1 and <25; restore licensed app separately.
-        image = "docker.io/library/node@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd";
+        image = "docker.io/library/node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c";
         user = "1000:1000";
         cmd = [
           "node"

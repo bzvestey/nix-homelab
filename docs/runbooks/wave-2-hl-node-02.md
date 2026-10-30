@@ -218,6 +218,18 @@ PG16 only. Confirm `pg_extension` versions after restore and exercise a real
 VectorChord index and application migrations before acceptance. Mealie retains
 PG17/pg_trgm 1.6. Reject a restore that changes these contracts without proof.
 
+The software refresh supplies pgvector 0.8.7 binaries, including the upstream
+index-build security fixes. A restored database may still report extension
+version 0.8.0: `CREATE EXTENSION IF NOT EXISTS` does not upgrade it, and with
+VectorChord selected Immich does not automatically upgrade its pgvector
+dependency. Treat deployment as an extension migration: require verified backups,
+rehearse `ALTER EXTENSION vector UPDATE TO '0.8.7';` against a restored database,
+follow the release-required index maintenance, and repeat the index/application
+checks. Fresh test databases use 0.8.7. Keep VectorChord at 0.4.3; Immich can
+automatically upgrade the selected extension and rebuild its vector indexes if
+that extension's available default changes. This does not change the PG16 major
+or authorize a live database write.
+
 The eventual production Immich upload library is an NFS4.1 hard mount from
 `nas.tailbc181.ts.net:/mnt/spinners-1/kube-store/immich` to `/mnt/bulk/immich`
 over Tailscale. The existing export authorizes hl-node-02's Tailscale address,

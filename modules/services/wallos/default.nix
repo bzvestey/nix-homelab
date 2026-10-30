@@ -16,7 +16,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.wallos = {
-        image = "docker.io/bellamy/wallos@sha256:0f049dbab45b9f8e8d43b84fd1b77ef9e55909bd1a384a0f4fe8597ab68a1d5d";
+        image = "docker.io/bellamy/wallos@sha256:8873c2328e745c7ca8ff0e0f5508215219ec5c02a3469c0d8049602be2a2bca3";
         environmentFiles = [ group.environmentFiles.wallos ];
         environment = {
           TZ = "America/Los_Angeles";

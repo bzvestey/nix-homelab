@@ -41,7 +41,6 @@ in
       efi.canTouchEfiVariables = true;
     };
     initrd.systemd = {
-      enable = true;
       tpm2.enable = true;
     };
   };

@@ -16,7 +16,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.donetick = {
-        image = "docker.io/donetick/donetick@sha256:a1cc21dd5a37acb5009009f13e5d2529153049361afb0a1cd94bde312382d36a";
+        image = "docker.io/donetick/donetick@sha256:fe6b04d496f315181c196bdf1fbea93d3525e105642c2d0b7a3e5dd7b53d3674";
         environmentFiles = [ group.environmentFiles.donetick ];
         environment = {
           TZ = "America/Los_Angeles";

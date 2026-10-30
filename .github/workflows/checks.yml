@@ -17,7 +17,7 @@ jobs:
       has_checks: ${{ steps.select.outputs.has_checks }}
       has_closures: ${{ steps.select.outputs.has_closures }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Test CI selection
         run: python3 .github/tests/ci-scope.py
       - id: select
@@ -35,8 +35,8 @@ jobs:
     name: ${{ matrix.architecture }} checks (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v19
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
       - name: Check formatting
         run: nix fmt -- --check .
       - name: Run statix
@@ -163,7 +163,7 @@ jobs:
       - name: Upload flake-check diagnostics
         if: ${{ always() && steps.flake-check.outcome != '' && steps.flake-check.outcome != 'skipped' }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: flake-diagnostics-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/check-diagnostics/
@@ -179,8 +179,8 @@ jobs:
     name: ${{ matrix.host }} closure (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v19
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
       - name: Build ${{ matrix.host }} closure
         run: |
           set -o pipefail

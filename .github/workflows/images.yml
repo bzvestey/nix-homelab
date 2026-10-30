@@ -32,7 +32,7 @@ jobs:
       has_framework_images: ${{ steps.select.outputs.has_framework_images }}
       has_pi_images: ${{ steps.select.outputs.has_pi_images }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Test CI selection
         run: python3 .github/tests/ci-scope.py
       - id: select
@@ -50,8 +50,8 @@ jobs:
       matrix: ${{ fromJSON(needs.scope.outputs.framework_images) }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.3
       - name: Test Framework artifact packaging
         run: bash .github/tests/framework-packaging.sh
       - name: Check installers
@@ -61,7 +61,7 @@ jobs:
       - name: Prepare Framework bootstrap artifact
         run: bash .github/scripts/package-framework.sh '${{ matrix.host }}'
       - name: Upload Framework bootstrap artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ matrix.host }}-bootstrap-${{ github.sha }}
           path: artifact-${{ matrix.host }}/
@@ -83,8 +83,8 @@ jobs:
       matrix: ${{ fromJSON(needs.scope.outputs.pi_images) }}
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.3
       - name: Build ${{ matrix.host }} image
         run: |
           set -o pipefail
@@ -129,7 +129,7 @@ jobs:
             printf 'installation_ready=false\n'
           } > "artifact/$host.manifest"
       - name: Upload Raspberry Pi bootstrap artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ matrix.host }}-${{ github.sha }}
           path: artifact/

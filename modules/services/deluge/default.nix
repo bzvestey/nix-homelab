@@ -15,7 +15,7 @@ in
       backend = "podman";
       containers = {
         deluge = {
-          image = "docker.io/linuxserver/deluge@sha256:9505c64720afa9e5f0ac1576e660dd6d1e9d4a6733b791f4821e8f496f19f41f";
+          image = "docker.io/linuxserver/deluge@sha256:1dbf9663387f85bb5805fcb1418a246f877e01374bb2a6cd9e632c72fb2e1ebc";
           environmentFiles = [ "/run/secrets/deluge.env" ];
           environment = {
             PUID = "1000";
@@ -32,7 +32,7 @@ in
           dependsOn = [ "gluetun" ];
         };
         gluetun = {
-          image = "docker.io/qmcgaw/gluetun@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab";
+          image = "docker.io/qmcgaw/gluetun@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027";
           environmentFiles = [ "/run/secrets/gluetun.env" ];
           environment = {
             VPN_SERVICE_PROVIDER = "protonvpn";

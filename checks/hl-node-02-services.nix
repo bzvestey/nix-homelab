@@ -15,16 +15,16 @@ let
   images = {
     immich =
       image "ghcr.io/immich-app/immich-server"
-        "sha256:db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1"
-        "sha256-vfmirPNuTIzuTJTGscFEhgY3SmOpNWdzx6n1GNXSv6o=";
+        "sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6"
+        "sha256-Gh97R7pppFztt1wtw1kzSye7VaVbfpc4aSEVdvqUxsE=";
     immich-ml =
       image "ghcr.io/immich-app/immich-machine-learning"
-        "sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed"
-        "sha256-S8N7eycF9DBY8atYDPzgLhHk2AsIGpyQURs2QZs6YOQ=";
+        "sha256:5b28c9352c8374b8a1ed96fbdd8d6755fea6e43510ec43fdf6538aa02ea40f56"
+        "sha256-iorczHf1sOYYATPWaL53RPLm6YRCDbakhLbLRpARWic=";
     mealie =
       image "ghcr.io/mealie-recipes/mealie"
-        "sha256:8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688"
-        "sha256-vu6yi+A/a6K/E13RzgjvvOqvrk7KsM5TDgRFl7Ps7zA=";
+        "sha256:78eb28b8776d0bad40c5e605c72b3f4f5976793e491558c7dcbdfc04c835d4bc"
+        "sha256-rRrAzersGYsRrcysSvHmD4D25VJHxMkHRuMx9bAD+/8=";
     tuwunel =
       image "docker.io/jevolk/tuwunel"
         "sha256:0e86c6164d6c9f5b60291938eb61ad8395021c37fe58d47a963ea7edddbedaec"
@@ -154,7 +154,7 @@ testPkgs.testers.runNixOSTest {
     assert sql("immich", "SHOW server_version_num")[:2] == "16"
     assert sql("mealie", "SHOW server_version_num")[:2] == "17"
     assert sql("immich", "SELECT extversion FROM pg_extension WHERE extname='vchord'") == "0.4.3"
-    assert sql("immich", "SELECT extversion FROM pg_extension WHERE extname='vector'") == "0.8.0"
+    assert sql("immich", "SELECT extversion FROM pg_extension WHERE extname='vector'") == "0.8.7"
     for extension, version in [("cube", "1.5"), ("earthdistance", "1.2"), ("pg_trgm", "1.6"), ("unaccent", "1.1"), ("uuid-ossp", "1.1")]:
         assert sql("immich", f"SELECT extversion FROM pg_extension WHERE extname='{extension}'") == version
     assert sql("mealie", "SELECT extversion FROM pg_extension WHERE extname='pg_trgm'") == "1.6"

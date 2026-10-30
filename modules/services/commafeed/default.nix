@@ -16,7 +16,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.commafeed = {
-        image = "docker.io/athou/commafeed@sha256:0e52f2a86c2ae36cb446401292c87ba6ca658fafda64c99bc7e8713ed433d8a3";
+        image = "docker.io/athou/commafeed@sha256:59b59cf87cc2ab4501dfbd05079db77b0e0a3454bd17974fb733431d866223ee";
         environmentFiles = [ group.environmentFiles.commafeed ];
         environment.TZ = "America/Los_Angeles";
         volumes = [ "/var/lib/commafeed:/commafeed/data" ];

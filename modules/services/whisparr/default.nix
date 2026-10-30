@@ -13,7 +13,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.whisparr = {
-        image = "ghcr.io/hotio/whisparr@sha256:c60aabe2ab85417e8f23dfc56285a33be413c5336ebe47b8f26eca9e7145540c";
+        image = "ghcr.io/hotio/whisparr@sha256:6a56c01ac277e9706e75aacc0c4dd037a326cbf2d6f91faf31a738a81fdfab4f";
         environmentFiles = [ "/run/secrets/whisparr.env" ];
         environment = {
           PUID = "1000";

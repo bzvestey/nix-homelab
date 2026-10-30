@@ -1,10 +1,10 @@
 { pkgs }:
 let
   vector = pkgs.postgresql16Packages.pgvector.overrideAttrs {
-    version = "0.8.0";
+    version = "0.8.7";
     src = pkgs.fetchurl {
-      url = "https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz";
-      hash = "sha256-hnosMo1JKKWp1vBSzTvHjH1gIoqbkUrTKqPbiOneJ7A=";
+      url = "https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.7.tar.gz";
+      hash = "sha256-ysCxDDYPBbLVISABBbo2l+dz1M03MfWpFafjfr4L6oU=";
     };
   };
   # Upstream's PG16 release avoids importing a second Rust/pgrx toolchain.

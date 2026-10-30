@@ -13,7 +13,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.sonarr = {
-        image = "ghcr.io/linuxserver/sonarr@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06";
+        image = "ghcr.io/linuxserver/sonarr@sha256:48e36b608b461273b9dae857725cd0561a127f2c694b687318f6d0c5ce63e5c9";
         environmentFiles = [ "/run/secrets/sonarr.env" ];
         environment = {
           PUID = "1000";

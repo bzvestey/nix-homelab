@@ -13,7 +13,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.radarr = {
-        image = "ghcr.io/linuxserver/radarr@sha256:adb6c09d6b729ea5e642c99cea35af72702ef476bf4763f153299ac5db9f0b4f";
+        image = "ghcr.io/linuxserver/radarr@sha256:084b3b2ab1d0ef930660727259546a241f2bdf67c9ed085d54bf1486a6887c9b";
         environmentFiles = [ "/run/secrets/radarr.env" ];
         environment = {
           PUID = "1000";

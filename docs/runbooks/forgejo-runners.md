@@ -118,15 +118,12 @@ the job image's absolute `/var/run -> /run` symlink. The subsequent missing
 `dist/index.js` error is a consequence of the failed copy, not a missing Node
 installation or bad repository credentials.
 
-The runner module backports the final fix from
-[Buildah #7129](https://github.com/podman-container-tools/buildah/pull/7129),
-adapting its call site to Podman's vendored Buildah 1.43.4. Only the API daemon
-uses the patched binary; unrelated application units and the CLI package are
-unchanged. Its systemd drop-in resets the vendor unit's `ExecStart` before
-replacing it. The archive security checks remain enabled: valid in-container
-absolute symlinks work, while relative escapes outside the extraction directory
-remain rejected. Remove this backport once the pinned Podman includes the fix;
-do not downgrade away the existing archive security patches.
+Podman 6.1.4 vendors Buildah 1.45.2, which includes the final fix from
+[Buildah #7129](https://github.com/podman-container-tools/buildah/pull/7129).
+The local backport and API-daemon binary override are no longer needed.
+The archive security checks remain enabled: valid in-container absolute
+symlinks work, while relative escapes outside the extraction directory remain
+rejected. Do not downgrade away the upstream archive security fixes.
 
 The regression fixture exercises both cases through `PUT /containers/.../archive`,
 with `/var/run -> /run` in its job image. A plain file-copy command does not

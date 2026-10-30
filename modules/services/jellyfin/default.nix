@@ -22,7 +22,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.jellyfin = {
-        image = "ghcr.io/linuxserver/jellyfin@sha256:1bb4f88d822a0510bb3604b68aacb80d77c1d2a30181e500090c65111b98723b";
+        image = "ghcr.io/linuxserver/jellyfin@sha256:3894d9eae88418d3cf9ac6349392d2c4dad818365a59565d19edc38098897044";
         ports = [ "127.0.0.1:8096:8096" ];
         environmentFiles = [ group.jellyfinEnvironmentFile ];
         environment = {

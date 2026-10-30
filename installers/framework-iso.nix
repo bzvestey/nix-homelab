@@ -97,7 +97,6 @@ in
   };
   systemd.services."serial-getty@ttyS0".enable = lib.mkDefault true;
   boot.initrd.systemd = {
-    enable = true;
     tpm2.enable = true;
   };
 }

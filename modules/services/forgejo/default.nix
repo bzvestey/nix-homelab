@@ -47,7 +47,8 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.forgejo = {
-        image = "codeberg.org/forgejo/forgejo@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8";
+        # v17 migrates the app schema: verify DB/state backups and duration settings before rollout.
+        image = "codeberg.org/forgejo/forgejo@sha256:fcd19ff4ebc85fb098a67e8e1d0d5a84d07dd6e8a23edcfdfd5b71a6178953be";
         environmentFiles = [ "/run/secrets/forgejo.env" ];
         environment = {
           USER_UID = "1000";

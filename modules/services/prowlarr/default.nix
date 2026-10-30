@@ -13,7 +13,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.prowlarr = {
-        image = "ghcr.io/linuxserver/prowlarr@sha256:f2b26429893d4c4cb71941b7ee50b1bdecd9d5f9f9e02d5410615e9f4f7c8d95";
+        image = "ghcr.io/linuxserver/prowlarr@sha256:04be30163fbaf48d6aeee7b5893c9f6614ffbad6d853971df0d6dcdf01c7f104";
         environmentFiles = [ "/run/secrets/prowlarr.env" ];
         environment = {
           PUID = "1000";

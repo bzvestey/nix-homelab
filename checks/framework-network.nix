@@ -44,7 +44,6 @@ pkgs.testers.runNixOSTest {
       ];
       memorySize = 1024;
     };
-    boot.initrd.systemd.enable = iso.boot.initrd.systemd.enable;
     networking = {
       useDHCP = false;
       useNetworkd = true;

@@ -13,7 +13,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.sabnzbd = {
-        image = "ghcr.io/linuxserver/sabnzbd@sha256:4f7ee6c53834bc336365bd0a7c35f4fc870156a72d33a334753010258aa077a4";
+        image = "ghcr.io/linuxserver/sabnzbd@sha256:a7cfba459929f73b83c98b476a845076dc72524af80b24fcb4200684e6b1b675";
         environmentFiles = [ "/run/secrets/sabnzbd.env" ];
         environment = {
           PUID = "1000";

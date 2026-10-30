@@ -21,7 +21,7 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.kavita = {
-        image = "docker.io/linuxserver/kavita@sha256:2842f1c0882b9d0ce3103420eea0a90b27e4537ff29f87b1471cdd752e936837";
+        image = "docker.io/linuxserver/kavita@sha256:34dddd2e79854772b788e5847f1702444b11118bbeabd0a5590f57e15346222b";
         ports = [ "127.0.0.1:5000:5000" ];
         environmentFiles = [ group.kavitaEnvironmentFile ];
         environment = {

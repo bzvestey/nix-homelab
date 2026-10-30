@@ -65,7 +65,8 @@ pkgs.testers.runNixOSTest {
     assert set(machine.succeed("cat /sys/class/net/bond0/bonding/slaves").split()) == {"lan0", "lan1"}
     assert machine.succeed("ethtool -P lan0").strip() == "Permanent address: 52:54:00:12:01:01"
     assert machine.succeed("ethtool -P lan1").strip() == "Permanent address: 52:54:00:12:02:01"
-    machine.succeed("ip -4 -o addr show bond0 | grep -F '10.15.4.5/24'")
+    # Enslaving both NICs does not imply networkd has assigned the address yet.
+    machine.wait_until_succeeds("ip -4 -o addr show bond0 | grep -F '10.15.4.5/24'")
     machine.succeed("test $(cat /sys/class/net/bond0/bonding/miimon) -eq 100")
     machine.fail("systemctl is-active --quiet NetworkManager")
     # The hub NIC must stay excluded even if its current MAC equals the bond's.

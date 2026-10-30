@@ -17,7 +17,7 @@ let
 in
 {
   options.services.fleet.mealie = {
-    enable = lib.mkEnableOption "pinned Mealie with local PG17";
+    enable = lib.mkEnableOption "pinned Mealie with local PG18";
     environmentFile = lib.mkOption {
       type = lib.types.strMatching "^/run/.*";
       default = "/run/secrets/mealie.env";
@@ -27,7 +27,7 @@ in
   config = lib.mkIf cfg.enable {
     services.postgresql = {
       enable = true;
-      package = pkgs.postgresql_17;
+      package = pkgs.postgresql_18;
       settings.listen_addresses = lib.mkForce "127.0.0.1";
       ensureDatabases = [ "app" ];
       ensureUsers = [
@@ -43,12 +43,24 @@ in
     };
     systemd = {
       services = {
-        postgresql.unitConfig.ConditionPathExists = cfg.environmentFile;
+        postgresql = {
+          unitConfig.ConditionPathExists = cfg.environmentFile;
+          # NixOS otherwise initializes an empty versioned directory on a major
+          # package change. Existing installations must restore PG18 first.
+          preStart = lib.mkBefore ''
+            if test -e /var/lib/postgresql/17/PG_VERSION; then
+              test -e ${config.services.postgresql.dataDir}/PG_VERSION || {
+                echo "Existing Mealie PG17 cluster requires a validated PG18 restore before startup" >&2
+                exit 1
+              }
+            fi
+          '';
+        };
         postgresql-setup = {
           unitConfig.ConditionPathExists = cfg.environmentFile;
           serviceConfig.EnvironmentFile = cfg.environmentFile;
           postStart = lib.mkAfter ''
-            ${pkgs.postgresql_17}/bin/psql -v ON_ERROR_STOP=1 -d postgres -f ${sql}
+            ${pkgs.postgresql_18}/bin/psql -v ON_ERROR_STOP=1 -d postgres -f ${sql}
           '';
         };
         podman-mealie = {
@@ -103,7 +115,7 @@ in
       backup.jobs = {
         mealie-db = backups.database {
           name = "mealie";
-          package = pkgs.postgresql_17;
+          package = pkgs.postgresql_18;
           user = "postgres";
           socket = "/run/postgresql";
           port = 5432;

@@ -13,7 +13,7 @@ in
 {
   imports = [ ../../fleet/local-postgres.nix ];
   options.services.fleet.immich = {
-    enable = lib.mkEnableOption "pinned Immich with local PG16 and NAS library";
+    enable = lib.mkEnableOption "pinned Immich with local PG18 and NAS library";
     environmentFile = lib.mkOption {
       type = lib.types.strMatching "^/run/.*";
       default = "/run/secrets/immich.env";
@@ -46,7 +46,7 @@ in
           CREATE EXTENSION IF NOT EXISTS unaccent;
           CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
           CREATE EXTENSION IF NOT EXISTS vector VERSION '0.8.7';
-          CREATE EXTENSION IF NOT EXISTS vchord VERSION '0.4.3';
+          CREATE EXTENSION IF NOT EXISTS vchord VERSION '1.1.1';
         '';
       };
       storage.nfsMounts.immich-library = {

@@ -144,6 +144,12 @@ testPkgs.testers.runNixOSTest {
     machine.succeed("systemctl cat fleet-backup-immich-db fleet-backup-mealie-db fleet-backup-mealie-state fleet-backup-tuwunel-state")
     machine.succeed("install -d -m 700 /run/secrets; printf 'DB_PASSWORD=immich-fixture\n' >/run/secrets/immich.env; printf 'POSTGRES_PASSWORD=mealie-fixture\nOIDC_CLIENT_SECRET=oidc-fixture\n' >/run/secrets/mealie.env; chmod 600 /run/secrets/*.env")
     machine.succeed("install -m 600 ${tuwunelConfig} /run/secrets/tuwunel.toml")
+    # A package change must not silently replace an existing Mealie cluster
+    # with an empty PG18 database before an operator restores its data.
+    machine.succeed("install -d -m 700 -o postgres -g postgres /var/lib/postgresql/17; printf 17 >/var/lib/postgresql/17/PG_VERSION; chown postgres:postgres /var/lib/postgresql/17/PG_VERSION")
+    machine.fail("systemctl start postgresql.target")
+    machine.succeed("test ! -e /var/lib/postgresql/18/PG_VERSION; test $(cat /var/lib/postgresql/17/PG_VERSION) = 17")
+    machine.succeed("systemctl stop postgresql.target postgresql.service; rm -rf /var/lib/postgresql/17; systemctl reset-failed postgresql.service postgresql-setup.service postgresql.target")
     machine.succeed("systemctl start postgres-immich postgresql.target")
     machine.succeed("systemctl start podman-immich podman-immich-ml podman-mealie podman-tuwunel")
     for url in ["http://127.0.0.1:2283/api/server/ping", "http://127.0.0.1:3003/ping", "http://127.0.0.1:9000/api/app/about", "http://127.0.0.1:8008/_matrix/client/versions"]:
@@ -151,9 +157,9 @@ testPkgs.testers.runNixOSTest {
     def sql(app, query):
         user, socket, port, binary = ("postgres-immich", "/run/postgres-immich", 5433, "${pg16}/bin/psql") if app == "immich" else ("postgres", "/run/postgresql", 5432, "${pkgs.postgresql_17}/bin/psql")
         return machine.succeed(f"runuser -u {user} -- {binary} -h {socket} -p {port} -d app -qAt -v ON_ERROR_STOP=1 -c {shlex.quote(query)}").strip()
-    assert sql("immich", "SHOW server_version_num")[:2] == "16"
-    assert sql("mealie", "SHOW server_version_num")[:2] == "17"
-    assert sql("immich", "SELECT extversion FROM pg_extension WHERE extname='vchord'") == "0.4.3"
+    assert sql("immich", "SHOW server_version_num")[:2] == "18"
+    assert sql("mealie", "SHOW server_version_num")[:2] == "18"
+    assert sql("immich", "SELECT extversion FROM pg_extension WHERE extname='vchord'") == "1.1.1"
     assert sql("immich", "SELECT extversion FROM pg_extension WHERE extname='vector'") == "0.8.7"
     for extension, version in [("cube", "1.5"), ("earthdistance", "1.2"), ("pg_trgm", "1.6"), ("unaccent", "1.1"), ("uuid-ossp", "1.1")]:
         assert sql("immich", f"SELECT extversion FROM pg_extension WHERE extname='{extension}'") == version
@@ -169,7 +175,7 @@ testPkgs.testers.runNixOSTest {
         assert sql(app, "SELECT current_setting('shared_preload_libraries')") == ("vchord" if app == "immich" else "")
     machine.fail("runuser -u postgres -- ${pg16}/bin/psql -h /run/postgres-immich -p 5433 app -c 'SELECT 1'")
     machine.fail("runuser -u postgres-immich -- ${pkgs.postgresql_17}/bin/psql -h /run/postgresql app -c 'SELECT 1'")
-    for path in ["/var/lib/postgres-immich", "/var/lib/postgresql/17", "/var/lib/mealie", "/var/lib/tuwunel", "/var/cache/immich-ml"]:
+    for path in ["/var/lib/postgres-immich", "/var/lib/postgresql/18", "/var/lib/mealie", "/var/lib/tuwunel", "/var/cache/immich-ml"]:
         machine.fail(f"findmnt -n -T {path} -o FSTYPE | grep -q '^nfs'")
     for port in [8081, 8082]:
         machine.wait_until_succeeds(f"curl -fsS http://127.0.0.1:{port}/metrics | grep -q '^# HELP'")

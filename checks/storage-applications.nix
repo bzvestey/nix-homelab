@@ -32,7 +32,7 @@ assert jobs.vikunja-db.paths == [ "/var/lib/postgres-vikunja" ];
 assert jobs.jellyfin-state.paths == [ "/var/lib/jellyfin" ];
 assert jobs.kavita-state.paths == [ "/var/lib/kavita" ];
 assert jobs.vikunja-files.paths == [ "/var/lib/vikunja" ];
-assert lib.versions.major c.fleet.localPostgres.vikunja.package.version == "17";
+assert lib.versions.major c.fleet.localPostgres.vikunja.package.version == "18";
 assert builtins.all
   (name: jobs.${name}.frequency == "hourly" && jobs.${name}.backupClass == "database")
   [

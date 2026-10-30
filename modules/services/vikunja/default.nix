@@ -15,7 +15,7 @@ in
     ../../fleet/local-postgres.nix
     ../storage-shared.nix
   ];
-  options.services.fleet.vikunja.enable = lib.mkEnableOption "Vikunja with local PG17";
+  options.services.fleet.vikunja.enable = lib.mkEnableOption "Vikunja with local PG18";
   config = lib.mkIf cfg.enable {
     systemd.tmpfiles.rules = [ "d /var/lib/vikunja 0750 storage-apps storage-apps -" ];
     systemd.services = {
@@ -67,7 +67,7 @@ in
     };
     fleet = {
       localPostgres.vikunja = {
-        package = pkgs.postgresql_17;
+        package = pkgs.postgresql_18;
         port = 5434;
         environmentFile = group.vikunjaEnvironmentFile;
         initializeSQL = ''
@@ -92,7 +92,7 @@ in
           };
         vikunja-db = backups.database {
           name = "vikunja";
-          package = pkgs.postgresql_17;
+          package = pkgs.postgresql_18;
           user = "postgres-vikunja";
           socket = "/run/postgres-vikunja";
           port = 5434;

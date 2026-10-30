@@ -78,7 +78,17 @@ jobs:
           set +e
           if [[ '${{ matrix.architecture }}' == x86_64-linux ]]; then
             if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-              nix flake check --show-trace --option max-jobs 1 --cores 2 2>&1 | tee "$log"
+              {
+                # Release the full-flake evaluation heap before starting VMs.
+                # Build every native check from its drv path, without re-evaluating
+                # the flake in the process that waits for those builds.
+                nix flake check --no-build --show-trace &&
+                  nix eval --raw '.#checks.x86_64-linux' --apply \
+                    'checks: builtins.concatStringsSep "\n" (builtins.map (check: check.drvPath + "^*") (builtins.attrValues checks))' \
+                    > "$diagnostics/check-installables" &&
+                  mapfile -t check_installables < "$diagnostics/check-installables" &&
+                  nix build --no-link --show-trace --option max-jobs 1 --cores 2 "${check_installables[@]}"
+              } 2>&1 | tee "$log"
               status=${PIPESTATUS[0]}
             else
               {

@@ -127,7 +127,13 @@ assert lib.hasInfix " reconcile "
   )).systemd.services.kuma-reconciler.serviceConfig.ExecStart;
 assert observer.config.fleet.observability.kumaReconciler.enable;
 assert observer.config.fleet.observability.kumaReconciler.mode == "dry-run";
-assert observer.config.fleet.observability.kumaReconciler.notificationPolicy == null;
+assert
+  observer.config.fleet.observability.kumaReconciler.notificationPolicy == {
+    notificationIDList = {
+      "1" = true;
+      "2" = true;
+    };
+  };
 assert
   observer.config.fleet.observability.kumaReconciler.credentialFile
   == observer.config.sops.secrets.kuma-reconciler-management.path;

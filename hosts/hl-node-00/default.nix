@@ -41,7 +41,10 @@
         mode = "dry-run";
         endpoint = "https://kuma-management.tailbc181.ts.net";
         credentialFile = config.sops.secrets.kuma-reconciler-management.path;
-        notificationPolicy = null;
+        notificationPolicy.notificationIDList = {
+          "1" = true;
+          "2" = true;
+        };
       };
       homeAssistant = {
         enable = true;

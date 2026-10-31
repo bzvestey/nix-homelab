@@ -83,7 +83,16 @@ let
   };
 in
 assert baseline.schemaVersion == 1;
-assert baseline == nixosConfigurations.hl-node-00.config.fleet.observability.kumaReconciler.desired;
+assert
+  (generate (
+    input
+    // {
+      notificationPolicy.notificationIDList = {
+        "1" = true;
+        "2" = true;
+      };
+    }
+  )) == nixosConfigurations.hl-node-00.config.fleet.observability.kumaReconciler.desired;
 assert lib.length baseline.groups == 4;
 assert lib.length checks == 28;
 assert lib.count (check: check.type == "ping") checks == 5;

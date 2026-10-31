@@ -1,16 +1,16 @@
 # Immich, Mealie and Vikunja: PostgreSQL 18 migration
 
-Status: configuration and isolated database restore rehearsals prepared locally.
-The user approved continuation on 2026-10-31. Refreshed read-only preflight at
-03:38 UTC confirmed all three applications healthy, no invalid indexes or
-additional non-template databases beyond `app` and `postgres`, successful last
-database backups, and idle Comin on nodes02/03. Publication and cutover are
-deferred until the active Pi builds finish; **no production major-version
-migration or push has occurred**.
+Status: signed upgrade commit `55f2ffe52a7e6eccde451795dad2c1e2dcc2a198`
+published to main on 2026-10-31. Pi recovery is complete. **All three applications
+are running on PostgreSQL 18.6**, with VectorChord 1.1.1 and pgvector 0.8.7 for
+Immich. Database/API checks and post-upgrade backups passed. The user accepted
+all three applications. Comin is resumed on nodes02/03 and has deployed the
+signed target on both hosts. All three original active database backup timers
+are running. Original clusters and verified pre-cutover backups remain retained.
 
 ## Scope and targets
 
-| Application | Host | Current PostgreSQL | Target | Live data directory |
+| Application | Host | Source PostgreSQL | Target | Live data directory |
 | --- | --- | --- | --- | --- |
 | Immich | hl-node-02, 10.15.4.5 | 16.15 | 18.6 | `/var/lib/postgres-immich` |
 | Mealie | hl-node-02, 10.15.4.5 | 17.11 | 18.6 | `/var/lib/postgresql/17` → `/var/lib/postgresql/18` |
@@ -118,6 +118,10 @@ the following gates to every application in the host's maintenance group.
    <application>-db`. Require success; record the exact new snapshot ID, not a
    floating `latest`. Restore-validate that exact backup under PG18 and compare
    with the stopped-writer baseline before replacing any live data directory.
+   Retain a verified copy with an additional migration-specific tag before
+   creating another same-hour backup: the normal hourly retention policy may
+   otherwise expire this exact snapshot. `--group-by tags` separates that copy
+   from normal rolling backups. Preserve its original capture time in the log.
 4. Stage a fresh target cluster as its production OS owner, using PG18 initdb,
    `--encoding=UTF8 --locale=C`, private socket and no exposed TCP listener.
    Create/restore required roles and `app` ownership, then restore with PG18
@@ -132,8 +136,12 @@ the following gates to every application in the host's maintenance group.
    modes. Keep old secret/configuration references available privately.
 6. Activate the reviewed target system closure with Comin still suspended.
    Ensure automatic application startup cannot precede the database validation
-   gate; use temporary runtime masks for affected writer units if required,
-   recording and later removing only masks created by this maintenance.
+   gate using a temporary unit drop-in with a `ConditionPathExists` pointing
+   at an absent maintenance permit file. Check `systemctl cat` and the effective
+   condition before stopping writers. **Do not rely on `mask --runtime`: the
+   NixOS units in `/etc/systemd/system` outrank masks in `/run/systemd/system`.**
+   Remove only this maintenance drop-in after database validation, daemon-reload
+   and explicitly start the application.
    The systemd configuration must select the correct new database path/package,
    existing authentication rules and runtime credentials. Confirm the database
    role password via the existing setup mechanism, not by copying a secret into
@@ -154,6 +162,107 @@ the following gates to every application in the host's maintenance group.
    runtime masks/overrides created by this operation. Record versions, exact
    snapshots, timings and acceptance outcomes. Retain old data until the user
    explicitly approves its eventual removal.
+
+## Production execution — node02, 2026-10-31
+
+- Pi00 recovery copied all three matching kernel outputs from Pi01; Pi00 then
+  built and activated the signed target without recompiling the kernel. Both
+  temporary Comin overrides were removed after activation. Both Pis' readiness
+  endpoints passed; Loki's initial readiness delay recovered without changes.
+- Refreshed preflight confirmed expected source versions, only `app`/`postgres`
+  databases and healthy applications. Suspended idle Comin on nodes02/03 before
+  pushing the signed upgrade. Copied both target host closures before downtime.
+- Stopped node02 writers at **14:41 UTC**, with both app database session counts
+  zero. Captured and retrieved exact fresh backups at 14:41:59/14:42:04 UTC.
+  Restored them into private Unix-only PG18 clusters under their production OS
+  owners. Immich's 72 tables / 405,687 rows and Mealie's 69 tables / 6,998 rows
+  matched source content fingerprints and ownership. Immich index definitions
+  and six indexed/exact vector search probes matched.
+- Validation detected a genuine identity-sequence representation difference:
+  `naturalearth_countries_tmp_id_seq1` was `bigint` with maximum 2147483647 on
+  PG16, but its dump's `ADD GENERATED ... AS IDENTITY` omits the sequence type,
+  so PG18 selected `integer` from the column. On the **staged target only**,
+  used `ALTER SEQUENCE public.naturalearth_countries_tmp_id_seq1 AS bigint
+  MAXVALUE 2147483647`. Full source/target validation then passed, including all
+  sequence fields/values. No source database was modified by that adjustment.
+  A separate tuple-versus-JSON-array comparison issue was normalized in the
+  scratch harness; no data or assertion fields were discarded.
+- Stopped original and staged clusters, retained the original Immich cluster at
+  `/var/lib/postgres-immich-pg16-preserved-20261031`, left Mealie's original
+  `/var/lib/postgresql/17` intact, and moved the validated PG18 clusters into
+  their service paths. Activated the target closure successfully.
+- **Ordering deviation:** temporary runtime masks did not block the higher
+  priority `/etc` units. Activation started Mealie at **14:46:29 UTC** and
+  Immich at **14:46:30 UTC**, before the intended post-activation stopped-writer
+  check. Both restored clusters had already passed the full comparison before
+  activation. No rollback was attempted after writers resumed. The procedure
+  above now requires an explicit absent-file startup condition for Vikunja.
+- Live checks confirmed PG18.6, expected extension versions, original ownership
+  and index definitions, valid indexes and exact/indexed vector agreement.
+  Mealie's content fingerprints still matched completely; Immich's only changed
+  table fingerprint was `system_metadata` after app startup. This is an
+  observation, not a claim that live writes were compared to a frozen snapshot.
+  Immich API, worker and ML startup and Mealie API passed; no service restarts
+  or failed systemd units were observed. Approximate API interruption: 5½ minutes.
+- Both PG18 backup jobs subsequently succeeded, and both database timers are
+  active. Removed the two maintenance runtime masks. Retained the old system
+  closure/packages with GC root
+  `/nix/var/nix/gcroots/pg18-preupgrade-node02-20261031`.
+- Normal same-hour backup retention expired the initial pre-cutover snapshot
+  metadata. The untouched captured payloads were still held privately and were
+  re-archived with additional tag `pg18-precutover-20261031`; fetched each archive
+  again and verified its SHA-256 against the original captured payload. Retained
+  snapshot IDs (these contain the 14:41/14:42 data, not new live captures):
+  - Immich: `627f33a15916839bcaf3f1e85265c53f31df5da39f50e3a93adc741fd4c4a5d9`
+  - Mealie: `221f12d2e706034a99d5dac28d9ea9c50adf7e80886ef8db659e73bc085baba3`
+- The user subsequently confirmed “Immich and Mealie work as expected; continue
+  with Vikunja.” Resumed Comin on node02 after that acceptance; live status
+  confirmed unsuspended, idle, signed target `55f2ffe5` deployed done.
+  No automated signed-in test credentials were available or created.
+
+## Production execution — node03, 2026-10-31
+
+- Refreshed preflight confirmed PostgreSQL 17.11, only `app`/`postgres` databases,
+  healthy Vikunja, idle suspended Comin and a successful prior database backup.
+  Retained the old system closure/packages with GC root
+  `/nix/var/nix/gcroots/pg18-preupgrade-node03-20261031`.
+- Installed the maintenance-only drop-in
+  `/run/systemd/system/podman-vikunja.service.d/pg18-maintenance.conf`, requiring
+  an absent `/run/pg18-vikunja-writers-permitted` file. Checked effective drop-in
+  loading, paused the database timer and stopped Vikunja at **15:27:12 UTC**.
+  Explicitly attempted app start on the old stack: `ConditionResult=no`,
+  `MainPID=0`, proving the condition blocked writers before cutover.
+- Confirmed zero application database sessions. Captured a fresh stopped-writer
+  snapshot at **15:27:17 UTC**:
+  `6a5325a83bb09db8d02c64a8ee33be8fc1c3dc431f9129b992b60daf2aa0411b`.
+  Retrieved its exact payload and created a byte-identical retained copy with
+  tag `pg18-precutover-20261031`, fetching it again to verify SHA-256:
+  `2daca24c24f6810995f1aa6e84e5a47c9b3fbe6b609b6d4516d0173110ba951d`.
+  Use that retained ID for recovery, not the rolling snapshot reference.
+- Restored into a private Unix-only PG18 cluster under `postgres-vikunja`.
+  All **42 tables / 17,241 rows**, table content fingerprints, ownership and
+  complete sequence state matched the stopped-writer source; all indexes were
+  valid/ready. Stopped old/staged servers, retained the original cluster at
+  `/var/lib/postgres-vikunja-pg17-preserved-20261031`, and moved the validated
+  PG18 cluster to `/var/lib/postgres-vikunja`.
+- Activated the target closure. The maintenance condition survived activation
+  and kept app `MainPID=0`, `ConditionResult=no`. With writers still stopped,
+  confirmed live PostgreSQL 18.6 and repeated the complete source/target
+  data/ownership/sequence/index comparison successfully.
+- Removed only the maintenance drop-in, daemon-reloaded and started Vikunja at
+  **15:28:18 UTC**. Its API passed at 15:28:19; observed interruption was about
+  **67 seconds**. Live table fingerprints still matched completely after
+  startup. App/database had zero restarts and no failed units. Logs reported
+  the HTTP server listening normally. PG18 database backup subsequently passed,
+  and the original active database timer is running.
+- The user subsequently confirmed “Vikunja works as expected” and authorized
+  resuming node03. Resumed Comin and verified it unsuspended and idle, with
+  signed target `55f2ffe5` deployed done. Rechecked PostgreSQL 18.6, healthy
+  Vikunja API, active app/database with zero restarts, active database backup
+  timer and no failed units. No credentials or temporary accounts were created
+  to bypass signed-in acceptance. Temporary local dumps and remote staging
+  were removed; the original PG17 cluster, old-system GC root and verified
+  migration-tagged pre-cutover snapshot remain retained.
 
 ## Recovery
 

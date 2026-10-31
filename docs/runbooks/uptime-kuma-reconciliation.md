@@ -2,14 +2,34 @@
 
 ## Status and authority
 
-The reviewed hl-node-00 configuration selects **dry-run only**, using the private
+The reviewed hl-node-00 configuration selects **automatic apply**, using the private
 management origin `https://kuma-management.tailbc181.ts.net` and a root-only SOPS
-credential. After separately authorized publication/activation, its five-minute
-timer performs authenticated reads, not monitor writes. Prepared configuration
-is not evidence of live installation or a successful plan. Commands below are
-procedures for separately authorized work, not authorization to execute it.
+credential. Its five-minute timer reconciles only the accepted ownership and
+creation policy. New checks use the explicitly approved notification channels
+**1 and 2**; existing notification assignments are preserved. Commands below are
+procedures for separately authorized work, not blanket permission to bootstrap
+again or expand the accepted policy.
 See the [design](../superpowers/specs/2026-10-26-uptime-kuma-reconciliation-design.md)
 for the reviewed identities and safety requirements.
+
+### Production bootstrap acceptance — 2026-10-31
+
+After explicit approval of both notification channels, the exact fresh plan
+adopted 19 existing objects and created 13 HTTP monitors, with no updates or
+deletions. The native ARM hardened bootstrap unit succeeded on hl-node-00 and
+persisted origin-bound ownership for 32 objects with no pending intents. The
+configured inventory grew from 21 to 34 objects, including the two unmanaged NAS
+checks. Every new monitor reported UP through Kuma's own heartbeat events and
+has both notification channels. Existing settings, IDs, pause state and sampled
+history were preserved; group 19 gained precisely the 13 intended children.
+The subsequent plan was valid with zero operations, conflicts or removals.
+Filtered Kuma metrics remained healthy and exposed all 34 objects.
+
+One labelled activation test per approved channel received a successful provider
+acknowledgement; this does not independently prove a person read the messages.
+Private before-state and plan evidence remain on hl-node-00 in the root/service
+protected review directory; do not publish raw inventory or notification data.
+Automatic apply follows this accepted bootstrap, not a replacement for it.
 
 Only Kuma **2.5.6 and 2.5.8** are supported. The exact allowlist in
 `packages/kuma-reconciler/versions.py` is shared by the transport, planner and
@@ -136,8 +156,9 @@ to bypass a mismatch. Stop invocation, retain the full private state/approval
 evidence and obtain an explicit reviewed migration and fresh exact approval.
 Prove the destination objects' identities/history and review mappings/policy
 under the common lock before any separately authorized state migration. There
-is no automatic migration/reset/bypass command. No live migration is required
-for this disabled, never-provisioned implementation. Origin binding cannot
+is no automatic migration/reset/bypass command. The production bootstrap is bound
+to the current management origin; changing it requires this migration review.
+Origin binding cannot
 detect a replaced database served at the same origin; validate provenance on
 restores/replacements rather than treating origin as a stable server UUID.
 

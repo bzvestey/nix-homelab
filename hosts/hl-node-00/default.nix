@@ -38,7 +38,7 @@
       nas.enable = true;
       kumaReconciler = {
         enable = true;
-        mode = "dry-run";
+        mode = "apply";
         endpoint = "https://kuma-management.tailbc181.ts.net";
         credentialFile = config.sops.secrets.kuma-reconciler-management.path;
         notificationPolicy.notificationIDList = {

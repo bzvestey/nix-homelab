@@ -126,7 +126,7 @@ assert lib.hasInfix " reconcile "
     }
   )).systemd.services.kuma-reconciler.serviceConfig.ExecStart;
 assert observer.config.fleet.observability.kumaReconciler.enable;
-assert observer.config.fleet.observability.kumaReconciler.mode == "dry-run";
+assert observer.config.fleet.observability.kumaReconciler.mode == "apply";
 assert
   observer.config.fleet.observability.kumaReconciler.notificationPolicy == {
     notificationIDList = {
@@ -140,7 +140,9 @@ assert
 assert observer.config.sops.secrets.kuma-reconciler-management.owner == "root";
 assert observer.config.sops.secrets.kuma-reconciler-management.group == "root";
 assert observer.config.sops.secrets.kuma-reconciler-management.mode == "0600";
-assert lib.hasInfix " plan "
+assert lib.hasInfix " reconcile "
+  observer.config.systemd.services.kuma-reconciler.serviceConfig.ExecStart;
+assert lib.hasInfix " --authorize-ongoing"
   observer.config.systemd.services.kuma-reconciler.serviceConfig.ExecStart;
 assert lib.any (
   check:

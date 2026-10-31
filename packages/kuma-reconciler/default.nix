@@ -12,7 +12,7 @@ let
     ps.websocket-client
   ]);
 in
-runCommand "kuma-reconciler-2.5.6"
+runCommand "kuma-reconciler"
   {
     passthru = { inherit python; };
     nativeBuildInputs = [ makeWrapper ];
@@ -22,6 +22,7 @@ runCommand "kuma-reconciler-2.5.6"
     cp ${./client.py} $out/lib/kuma-reconciler/client.py
     cp ${./reconcile.py} $out/lib/kuma-reconciler/reconcile.py
     cp ${./provision.py} $out/lib/kuma-reconciler/provision.py
+    cp ${./versions.py} $out/lib/kuma-reconciler/versions.py
     mkdir -p $out/bin
     makeWrapper ${python}/bin/python $out/bin/kuma-reconciler \
       --add-flags "$out/lib/kuma-reconciler/reconcile.py" \

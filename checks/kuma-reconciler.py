@@ -32,6 +32,7 @@ import socket
 import ssl
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -44,6 +45,9 @@ import socketio
 
 
 PASSWORD = "Disposable-Kuma-Contract-42!"
+
+# Load the packaged planner/client's shared version policy, not a checkout copy.
+sys.path.insert(0, str(Path(os.environ["RECONCILE_FILE"]).parent))
 
 
 def desired_document():
@@ -254,6 +258,16 @@ class PlannerContracts(unittest.TestCase):
         self.blocked("origin")  # Must not even inspect this invalid ID record.
         self.assertEqual(self.plan()["fingerprints"], {})
 
+    def test_only_validated_versions_are_accepted(self):
+        for version in ("2.5.6", "2.5.8"):
+            with self.subTest(version=version):
+                self.live["version"] = version
+                self.assertTrue(self.plan()["valid"])
+        for version in ("2.5.5", "2.5.7", "2.5.9", "2.6.0", "2.5.8-dev", None, []):
+            with self.subTest(version=version):
+                self.live["version"] = version
+                self.blocked("unsupported-version")
+
     def test_validation_stale_digest_version_state_and_intents(self):
         self.desired["checks"][0]["name"] = "changed"
         self.blocked("manifest-digest")
@@ -391,6 +405,14 @@ class Contracts(unittest.TestCase):
             if fault == "delayed-info":
                 old = '        await sendInfo(socket, true);'
                 new = '        await new Promise(resolve => setTimeout(resolve, 250));\n' + old
+            elif fault == "version-drift":
+                # Test-only real Socket.IO event; do not alter release metadata.
+                old = audit_anchor
+                new = '''        socket.on("contractVersionDrift", (callback) => {
+            io.emit("info", { version: "2.5.9" });
+            callback({ ok: true });
+        });
+''' + old
             elif fault == "late-auth-info":
                 old = '        sendInfo(socket),'
                 new = '        Promise.resolve().then(() => { setTimeout(() => sendInfo(socket), 1000); }),'
@@ -1141,7 +1163,7 @@ class Contracts(unittest.TestCase):
         active = client.create_monitor(self.payload("active"))
         paused = client.create_monitor(self.payload("paused", active=False))
         snapshot = client.snapshot()
-        self.assertEqual(snapshot["version"], "2.5.6")
+        self.assertEqual(snapshot["version"], os.environ["KUMA_VERSION"])
         monitors = {m["id"]: m for m in snapshot["monitors"]}
         self.assertTrue(monitors[active]["active"])
         self.assertFalse(monitors[paused]["active"])
@@ -1256,7 +1278,7 @@ class Contracts(unittest.TestCase):
             "origin": endpoint, "caFile": str(self.ca), "username": "contract", "password": PASSWORD,
         })
         self.assertEqual(self.client(path, endpoint).snapshot(),
-                         {"origin": endpoint, "version": "2.5.6", "monitors": []})
+                         {"origin": endpoint, "version": os.environ["KUMA_VERSION"], "monitors": []})
 
     def test_ack_timeout_never_retries_mutation(self):
         endpoint = self.start_server("lost-ack", fault="lost-ack")
@@ -1278,6 +1300,43 @@ class Contracts(unittest.TestCase):
         raw.on("monitorList", lists.append)
         self.assertTrue(raw.call("getMonitorList", timeout=10)["ok"])
         self.assertEqual([m["name"] for m in lists[-1].values()], ["uncertain"])
+
+    def test_post_connect_version_drift_blocks_all_operations(self):
+        endpoint = self.start_server("version-drift", fault="version-drift",
+                                     cleanup_register=self.addCleanup)
+        raw = self.raw_client(endpoint)
+        self.addCleanup(raw.disconnect)
+        self.assertTrue(raw.call("setup", ("contract", PASSWORD), timeout=10)["ok"])
+        self.assertTrue(raw.call("login", {"username": "contract", "password": PASSWORD}, timeout=10)["ok"])
+        path = self.write_credential("drift.json", {
+            "origin": endpoint, "caFile": str(self.ca), "loginToken": raw.call(
+                "login", {"username": "contract", "password": PASSWORD}, timeout=10)["token"],
+        })
+        client = self.client(path, endpoint)
+        self.assertEqual(client.snapshot()["monitors"], [])
+        received = threading.Event()
+        raw.on("info", lambda data: received.set())
+        self.assertTrue(raw.call("contractVersionDrift", timeout=10)["ok"])
+        self.assertTrue(received.wait(10))
+        # Wait for the independent client's Socket.IO reader, not just raw's.
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                client.snapshot()
+            except self.module.KumaError as error:
+                self.assertEqual(error.category, "version")
+                break
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(0.01)
+        for operation in (client.snapshot, lambda: client.get_monitor(1),
+                          lambda: client.create_monitor(self.payload("must-not-exist")),
+                          lambda: client.edit_monitor({"id": 1, "name": "must-not-edit"})):
+            with self.assertRaisesRegex(self.module.KumaError, "version"):
+                operation()
+        lists = []
+        raw.on("monitorList", lists.append)
+        self.assertTrue(raw.call("getMonitorList", timeout=10)["ok"])
+        self.assertEqual(lists[-1], {})
 
     def test_server_version_and_auth_fail_closed(self):
         before = self.client().snapshot()["monitors"]

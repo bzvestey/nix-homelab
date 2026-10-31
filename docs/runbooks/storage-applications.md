@@ -102,6 +102,18 @@ Leave bulk libraries in place, with read-only container binds:
 | `/mnt/spinners-1/apps/syncthing` | `/mnt/bulk/syncthing` | Kavita `/data/syncthing` |
 
 `dependentUnits` supplies RequiresMountsFor/BindsTo and disables idle expiry.
+Before each mount attempt, a per-mount `nfs-ready-*.service` waits up to 60
+seconds for the configured NAS name to resolve and TCP port 2049 to accept a
+connection. `network-online.target` alone does not establish Tailscale DNS/NAS
+readiness. The readiness service does not cache success; subsequent mount
+attempts check again. The existing mount timeouts and fail-closed dependencies
+remain: an unavailable NAS leaves dependent applications stopped, not writing
+to local fallback directories. If readiness times out, diagnose DNS, tailnet
+connectivity and NAS availability, then start the affected application unit to
+retry its dependencies. Do not remove the mount dependencies or create local
+replacement data. `journalctl -b -u 'nfs-ready-*' -u 'mnt-bulk-*'` shows the gate
+and mount results.
+
 NAS ACLs must allow numeric 1000 to read/traverse existing libraries; do not
 recursively chown bulk exports. App config/databases never use NFS. LSIO root
 initialization fixes device access for PUID 1000 with `/dev/dri` mapped as a

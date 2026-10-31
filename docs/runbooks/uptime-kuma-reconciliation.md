@@ -11,10 +11,55 @@ procedures for separately authorized work, not authorization to execute it.
 See the [design](../superpowers/specs/2026-10-26-uptime-kuma-reconciliation-design.md)
 for the reviewed identities and safety requirements.
 
-Only Kuma **2.5.6** is supported. The locked client uses the internal authenticated
-Socket.IO API, not a stable public API. Accept new versions against a real server
-before upgrading; a version refusal is not a reason to bypass the gate.
+Only Kuma **2.5.6 and 2.5.8** are supported. The exact allowlist in
+`packages/kuma-reconciler/versions.py` is shared by the transport, planner and
+credential provisioner; 2.5.7, future releases and development suffixes remain
+unsupported. The locked client uses the internal authenticated Socket.IO API,
+not a stable public API. Accept new versions against a real server before
+upgrading; a version refusal is not a reason to bypass the gate. The client
+rechecks the version before each operation, including after connection.
 The observer remains Kuma on HAOS; the job runs centrally on hl-node-00.
+
+### Local release evidence
+
+The two flake checks `kuma-reconciler` and `kuma-service` each require **both**
+real upstream releases, in separate disposable NixOS VMs. Fixtures pin immutable
+commits and independently fetched source/npm dependency hashes:
+
+| Release | Upstream commit | Fixture |
+| --- | --- | --- |
+| 2.5.6 | `7ca4a3debd76443d8452da95d4040200a1479af4` | `checks/fixtures/kuma-2.5.6.nix` |
+| 2.5.8 | `0bd417b981d7dd4e7a0ecaa5afcd90c274d74eca` | `checks/fixtures/kuma-2.5.8.nix` |
+
+The [upstream comparison](https://github.com/louislam/uptime-kuma/compare/7ca4a3debd76443d8452da95d4040200a1479af4...0bd417b981d7dd4e7a0ecaa5afcd90c274d74eca)
+leaves login/loginByToken, authenticated info and inventory ordering, setup,
+getMonitorList/getMonitor, add acknowledgements and the full-object edit protocol
+unchanged. It removes `expectedTlsAlert` from monitor JSON and edit handling when
+dropping TCP-port TLS support; TCP monitors are not controller-owned types.
+Docker verification, Apprise argument handling and the login UI also change.
+The npm lock changes include Socket.IO 4.8.3 → 4.8.4 and Engine.IO 6.6.10 →
+6.6.11, so source inspection alone is not compatibility evidence.
+
+The complete contract suite covers both releases' authenticated password/token
+flows, encrypted MFA-aware provisioning, paused inventory, read-only planning,
+adoption, create/edit preservation of IDs/history/settings/notifications,
+ownership and recovery barriers, TLS/origin/auth failures and deadlines. It also
+rejects unsupported initial versions and injected post-connect version drift
+without monitor mutations. Negative version fixtures explicitly alter metadata
+only to test rejection; successful-release fixtures use the real release's own
+metadata and dependencies. The service suite exercises the actual hardened units
+in dry-run and explicitly authorized disposable apply mode on both releases.
+Run locally with:
+
+```sh
+nix build .#checks.x86_64-linux.kuma-reconciler .#checks.x86_64-linux.kuma-service --no-link -L
+```
+
+This is local compatibility evidence, not permission to upgrade Kuma, publish,
+activate a closure or change any production monitor. Production acceptance still
+requires separately authorized authenticated **read-only planning**, followed by
+the distinct write-approval gates below. A passing fixture cannot establish a
+successful production plan or an unchanged production inventory.
 
 ## Separate delivery gates
 
@@ -139,7 +184,7 @@ The uppercase values are placeholders, not credentials or approved recipients.
 The helper hides username/password input and requests a fresh MFA code only when
 Kuma requires one. It performs a fresh login, not browser-session extraction.
 TLS/hostname verification, exact canonical origin, WebSocket-only transport and
-authenticated version 2.5.6 are required; there is no retry or insecure bypass.
+authenticated version 2.5.6 or 2.5.8 are required; there is no retry or insecure bypass.
 Authentication receives private inventory events from Kuma; these are not printed
 or saved. The helper submits no monitor writes and changes no authentication
 settings (a successful MFA login does consume its one-time code).
@@ -164,7 +209,7 @@ plaintext file. The ciphertext and declaration still require signed publication
 approval, and dry-run installation remains a separate gate. Keep the encrypted
 staging copy until delivery is verified, then remove only the disposable copy.
 
-In pinned 2.5.6 the login token is a management JWT with **no expiration**. Issuing
+In both pinned releases the login token is a management JWT with **no expiration**. Issuing
 another token does not revoke the previous one; a password change invalidates
 existing tokens and affects other sessions. Do not describe it as a scoped
 read-only or independently revocable API key. Do not change the account password

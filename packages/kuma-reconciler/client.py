@@ -1,9 +1,9 @@
-"""Pinned, synchronous Kuma 2.5.6 management boundary.
+"""Pinned, synchronous Kuma management boundary for validated releases.
 
 Private credential JSON binds credentials to an exact `origin` (HTTPS, no path).
 Supply either `loginToken` or `username` and `password`, never both. Optional
 `caFile` selects an explicit CA bundle; otherwise use the system trust store.
-Snapshots are {"origin": canonical configured HTTPS origin, "version": "2.5.6",
+Snapshots are {"origin": canonical configured HTTPS origin, "version": release,
 "monitors": [full monitor dictionaries]}. Origin is local configuration verified
 by TLS and credential binding, never server-supplied metadata.
 Edit payloads are patches containing `id`; merge with a fresh getMonitor result
@@ -25,6 +25,8 @@ from urllib.parse import urlsplit
 
 import requests
 import socketio
+
+from versions import SUPPORTED_VERSIONS
 
 
 class KumaError(Exception):
@@ -118,7 +120,7 @@ class _SocketClient:
                 self._call("login", {key: credentials[key] for key in fields}, category="auth")
             if not self._info_event.wait(10) or not self._list_event.wait(10):
                 raise KumaError("timeout")
-            if self._version != "2.5.6":
+            if self._version not in SUPPORTED_VERSIONS:
                 raise KumaError("version")
             self._ready = True
         except KumaError:
@@ -158,7 +160,7 @@ class _SocketClient:
     def _check_ready(self):
         if self._closed or not self._ready or not self._socket.connected:
             raise KumaError("closed")
-        if self._version != "2.5.6":
+        if self._version not in SUPPORTED_VERSIONS:
             raise KumaError("version")
 
     def snapshot(self) -> dict:

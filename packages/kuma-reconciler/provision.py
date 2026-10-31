@@ -16,6 +16,7 @@ import warnings
 import socketio
 
 from client import KumaError, _OriginSession
+from versions import SUPPORTED_VERSIONS
 
 
 def provision(args):
@@ -78,7 +79,7 @@ def provision(args):
                 raise KumaError("auth")
             if not authenticated_info.wait(10):
                 raise KumaError("timeout")
-            if info.get("version") != "2.5.6":
+            if info.get("version") not in SUPPORTED_VERSIONS:
                 raise KumaError("version")
             credential = {"origin": origin, "loginToken": reply["token"]}
             if args.ca_file:

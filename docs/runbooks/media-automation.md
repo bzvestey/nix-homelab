@@ -79,6 +79,12 @@ apps and downloaders. Do not invent `/downloads` mounts for the arr applications
 Update only downloader connection endpoints where Kubernetes DNS no longer
 exists; retain API keys and original path mappings. Mount dependencies bind
 writers to the actual mounts so failed NFS never writes into local fallbacks.
+Each mount waits up to 60 seconds for NAS DNS and TCP/2049 readiness before
+attempting NFS; this avoids the boot race where the physical network is online
+before Tailscale DNS is usable. A readiness timeout leaves dependent writers
+stopped. Diagnose NAS reachability before retrying the affected application;
+see the [storage dependency and recovery guidance](storage-applications.md#capture-and-restore-mapping).
+Never bypass mount dependencies.
 
 Each `<name>-state` fleet backup job is hourly, database alert class, a complete
 stopped-state capture. Restore uses the fleet helper, with 1000:1000 ownership,

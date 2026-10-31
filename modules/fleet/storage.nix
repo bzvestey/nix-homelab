@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   utils,
   ...
 }:
@@ -8,6 +9,7 @@ let
   cfg = config.fleet.storage;
   mounts = lib.attrValues cfg.nfsMounts;
   mountUnit = target: "${utils.escapeSystemdPath target}.mount";
+  readinessService = target: "nfs-ready-${utils.escapeSystemdPath target}";
 in
 {
   options.fleet.storage.nfsMounts = lib.mkOption {
@@ -45,8 +47,8 @@ in
         where = mount.target;
         type = "nfs";
         options = "_netdev,nfsvers=4.1,hard,timeo=50,retrans=2";
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
+        after = [ "${readinessService mount.target}.service" ];
+        requires = [ "${readinessService mount.target}.service" ];
         unitConfig.JobRunningTimeoutSec = "15s";
         mountConfig = {
           TimeoutSec = "10s";
@@ -65,7 +67,41 @@ in
       }) mounts;
 
       services = lib.mkMerge (
-        lib.concatMap (
+        map (
+          mount:
+          let
+            # NFS sources are host:/export or [IPv6]:/export.
+            host =
+              if lib.hasPrefix "[" mount.source then
+                lib.removePrefix "[" (builtins.head (lib.splitString "]:" mount.source))
+              else
+                builtins.head (lib.splitString ":" mount.source);
+          in
+          {
+            ${readinessService mount.target} = {
+              description = "Wait for NFS server for ${mount.target}";
+              after = [ "network-online.target" ];
+              wants = [ "network-online.target" ];
+              path = [
+                pkgs.getent
+                pkgs.netcat-openbsd
+              ];
+              serviceConfig = {
+                Type = "oneshot";
+                TimeoutStartSec = "60s";
+              };
+              # Do not cache readiness: a later mount attempt rechecks the NAS.
+              # systemd bounds even stalled resolver calls and kills children.
+              script = ''
+                host=${lib.escapeShellArg host}
+                until getent ahosts "$host" >/dev/null && nc -z -w 1 "$host" 2049 >/dev/null 2>&1; do
+                  sleep 1
+                done
+              '';
+            };
+          }
+        ) mounts
+        ++ lib.concatMap (
           mount:
           map (unit: {
             ${unit} = {

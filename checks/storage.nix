@@ -30,17 +30,17 @@ pkgs.testers.runNixOSTest {
 
       fleet.storage.nfsMounts = {
         test = {
-          source = "server:/srv/export";
+          source = "nas.test:/srv/export";
           target = "/mnt/bulk/test";
           dependentUnits = [ "storage-fixture" ];
         };
         escaped = {
-          source = "server:/srv/export";
+          source = "nas.test:/srv/export";
           target = "/mnt/bulk/test#data";
           dependentUnits = [ "storage-fixture" ];
         };
         ondemand = {
-          source = "server:/srv/export";
+          source = "nas.test:/srv/export";
           target = "/mnt/bulk/ondemand";
         };
       };
@@ -60,6 +60,8 @@ pkgs.testers.runNixOSTest {
   };
 
   testScript = ''
+    from datetime import timedelta
+
     start_all()
     server.wait_for_unit("multi-user.target")
     client.wait_for_unit("multi-user.target")
@@ -93,12 +95,18 @@ pkgs.testers.runNixOSTest {
 
     server.succeed("systemctl stop nfs-server.service")
     client.succeed("systemctl start mnt-bulk-test.automount")
-    client.fail("systemctl start storage-fixture.service")
+    client.fail("systemctl start storage-fixture.service", timeout=timedelta(seconds=90))
     client.fail("systemctl is-active storage-fixture.service")
 
-    server.succeed("systemctl start nfs-server.service")
     client.succeed("systemctl reset-failed mnt-bulk-test.mount")
     client.succeed("systemctl reset-failed 'mnt-bulk-test\\x23data.mount'")
+    # network-online is already reached, but NAS DNS and the NFS listener
+    # become available separately. A DNS-only wait would still mount too soon
+    # and hit the ten-second mount timeout before the server starts.
+    client.succeed("cp /etc/hosts /run/hosts; ln -sf /run/hosts /etc/hosts")
+    client.succeed("getent ahostsv4 server | head -n1 | cut -d' ' -f1 | xargs -I IP echo 'IP nas.test' > /run/nas-host")
+    client.succeed("systemd-run --unit=nas-dns-ready --on-active=5s --timer-property=AccuracySec=1ms ${pkgs.runtimeShell} -c '${pkgs.coreutils}/bin/cat /run/nas-host >> /run/hosts'")
+    server.succeed("systemd-run --unit=nas-network-ready --on-active=25s --timer-property=AccuracySec=1ms ${pkgs.systemd}/bin/systemctl start nfs-server.service")
     client.succeed("systemctl start storage-fixture.service")
     client.wait_until_succeeds("test $(cat /mnt/bulk/test/service-write) = mounted")
 

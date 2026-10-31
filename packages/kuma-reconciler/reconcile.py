@@ -25,6 +25,8 @@ import tempfile
 import time
 from urllib.parse import urlsplit
 
+from versions import SUPPORTED_VERSIONS
+
 
 class PlanError(Exception):
     """A bounded, non-sensitive input category."""
@@ -267,7 +269,7 @@ def build_plan(desired: dict, live: dict, ownership: dict) -> dict:
     if ownership["intents"]:
         conflict("unresolved-intent")
     try:
-        if live["version"] != "2.5.6":
+        if live["version"] not in SUPPORTED_VERSIONS:
             conflict("unsupported-version")
         monitors = live["monitors"]
         if not isinstance(monitors, list):

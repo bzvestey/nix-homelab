@@ -69,7 +69,7 @@ in
           FORGEJO__database__NAME = "app";
           FORGEJO__database__USER = "app";
           FORGEJO__storage__STORAGE_TYPE = "minio";
-          FORGEJO__storage__MINIO_ENDPOINT = "10.15.4.101:30188";
+          FORGEJO__storage__MINIO_ENDPOINT = "nas.tailbc181.ts.net:30188";
           FORGEJO__storage__MINIO_BUCKET = "forgejo";
           FORGEJO__storage__MINIO_BUCKET_LOOKUP = "path";
           FORGEJO__storage__MINIO_LOCATION = "garage";

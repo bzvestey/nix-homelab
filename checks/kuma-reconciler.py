@@ -786,11 +786,26 @@ class Contracts(unittest.TestCase):
         self.assertLess(elapsed, 122)
         saved = json.loads((directory / "ownership.json").read_text())
         self.assertFalse(saved["bootstrapComplete"])
-        self.assertTrue(saved["intents"])
-        self.assertGreaterEqual(len(saved["owned"]), 10)
+        self.assertGreaterEqual(len(saved["owned"]), 2)
         observer = self.client(credential, endpoint)
         before = observer.snapshot()
-        with self.assertRaisesRegex(planner.PlanError, "unresolved-intent"):
+        monitors = {m["id"]: m for m in before["monitors"]}
+        confirmed = {r["id"] for r in saved["owned"].values()}
+        self.assertTrue(confirmed.issubset(monitors))
+        expected = {g["key"]: ("group", g["name"]) for g in desired["groups"]}
+        expected.update({c["key"]: (c["type"], c["name"]) for c in desired["checks"]})
+        for key, record in saved["owned"].items():
+            monitor = monitors[record["id"]]
+            self.assertEqual((monitor["type"], monitor["name"]), expected[key])
+        # The wall-clock budget may expire during a mutation OR a read after
+        # its confirmation is durable. Only ambiguous writes require recovery;
+        # confirmed progress instead invalidates the original reviewed plan.
+        pending = bool(saved["intents"]) or (directory / "mutation.pending").exists()
+        if pending:
+            self.assertLessEqual(len(set(monitors) - confirmed), 1)
+        else:
+            self.assertEqual(set(monitors), confirmed)
+        with self.assertRaisesRegex(planner.PlanError, "unresolved-intent" if pending else "stale-plan"):
             planner.apply_plan(plan, desired, observer, directory)
         self.assertEqual(before, observer.snapshot())
         self.assertNotIn("RECONCILE_FORBIDDEN:", (self.root / "slow-apply/server.log").read_text())

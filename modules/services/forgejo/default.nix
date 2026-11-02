@@ -48,7 +48,8 @@ in
       backend = "podman";
       containers.forgejo = {
         # v17 migrates the app schema: verify DB/state backups and duration settings before rollout.
-        image = "codeberg.org/forgejo/forgejo@sha256:fcd19ff4ebc85fb098a67e8e1d0d5a84d07dd6e8a23edcfdfd5b71a6178953be";
+        # Keep the rootless layout: the restored state lives at /var/lib/gitea, not /data.
+        image = "codeberg.org/forgejo/forgejo:17.0.1-rootless@sha256:5ef02fbcf22beef56b8c844952ffad58cfe177b6f98e46e6abb5df90b88dc8d3";
         environmentFiles = [ "/run/secrets/forgejo.env" ];
         environment = {
           USER_UID = "1000";

@@ -56,6 +56,37 @@ confirmed restore. Restore paired Forgejo/PDS database and state only with their
 writers stopped; never start Kubernetes and native copies together. The
 prerequisite details below describe the original capture/import contract.
 
+## Forgejo storage-layout repair: 2026-11-02
+
+Forgejo 17.0.1 must use the **rootless** image with the existing restored mounts:
+`/var/lib/forgejo/data:/var/lib/gitea` and
+`/var/lib/forgejo/config:/etc/gitea`. The rootless image loads
+`/var/lib/gitea/custom/conf/app.ini`; its repository root is
+`/var/lib/gitea/git/repositories`. Keep the image variant when updating its pin.
+The regular image instead used an anonymous `/data` volume and looked for
+repositories at `/data/git/repositories`, leaving all six restored repositories
+inaccessible to the application despite readable Git data.
+
+Repair captures are retained root-only on node02 at
+`/var/lib/hlr/forgejo-layout-repair-20261102T143026Z/`: persistent-state and
+replacement anonymous-volume archives, a PostgreSQL custom-format dump,
+checksums, and the previous system closure path. Archive listings, dump table
+of contents, and checksums were validated before the system switch. The
+database and restored repositories were not replaced or reimported.
+The configured log directory `/var/lib/gitea/data/log` was recreated as the
+application user; the path diagnostic then passed. All six repositories passed
+Git object-integrity checks with unchanged HEAD commits. An authenticated clone
+of `servers/config` through `git-ssh.tailbc181.ts.net` returned the expected
+HEAD. Authenticated browser repository views still require user acceptance.
+
+**Capture caveat:** the first attempt stopped the old unit before archiving
+`/data`. Its container cleanup deleted that anonymous volume. The initial
+volume's generated keys, queues and indexes were not captured; the successful
+archive contains the replacement volume created when the old image restarted,
+not that initial state. No repositories existed at `/data/git/repositories`.
+For any future anonymous-volume recovery, freeze the container and capture its
+volume **before** stopping the unit; do not assume unit cleanup retains it.
+
 ## Foundry 14.369 upgrade: 2026-10-12
 
 The application on node02 is now 14.369, installed from the administrator's

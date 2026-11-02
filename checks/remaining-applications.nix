@@ -25,6 +25,13 @@ assert apps.forgejo.environment.FORGEJO__server__ROOT_URL == "https://git.tailbc
 assert apps.forgejo.environment.FORGEJO__server__SSH_DOMAIN == "git-ssh.tailbc181.ts.net";
 assert apps.forgejo.environment.FORGEJO__database__NAME == "app";
 assert apps.forgejo.environment.FORGEJO__database__HOST == "127.0.0.1:5434";
+# The restored layout requires the rootless image, not the /data-based image.
+assert builtins.match ".*-rootless@sha256:[0-9a-f]{64}" apps.forgejo.image != null;
+assert
+  apps.forgejo.volumes == [
+    "/var/lib/forgejo/data:/var/lib/gitea"
+    "/var/lib/forgejo/config:/etc/gitea"
+  ];
 assert apps.tangled-knot.environment.KNOT_SEALED_KEY_FILE == "/data/sealed-keys";
 assert apps.tangled-knot.environment.KNOT_SSH_HOST_KEY_FILE == "/data/ssh_host_key";
 assert

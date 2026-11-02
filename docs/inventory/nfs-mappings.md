@@ -8,6 +8,7 @@ on local filesystems.
 | --- | --- | --- | --- | --- | --- |
 | `shared-video-library` | `10.15.4.101:/mnt/spinners-1/videos` | `/mnt/bulk/videos` | `hl-node-03`, `hl-node-04` | bulk, shared-retained | Deluge, Jellyfin, Radarr, SABnzbd, Sonarr, Whisparr |
 | `kavita-library` | `10.15.4.101:/mnt/spinners-1/Computer/books` | `/mnt/bulk/books` | `hl-node-03` | bulk, shared-retained | Kavita |
+| `book-library` | `nas.tailbc181.ts.net:/mnt/spinners-1/books` | `/mnt/bulk/book-library` | `hl-node-03`, `hl-node-04` | bulk, shared-retained | Chaptarr (RW), Audiobookshelf (RO) |
 | `immich-library` | `nas.tailbc181.ts.net:/mnt/spinners-1/kube-store/immich` | `/mnt/bulk/immich` | `hl-node-02` | bulk, shared-retained | Immich server |
 
 Immich uses the NAS Tailscale endpoint (`100.102.187.89`), with hl-node-02's

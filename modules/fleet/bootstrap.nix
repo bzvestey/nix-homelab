@@ -12,6 +12,9 @@ let
     map (name: "podman-${name}") (builtins.attrNames config.virtualisation.oci-containers.containers)
     ++ map (name: "postgres-${name}") (builtins.attrNames (config.fleet.localPostgres or { }))
     ++ map (name: "tailscale-${name}") (builtins.attrNames config.fleet.tailscaleServiceProxy.proxies)
+    ++ map (name: "tailscale-service-${name}") (
+      builtins.attrNames config.fleet.tailscaleServices.services
+    )
     ++ lib.optional (
       config.services.fleet ? forgejo-runner
     ) "forgejo-runner-${utils.escapeSystemdPath config.services.fleet.forgejo-runner.name}"

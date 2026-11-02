@@ -1,6 +1,7 @@
 { config, lib, ... }:
 let
   names = [
+    "chaptarr"
     "deluge"
     "prowlarr"
     "publication-manager"

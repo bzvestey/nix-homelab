@@ -13,6 +13,7 @@ let
       units =
         map (name: "podman-${name}") (builtins.attrNames c.virtualisation.oci-containers.containers)
         ++ map (name: "tailscale-${name}") (builtins.attrNames c.fleet.tailscaleServiceProxy.proxies)
+        ++ map (name: "tailscale-service-${name}") (builtins.attrNames c.fleet.tailscaleServices.services)
         ++ map (name: "postgres-${name}") (builtins.attrNames (c.fleet.localPostgres or { }));
     in
     !c.systemd.services.comin.enable
@@ -29,6 +30,12 @@ let
   c03 = preparedConfigurations.hl-node-03-staging.config;
 in
 assert lib.all quarantined (builtins.attrValues bootstrapConfigurations);
+assert builtins.attrNames c04.fleet.tailscaleServices.services == [ "chaptarr" ];
+assert builtins.attrNames c03.fleet.tailscaleServices.services == [ "audiobookshelf" ];
+assert !(c04.fleet.preparedApplications.secretPaths ? tailscale-chaptarr-state-json);
+assert !(c03.fleet.preparedApplications.secretPaths ? tailscale-audiobookshelf-state-json);
+assert !(c04.fleet.backup.jobs ? tailscale-chaptarr-state);
+assert !(c03.fleet.backup.jobs ? tailscale-audiobookshelf-state);
 assert builtins.hasAttr "pocket-id" c01.virtualisation.oci-containers.containers;
 assert builtins.hasAttr "mailrise" c01.virtualisation.oci-containers.containers;
 assert !(builtins.hasAttr "pocket-id" c03.virtualisation.oci-containers.containers);

@@ -60,6 +60,7 @@
         ./modules/fleet/backup.nix
         ./modules/fleet/telemetry-agent.nix
         ./modules/fleet/ingress.nix
+        ./modules/fleet/tailscale-services.nix
         ./modules/fleet/cloudflared.nix
       ];
       frameworkModules = fleetModules ++ [
@@ -366,6 +367,9 @@
             pkgs = nixpkgs.legacyPackages.${system};
           };
           ingress = import ./checks/ingress.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+          tailscale-services = import ./checks/tailscale-services.nix {
             pkgs = nixpkgs.legacyPackages.${system};
           };
           observability = import ./checks/observability.nix {

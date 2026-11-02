@@ -114,4 +114,33 @@ assert lib.all (name: lib.all (port: lib.hasPrefix "127.0.0.1:" port) containers
 assert
   lib.length (lib.unique (lib.concatMap (name: containers.${name}.ports) (apps ++ [ "gluetun" ])))
   == 8;
+assert lib.assertMsg (containers ? chaptarr) "Media role must enable Chaptarr";
+assert containers.chaptarr.ports == [ "127.0.0.1:8789:8789" ];
+assert lib.hasInfix "@sha256:" containers.chaptarr.image;
+assert containers.chaptarr.environment.PUID == "1000";
+assert containers.chaptarr.environmentFiles == [ ];
+assert !(config.fleet.localPostgres or { }) ? chaptarr;
+assert lib.all (key: !(lib.hasInfix "Postgres" key)) (
+  builtins.attrNames containers.chaptarr.environment
+);
+assert lib.all (volume: builtins.elem volume containers.chaptarr.volumes) [
+  "/var/lib/media-automation/chaptarr:/config"
+  "/mnt/bulk/book-library:/books"
+  "/mnt/bulk/videos:/videos"
+  "/mnt/bulk/deluge-downloads:/downloads"
+];
+assert
+  config.fleet.storage.nfsMounts.book-library.source == "nas.tailbc181.ts.net:/mnt/spinners-1/books";
+assert lib.all
+  (mount: builtins.elem "podman-chaptarr" config.fleet.storage.nfsMounts.${mount}.dependentUnits)
+  [
+    "book-library"
+    "videos"
+    "deluge-downloads"
+  ];
+assert config.fleet.tailscaleServices.services.chaptarr.upstream == "http://127.0.0.1:8789";
+assert !(config.fleet.tailscaleServiceProxy.proxies ? chaptarr);
+assert config.fleet.backup.jobs.chaptarr-state.paths == [ "/var/lib/media-automation/chaptarr" ];
+assert config.fleet.backup.jobs.chaptarr-state.interruptsService;
+assert config.fleet.backup.jobs.chaptarr-state.frequency == "*-*-* 06:00:00 America/Los_Angeles";
 true

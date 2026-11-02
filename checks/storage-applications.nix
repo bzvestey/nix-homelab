@@ -57,4 +57,25 @@ assert builtins.all
     "kavita"
     "vikunja"
   ];
+assert lib.assertMsg (containers ? audiobookshelf) "Storage role must enable Audiobookshelf";
+assert containers.audiobookshelf.ports == [ "127.0.0.1:13378:13378" ];
+assert containers.audiobookshelf.user == "1000:1000";
+assert containers.audiobookshelf.environment.PORT == "13378";
+assert containers.audiobookshelf.environmentFiles == [ ];
+assert lib.hasInfix "@sha256:" containers.audiobookshelf.image;
+assert lib.all (volume: builtins.elem volume containers.audiobookshelf.volumes) [
+  "/var/lib/audiobookshelf/config:/config"
+  "/var/lib/audiobookshelf/metadata:/metadata"
+  "/mnt/bulk/book-library:/books:ro"
+];
+assert
+  c.fleet.storage.nfsMounts.books.source == "nas.tailbc181.ts.net:/mnt/spinners-1/Computer/books";
+assert
+  c.fleet.storage.nfsMounts.book-library.source == "nas.tailbc181.ts.net:/mnt/spinners-1/books";
+assert builtins.elem "podman-audiobookshelf" c.fleet.storage.nfsMounts.book-library.dependentUnits;
+assert c.fleet.tailscaleServices.services.audiobookshelf.upstream == "http://127.0.0.1:13378";
+assert !(c.fleet.tailscaleServiceProxy.proxies ? audiobookshelf);
+assert jobs.audiobookshelf-state.paths == [ "/var/lib/audiobookshelf" ];
+assert jobs.audiobookshelf-state.interruptsService;
+assert jobs.audiobookshelf-state.frequency == "*-*-* 06:00:00 America/Los_Angeles";
 true

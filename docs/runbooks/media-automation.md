@@ -1,5 +1,10 @@
 # Media automation on hl-node-04
 
+Chaptarr's new deployment shares the existing Deluge and SABnzbd instances;
+see [Books services](books-services.md) for its separate books dataset, native
+Tailscale Service, local SQLite backups, and activation requirements. The source
+capture and migrated-service contracts below describe the original applications.
+
 Preparation only: do not activate before final source capture, secret enrollment
 and bootstrap quarantine removal. `services.fleet.mediaAutomation.enable`
 defaults to false; the developer-media-services role imports and enables it.

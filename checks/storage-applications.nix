@@ -66,7 +66,7 @@ assert lib.hasInfix "@sha256:" containers.audiobookshelf.image;
 assert lib.all (volume: builtins.elem volume containers.audiobookshelf.volumes) [
   "/var/lib/audiobookshelf/config:/config"
   "/var/lib/audiobookshelf/metadata:/metadata"
-  "/mnt/bulk/book-library:/books:ro"
+  "/mnt/bulk/book-library:/books:rw"
 ];
 assert
   c.fleet.storage.nfsMounts.books.source == "nas.tailbc181.ts.net:/mnt/spinners-1/Computer/books";

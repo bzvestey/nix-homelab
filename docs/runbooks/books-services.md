@@ -28,7 +28,8 @@ module uses supported `PORT=13378` and publishes `127.0.0.1:13378:13378`.
 This deliberately differs from the design's default container port 80 without
 adding privileges or changing the user-facing origin. The local database is
 `/config/absdatabase.sqlite`; initial config/metadata measured under 1 MiB.
-The probe verified writable local metadata and rejected writes to `/books`.
+The initial probe verified writable local metadata and rejected writes to
+`/books`; the operator subsequently authorized a writable library for uploads.
 Both applications answered HTTP 200 at `/` and `/ping` in isolated containers.
 These probes are not live library/import or Tailscale acceptance evidence.
 
@@ -46,7 +47,7 @@ live acceptance. ARM configurations were evaluated, not executed.
 
 | Purpose | NAS export | Host path | Container path |
 | --- | --- | --- | --- |
-| New organized library | `/mnt/spinners-1/books` | `/mnt/bulk/book-library` on both hosts | Chaptarr `/books` RW; Audiobookshelf `/books` RO |
+| New organized library | `/mnt/spinners-1/books` | `/mnt/bulk/book-library` on both hosts | Chaptarr `/books` RW; Audiobookshelf `/books` RW |
 | Existing shared downloads/video | `/mnt/spinners-1/videos` | `/mnt/bulk/videos` on hl-node-04 | Chaptarr `/videos` |
 | Existing Deluge downloads | `/mnt/spinners-1/kube-store/deluge/downloads` | `/mnt/bulk/deluge-downloads` on hl-node-04 | Chaptarr `/downloads` |
 
@@ -61,6 +62,24 @@ Local state is `/var/lib/media-automation/chaptarr` and
 mode-0700 directories. Do not put configuration or SQLite files on NFS. Services
 depend on the actual NFS mounts and stop when mounts stop. Hard-mounted NAS
 outages may block I/O; they are not instant service-stop signals.
+
+### Direct uploads enabled: 2026-11-03
+
+The operator authorized changing Audiobookshelf's `/books` mount to read-write
+and deploying hl-node-03. Before activation, the application's directory-creation
+helper failed with `ENOENT` on the read-only mount. After activation, nested
+directory creation, file write/read, rename and deletion succeeded as 1000:1000
+in both library folders; all probe files were removed. The native Tailscale
+Service and HTTPS `/ping` were healthy after restart. Retry failed browser uploads;
+authenticated multipart upload acceptance remains a user check.
+
+Local state excluding temporary uploads was archived under
+`/var/lib/hlr/audiobookshelf-upload-repair-20261103T022848Z/` before activation.
+All 185 existing temporary upload files (87 GB) were retained in place and
+hard-linked into that recovery directory before restart. Those links protect
+against unlinking, not in-place changes, and are not independent backups.
+The temporary upload backlog exceeds the current 4 GiB full-state backup cap;
+review the backup scope separately without deleting unrecovered user files.
 
 ## Read-only preflight and required approval
 
@@ -148,8 +167,11 @@ above. No credentials were printed and no shared-state changes were made.
    Sonarr's categories, remote-path mappings, queues, and downloader credentials.
    Map remote paths only where observed paths differ from `/videos`/`/downloads`.
 7. Add separate Audiobookshelf audiobook/ebook libraries under the same paths.
-   Its media mount is intentionally read-only: media-file rewrites, embedded
-   tags, merging, and podcast downloads are not part of this setup.
+   Its media mount is writable to support direct uploads. This supersedes the
+   original read-only design: authorized users can also modify or delete media
+   according to Audiobookshelf permissions. Avoid simultaneous edits to the
+   same files from Chaptarr and Audiobookshelf. NAS media is not included in
+   either application's local-state backup; protect it separately on TrueNAS.
 
 User URLs are `https://chaptarr.tailbc181.ts.net` and
 `https://audiobookshelf.tailbc181.ts.net`. There are no new migrated per-app

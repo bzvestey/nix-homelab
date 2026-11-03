@@ -24,7 +24,7 @@ in
         volumes = [
           "/var/lib/audiobookshelf/config:/config"
           "/var/lib/audiobookshelf/metadata:/metadata"
-          "/mnt/bulk/book-library:/books:ro"
+          "/mnt/bulk/book-library:/books:rw"
         ];
       };
     };

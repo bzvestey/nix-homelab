@@ -13,7 +13,8 @@ in
     virtualisation.oci-containers = {
       backend = "podman";
       containers.publication-manager = {
-        image = "git.tailbc181.ts.net/publication-feed-handler/lcp-decryption-plugin@sha256:861c73bacbe2c632e3f467fb78130bcbbc6fb8e053fb01a816632c347cdf0ad6";
+        # LCP v0.3.2, based on publication-manager v0.19.3.
+        image = "git.tailbc181.ts.net/publication-feed-handler/lcp-decryption-plugin@sha256:9437c66df809501c6b7b702be033b0b3430366f14f88a8c9d8c336044d4cae2d";
         environmentFiles = [ "/run/secrets/publication-manager.env" ];
         environment = {
           PM_LOG_LEVEL = "info";

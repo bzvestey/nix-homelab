@@ -143,7 +143,9 @@ pkgs.testers.runNixOSTest {
     agent.wait_for_unit("opentelemetry-collector.service")
     agent.wait_for_unit("unrelated-application.service")
     agent.wait_for_open_port(9464)
-    agent.wait_until_succeeds("metrics=$(curl -fsS http://127.0.0.1:9464/metrics); grep -q fleet_fixture_total <<<\"$metrics\" && grep -q comin_build_total <<<\"$metrics\" && grep -q backup_last_success_timestamp_seconds <<<\"$metrics\"")
+    # Host metrics and each Prometheus target arrive independently. Wait for
+    # all asserted families, not just whichever scraped targets appear first.
+    agent.wait_until_succeeds("metrics=$(curl -fsS http://127.0.0.1:9464/metrics); grep -q system_cpu <<<\"$metrics\" && grep -q otelcol_ <<<\"$metrics\" && grep -q fleet_fixture_total <<<\"$metrics\" && grep -q comin_build_total <<<\"$metrics\" && grep -q backup_last_success_timestamp_seconds <<<\"$metrics\"")
     metrics = agent.succeed("curl -fsS http://127.0.0.1:9464/metrics")
     assert "system_cpu" in metrics
     assert "otelcol_" in metrics

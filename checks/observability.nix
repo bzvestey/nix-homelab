@@ -86,6 +86,14 @@ pkgs.testers.runNixOSTest {
     import json
     import shlex
 
+    def mount_telemetry(device):
+        # Mirror production's explicit mount unit, but allow the test to swap
+        # disks. A direct mount can race systemd's discovery of the mount unit.
+        unit = f"[Mount]\nWhat={device}\nWhere=/var/lib/telemetry\nType=ext4\nOptions=prjquota\n"
+        machine.succeed(f"printf %s {shlex.quote(unit)} > /run/systemd/system/var-lib-telemetry.mount")
+        machine.succeed("systemctl daemon-reload; systemctl start var-lib-telemetry.mount")
+        machine.wait_for_unit("var-lib-telemetry.mount")
+
     start_all()
     machine.succeed("mkfs.ext4 -F -L telemetry-small -O project,quota /dev/vdb")
     machine.succeed("mkfs.ext4 -F -L telemetry -O project,quota /dev/vdc")
@@ -94,18 +102,20 @@ pkgs.testers.runNixOSTest {
         machine.fail(f"systemctl is-active {unit}.service")
     machine.wait_for_unit("systemd-tmpfiles-setup.service")
     machine.succeed("mkdir -p /var/lib/telemetry; test -z \"$(find /var/lib/telemetry -mindepth 1 -print -quit)\"")
-    machine.succeed("mount -o prjquota /dev/disk/by-label/telemetry-small /var/lib/telemetry")
+    mount_telemetry("/dev/disk/by-label/telemetry-small")
     machine.wait_until_succeeds("findmnt -M /var/lib/telemetry")
     machine.succeed("test $(blockdev --getsize64 /dev/vdb) -lt 2147483648")
     machine.fail("systemctl start telemetry-quotas.service")
-    machine.succeed("systemctl reset-failed telemetry-quotas.service; umount /var/lib/telemetry")
-    machine.succeed("mount -o prjquota /dev/disk/by-label/telemetry /var/lib/telemetry")
+    machine.succeed("test $(systemctl show telemetry-quotas.service -p ExecMainStatus --value) -eq 1")
+    machine.succeed("systemctl reset-failed telemetry-quotas.service; systemctl stop var-lib-telemetry.mount")
+    mount_telemetry("/dev/disk/by-label/telemetry")
     machine.wait_until_succeeds("findmnt -M /var/lib/telemetry")
     machine.succeed("test $(blockdev --getsize64 /dev/vdc) -ge 2147483648")
     machine.succeed("test $(df --output=size -B1 /var/lib/telemetry | tail -1) -lt 2147483648")
     machine.succeed("mkdir -p /var/lib/telemetry/prometheus/preexisting/nested; echo adopted > /var/lib/telemetry/prometheus/preexisting/nested/file")
     machine.succeed("mkdir -p /var/lib/telemetry/loki/wrong-project; ${pkgs.e2fsprogs}/bin/chattr -p 9999 /var/lib/telemetry/loki/wrong-project")
     machine.fail("systemctl start telemetry-quotas.service")
+    machine.succeed("test $(systemctl show telemetry-quotas.service -p ExecMainStatus --value) -eq 1")
     machine.succeed("rm -rf /var/lib/telemetry/loki/wrong-project; systemctl reset-failed telemetry-quotas.service")
     machine.succeed("systemctl reset-failed; systemctl start prometheus loki tempo grafana otel-gateway")
     for unit in ["prometheus", "loki", "tempo", "grafana", "otel-gateway"]:
